@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://bymhiu35jttio"
+path="res://.godot/imported/num7_gold.fnt-14825899d38289aca5cdf662c035259b.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/num7_gold.fnt"
+dest_files=["res://.godot/imported/num7_gold.fnt-14825899d38289aca5cdf662c035259b.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

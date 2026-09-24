@@ -47,6 +47,36 @@
 
 ---
 
+### 2-1. 휠 레이어와 스핀 연출 (2단계)
+
+| 순서(아래 → 위) | 내용 | 그리는 방법 |
+|---|---|---|
+| 1 | 드롭 섀도(휠 오른쪽 아래 4·6px) | `wheel_shadow.png` |
+| 2 | 바깥 림·공 트랙·디플렉터(22.5°+45°k)·숫자 링 바탕 | `wheel_base.png` |
+| 3 | 회전 링: 포켓 37(가장자리 red/pocket_k/felt, 안쪽 red_l/pocket_k_l/felt_l), 금 칸막이, 3×5 숫자(똑바로 선 방향), 황금 포켓(gold + 반짝임) | `_draw()` · `draw_colored_polygon`(AA 없음) |
+| 4 | 포켓 경계 금선·중앙 콘 | `wheel_top.png` |
+| 5 | 회전 터렛(금 십자 + 손잡이 구슬), 콘 위 금 점 8개, 허브, 4~6초마다 허브를 스치는 빛 | `_draw()` + `wheel_hub/knob.png` |
+| 6 | 고정 곡선 반사광 | `wheel_highlight.png` |
+| 7 | 공(구슬 재질 5색 + 스페큘러), 그림자, 1px gold_shine 테두리 빛(알파 0.35) | `marble.png` 재질 색 치환 |
+| 8 | 디플렉터 불꽃(1px, 0.28초), 결과 포켓 빛 링 | `_draw()` |
+
+- 모션 블러: 휠 각속도 200/330/450°/s 초과 시 1/180초 간격 이전 각도를 알파 0.45/0.3/0.2 로 겹쳐 그린다(3개면 포켓 색이 섞인 띠). 공은 260°/s 초과 시 잔상 2개(알파 0.4/0.18).
+- 스핀 단계(`SpinChoreography`): A 발사 0~0.3초(T×0.12 이하) · B 궤도 ~0.55T · C 낙하 ~0.8T(반지름 97→92→68, 디플렉터 1~3회 튕김, T<2.5초면 1회) · D 안착 ~0.9T(홉 1~2회) · E 동행 ~T. 휠 최대 540°/s, 감속 ω=W(1-x)^1.2.
+- 결과: 포켓 흰색/금색 3회 점멸(0.24초 주기) + 퍼지는 빛 링 0.7초, 이후 은은한 링 유지. 스킵은 남은 연출을 0.3초로 감는다.
+
+### 2-2. 화면 요소 좌표 (2단계 확정)
+
+| 요소 | 좌표·크기 |
+|---|---|
+| 상단 바 | 칩 아이콘 (5,5) 13px, 칩 숫자 (21,1) 14px 폰트, 초당 수익 (22,15) 7px 폰트, 층 이름 x 중심 262, 오른쪽 탭 끝 x 636 |
+| 결과 배지 | 중심 x 262, y 30~57(27px), 부제 y+28. 공이 여러 개면 66px 간격 |
+| SPIN | (222,318) 80×30, 뒤에 숨쉬는 빛(가산). AUTO (310,323) 52×20 |
+| BIG WIN 배너 | 중심 (262,200) |
+| 떠오르는 텍스트(순이익) | 중심 (262,150) |
+| 토스트 | 중심 x 262, y 286 위로 쌓임 |
+| 베팅창 내부 | 보드 (12,26) 192×224: 0 칸 13px, 숫자판 64×13 × 3×12, 외부 95×15 2×2, 트레이 y 210. 칩 크기 y 253, 금액 y 271·283, 버튼 y 297 |
+| 기록 패널 내부 | 결과 테이프 (6,24) 88×162(행 13px, 빨강 x24 / 0 x50 / 검정 x76), 비율 막대 y 204·236, 핫 y 258, 콜드 y 276, 스핀·연승 y 298 |
+
 ## 3. 팔레트 — 아래 36색만 사용 (알파 변화만 허용)
 
 코드에서는 `Palette.<NAME>` 상수(`scripts/core/palette.gd`)로 쓴다. 이 표와 코드가 항상 같아야 한다(`test_data.gd` 가 36색·중복 없음을 검사).
@@ -119,11 +149,11 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 
 ## 5. 폰트
 
-- **Galmuri 9 / 11 / 14** (SIL OFL 1.1, https://github.com/quiple/galmuri). 한글·영문 모두 지원.
+- **Galmuri 9 / 11 / 11 Bold / 14** (SIL OFL 1.1, https://github.com/quiple/galmuri). 한글·영문 모두 지원. 권장 크기 9→10px, 11→12px, 14→15px.
   - 9: 작은 라벨·툴팁, 11: 본문·버튼, 14: 제목·강조
   - **안티앨리어싱 끔**(FontFile antialiasing = None, hinting None, subpixel positioning Disabled), 폰트 크기는 원래 픽셀 크기의 정수배만.
   - `assets/fonts/` 에 두고 OFL 라이선스 파일을 함께 넣는다(2단계).
-- 큰 금액은 **전용 비트맵 숫자 폰트**(0-9, 소수점, 단위 문자, +/-, e)를 2단계에서 제작한다.
+- 큰 금액은 **전용 비트맵 숫자 폰트**: `num14_*`(Galmuri11 Bold 모양 + 금색 그라데이션·외곽선·그림자, 줄 높이 14) 와 `num7_*`(3×5 직접 디자인 + 외곽선, 줄 높이 7). 색 5종 gold/ivory/red/stone/clover. 숫자는 고정폭이라 카운트업 중 흔들리지 않는다. 테마 변형 `Num14Gold` 등으로 쓰고 글꼴 색은 흰색(곱하기 1)이다.
 
 ---
 
@@ -136,6 +166,10 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 | 카운트업 | 기본 0.4초, 큰 금액 1.5~2초 |
 | 떠오르는 텍스트 | 0.8초 동안 16px 상승, 마지막 0.3초 페이드 |
 | 흔들림 | 정수 1~3px |
+| 구슬 놓기 비행 | 0.26초, 포물선 높이 14px, 착지 2px 튐 0.16초 |
+| 진 구슬 | 0.45초 동안 어두워지며 휠 중심으로, 0.9초 뒤 칸에 다시 나타남(0.25초) |
+| 날아가는 칩 | 0.55초 곡선, 0.045초 간격, 도착마다 카운터 1px 튐 + 딸깍 |
+| 결과 기록 토큰 | 0.32초 낙하(끝에 작게 튐), 나머지는 0.2초에 한 칸 밀림 |
 
 - 스케일 팝은 쓰지 않는다(소수 배율 금지). 대신 1~2px 이동, 프레임 교체, 색·알파 변화.
 
@@ -162,11 +196,131 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 
 - 픽셀 에셋은 `tools/art/*.py`(Python + Pillow)로 **팔레트를 고정해 픽셀 단위로 그리는 스크립트**로 만들거나, Godot 에서 저해상도로 절차적으로 그린다.
 - 스크립트는 `Palette` 와 같은 36색 표를 쓰고, 팔레트 밖 색이 나오면 실패하게 만든다.
-- 생성 후 반드시 **4배 확대 미리보기 PNG** 를 직접 보고 수정을 반복한다(미리보기는 커밋하지 않아도 됨: `build/` 에 저장).
+- 생성 후 반드시 **4배 확대 미리보기 PNG** 를 직접 보고 수정을 반복한다(미리보기는 커밋하지 않아도 됨: `build/art_preview/` 에 저장).
+- 재생성 순서: `python3 tools/art/gen_ui.py && python3 tools/art/gen_fonts.py && python3 tools/art/gen_wheel.py && python3 tools/art/gen_bg.py && python3 tools/art/gen_fx.py && python3 tools/audio/gen_sfx.py` → `godot --headless --import` → `godot --headless -s tools/art/build_theme.gd`.
+- 테스트 `test_ui_assets.gd` 가 `assets/sprites`·`assets/ui`·`assets/fonts` 의 모든 PNG 에 팔레트 밖 색이 없는지 검사한다.
 - 모든 에셋의 파일명·크기·용도를 아래 "에셋 목록"에 기록해, 나중에 사람이 그린 그림으로 교체할 수 있게 한다. 교체 시 크기·피벗·프레임 배치를 유지하면 코드 수정이 필요 없어야 한다.
 
 ### 8-1. 에셋 목록
 
 | 파일 | 크기(px) | 프레임 | 용도 | 생성 방법 | 단계 |
 |---|---|---|---|---|---|
-| _(아직 없음 — 2단계부터 추가)_ | | | | | |
+| `assets/fonts/num14_clover.png` | 256×59 | 1 | 큰 숫자 비트맵 폰트 14px (clover) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num14_gold.png` | 256×59 | 1 | 큰 숫자 비트맵 폰트 14px (gold) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num14_ivory.png` | 256×59 | 1 | 큰 숫자 비트맵 폰트 14px (ivory) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num14_red.png` | 256×59 | 1 | 큰 숫자 비트맵 폰트 14px (red) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num14_stone.png` | 256×59 | 1 | 큰 숫자 비트맵 폰트 14px (stone) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num7_clover.png` | 256×7 | 1 | 작은 숫자 비트맵 폰트 7px (clover) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num7_gold.png` | 256×7 | 1 | 작은 숫자 비트맵 폰트 7px (gold) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num7_ivory.png` | 256×7 | 1 | 작은 숫자 비트맵 폰트 7px (ivory) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num7_red.png` | 256×7 | 1 | 작은 숫자 비트맵 폰트 7px (red) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/fonts/num7_stone.png` | 256×7 | 1 | 작은 숫자 비트맵 폰트 7px (stone) + .fnt | tools/art/gen_fonts.py | 2 |
+| `assets/sprites/bg/b1/lamp.png` | 33×16 | 1 | 천장 램프 갓 | tools/art/gen_bg.py | 2 |
+| `assets/sprites/bg/b1/lamp_cone.png` | 220×250 | 1 | 램프 빛 원뿔(가산) | tools/art/gen_bg.py | 2 |
+| `assets/sprites/bg/b1/light_pool.png` | 320×250 | 1 | 휠 주변 빛 웅덩이(가산) | tools/art/gen_bg.py | 2 |
+| `assets/sprites/bg/b1/poster.png` | 40×52 | 1 | 현상수배 포스터(래칫 복선) | tools/art/gen_bg.py | 2 |
+| `assets/sprites/bg/b1/smoke.png` | 24×16 | 1 | 연기 입자 | tools/art/gen_bg.py | 2 |
+| `assets/sprites/bg/b1/table.png` | 640×360 | 1 | B1 나무 레일 + 펠트 테이블 | tools/art/gen_bg.py | 2 |
+| `assets/sprites/bg/b1/wall.png` | 640×360 | 1 | B1 벽돌 벽·파이프·얼룩 | tools/art/gen_bg.py | 2 |
+| `assets/sprites/fx/jackpot_letters.png` | 196×35 | 1 | JACKPOT 금 글자(Galmuri Bold ×3) | tools/art/gen_fx.py | 2 |
+| `assets/sprites/fx/neon_cyan.png` | 450×52 | 2(켬/끔) | 네온 글자 아틀라스(청록) | tools/art/gen_fx.py | 2 |
+| `assets/sprites/fx/neon_pink.png` | 450×52 | 2(켬/끔) | 네온 글자 아틀라스(윗줄 켜짐/아랫줄 꺼짐) | tools/art/gen_fx.py | 2 |
+| `assets/sprites/ui/badge_black.png` | 27×27 | 1 | 결과 배지(black) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_gold.png` | 27×27 | 1 | 결과 배지(gold) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_green.png` | 27×27 | 1 | 결과 배지(green) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_pop_black.png` | 33×33 | 1 | 결과 배지 등장 1프레임(큰 크기) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_pop_gold.png` | 33×33 | 1 | 결과 배지 등장 1프레임(큰 크기) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_pop_green.png` | 33×33 | 1 | 결과 배지 등장 1프레임(큰 크기) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_pop_red.png` | 33×33 | 1 | 결과 배지 등장 1프레임(큰 크기) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/badge_red.png` | 27×27 | 1 | 결과 배지(red) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/check_off.png` | 9×9 | 1 | 체크박스 끔 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/check_on.png` | 9×9 | 1 | 체크박스 켬 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/coin.png` | 28×7 | 4 | 회전 코인 4프레임 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/digits_3x5.png` | 30×5 | 1 | 3×5 숫자 10개(휠·토큰·베팅 칸) | tools/art/gen_fonts.py | 2 |
+| `assets/sprites/ui/icon_black.png` | 7×9 | 1 | 검정 베팅 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_chip.png` | 13×13 | 1 | 금 칩 아이콘 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_chip_small.png` | 7×7 | 1 | 날아가는 칩 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_close.png` | 7×7 | 1 | 닫기 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_clover.png` | 11×11 | 1 | 클로버 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_even.png` | 7×7 | 1 | 짝 베팅 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_flame.png` | 7×8 | 1 | 핫 넘버 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_gear.png` | 11×11 | 1 | 설정 탭 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_lock.png` | 7×9 | 1 | 자물쇠 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_odd.png` | 7×7 | 1 | 홀 베팅 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_red.png` | 7×9 | 1 | 빨강 베팅 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/icon_snow.png` | 7×7 | 1 | 콜드 넘버 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/marble.png` | 7×7 | 1 | 구슬 템플릿(나무 색, 런타임 재질 색 치환) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/particle_chip2.png` | 2×2 | 1 | 칩 파티클 2×2 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/particle_chip3.png` | 3×3 | 1 | 칩 파티클 3×3 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/particle_clover.png` | 3×3 | 1 | 클로버 파티클 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/slider_grabber.png` | 7×11 | 1 | 슬라이더 손잡이 | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/slider_grabber_hover.png` | 7×11 | 1 | 슬라이더 손잡이(호버) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/sparkle.png` | 20×5 | 4 | 반짝임 4프레임(금) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/sparkle_white.png` | 20×5 | 4 | 반짝임 4프레임(흰) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/token_black.png` | 11×11 | 1 | 기록·베팅 칸 숫자 토큰(black) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/token_gold.png` | 11×11 | 1 | 기록·베팅 칸 숫자 토큰(gold) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/token_green.png` | 11×11 | 1 | 기록·베팅 칸 숫자 토큰(green) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/token_red.png` | 11×11 | 1 | 기록·베팅 칸 숫자 토큰(red) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/wheel/wheel_base.png` | 240×240 | 1 | 휠 바깥 림·공 트랙·디플렉터 8·볼트 8·숫자 링 바탕 | tools/art/gen_wheel.py | 2 |
+| `assets/sprites/wheel/wheel_highlight.png` | 240×240 | 1 | 고정 곡선 반사광(ivory 알파) | tools/art/gen_wheel.py | 2 |
+| `assets/sprites/wheel/wheel_hub.png` | 16×16 | 1 | 터렛 허브(회전 팔 위) | tools/art/gen_wheel.py | 2 |
+| `assets/sprites/wheel/wheel_knob.png` | 5×5 | 1 | 터렛 손잡이 끝 구슬 | tools/art/gen_wheel.py | 2 |
+| `assets/sprites/wheel/wheel_shadow.png` | 240×240 | 1 | 휠 드롭 섀도(알파) | tools/art/gen_wheel.py | 2 |
+| `assets/sprites/wheel/wheel_top.png` | 240×240 | 1 | 포켓 경계 금선(76·60)·중앙 콘 | tools/art/gen_wheel.py | 2 |
+| `assets/ui/button_dark_disabled.png` | 14×16 | 1 | 버튼 상태 dark_disabled (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_dark_hover.png` | 14×16 | 1 | 버튼 상태 dark_hover (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_dark_normal.png` | 14×16 | 1 | 버튼 상태 dark_normal (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_dark_pressed.png` | 14×16 | 1 | 버튼 상태 dark_pressed (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_disabled.png` | 14×16 | 1 | 버튼 상태 disabled (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_gold_disabled.png` | 14×16 | 1 | 버튼 상태 gold_disabled (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_gold_hover.png` | 14×16 | 1 | 버튼 상태 gold_hover (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_gold_normal.png` | 14×16 | 1 | 버튼 상태 gold_normal (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_gold_pressed.png` | 14×16 | 1 | 버튼 상태 gold_pressed (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_hover.png` | 14×16 | 1 | 버튼 상태 hover (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_normal.png` | 14×16 | 1 | 버튼 상태 normal (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/button_pressed.png` | 14×16 | 1 | 버튼 상태 pressed (9-slice 3) | tools/art/gen_ui.py | 2 |
+| `assets/ui/frame_cell.png` | 8×8 | 1 | 펠트 칸, 9-slice 2 | tools/art/gen_ui.py | 2 |
+| `assets/ui/frame_inset.png` | 8×8 | 1 | 움푹 들어간 칸, 9-slice 2 | tools/art/gen_ui.py | 2 |
+| `assets/ui/panel_bar.png` | 16×16 | 1 | 상단 바, 9-slice 5 | tools/art/gen_ui.py | 2 |
+| `assets/ui/panel_dark.png` | 16×16 | 1 | 기본 패널(금 테·리벳), 9-slice 6 | tools/art/gen_ui.py | 2 |
+| `assets/ui/panel_felt.png` | 216×328 | 1 | 베팅창 바탕(펠트 노이즈·금선) | tools/art/gen_ui.py | 2 |
+| `assets/ui/panel_plain.png` | 16×16 | 1 | 테 없는 패널, 9-slice 5 | tools/art/gen_ui.py | 2 |
+| `assets/ui/scroll_grabber.png` | 6×8 | 1 | 스크롤 손잡이 | tools/art/gen_ui.py | 2 |
+| `assets/ui/scroll_grabber_hover.png` | 6×8 | 1 | 스크롤 손잡이 | tools/art/gen_ui.py | 2 |
+| `assets/ui/scroll_grabber_pressed.png` | 6×8 | 1 | 스크롤 손잡이 | tools/art/gen_ui.py | 2 |
+| `assets/ui/scroll_track.png` | 6×8 | 1 | 스크롤 트랙 | tools/art/gen_ui.py | 2 |
+| `assets/ui/slider_fill.png` | 8×6 | 1 | 슬라이더 채움 | tools/art/gen_ui.py | 2 |
+| `assets/ui/slider_track.png` | 8×6 | 1 | 슬라이더 트랙 | tools/art/gen_ui.py | 2 |
+| `assets/ui/spin_disabled.png` | 80×30 | 1 | SPIN 버튼 disabled | tools/art/gen_ui.py | 2 |
+| `assets/ui/spin_glow.png` | 92×42 | 1 | SPIN 숨쉬는 빛(가산) | tools/art/gen_ui.py | 2 |
+| `assets/ui/spin_hover.png` | 80×30 | 1 | SPIN 버튼 hover | tools/art/gen_ui.py | 2 |
+| `assets/ui/spin_normal.png` | 80×30 | 1 | SPIN 버튼 normal | tools/art/gen_ui.py | 2 |
+| `assets/ui/spin_pressed.png` | 80×30 | 1 | SPIN 버튼 pressed | tools/art/gen_ui.py | 2 |
+| `assets/ui/tab_hover.png` | 12×16 | 1 | 탭 hover (9-slice 4) | tools/art/gen_ui.py | 2 |
+| `assets/ui/tab_normal.png` | 12×16 | 1 | 탭 normal (9-slice 4) | tools/art/gen_ui.py | 2 |
+| `assets/ui/tab_selected.png` | 12×16 | 1 | 탭 selected (9-slice 4) | tools/art/gen_ui.py | 2 |
+| `assets/ui/tooltip.png` | 8×8 | 1 | 툴팁, 9-slice 2 | tools/art/gen_ui.py | 2 |
+| `assets/audio/sfx/ball_roll_loop.wav` | 1.00초 | — | 효과음 `ball_roll_loop` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/chip_click.wav` | 0.12초 | — | 효과음 `chip_click` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/clover_get.wav` | 0.53초 | — | 효과음 `clover_get` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/coin_drop.wav` | 0.32초 | — | 효과음 `coin_drop` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/deflector_hit.wav` | 0.27초 | — | 효과음 `deflector_hit` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/deny.wav` | 0.32초 | — | 효과음 `deny` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/lose.wav` | 0.61초 | — | 효과음 `lose` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/marble_place.wav` | 0.24초 | — | 효과음 `marble_place` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/marble_remove.wav` | 0.19초 | — | 효과음 `marble_remove` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/near_miss.wav` | 0.70초 | — | 효과음 `near_miss` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/neon_flicker.wav` | 0.34초 | — | 효과음 `neon_flicker` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/panel_close.wav` | 0.26초 | — | 효과음 `panel_close` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/panel_open.wav` | 0.26초 | — | 효과음 `panel_open` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/pocket_land.wav` | 0.43초 | — | 효과음 `pocket_land` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/spin_start.wav` | 0.55초 | — | 효과음 `spin_start` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/ui_click.wav` | 0.15초 | — | 효과음 `ui_click` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/ui_hover.wav` | 0.03초 | — | 효과음 `ui_hover` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/win_big.wav` | 1.46초 | — | 효과음 `win_big` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/win_good.wav` | 0.67초 | — | 효과음 `win_good` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/win_jackpot.wav` | 2.46초 | — | 효과음 `win_jackpot` | tools/audio/gen_sfx.py | 2 |
+| `assets/audio/sfx/win_normal.wav` | 0.49초 | — | 효과음 `win_normal` | tools/audio/gen_sfx.py | 2 |
+| `assets/fonts/Galmuri9.ttf` `Galmuri11.ttf` `Galmuri11-Bold.ttf` `Galmuri14.ttf` | 10·12·12·15px | — | 본문 글꼴(OFL, `assets/fonts/OFL.txt`) | quiple/galmuri dist | 2 |
+| `assets/ui/theme_main.tres` | — | — | 프로젝트 기본 테마(모든 UI) | tools/art/build_theme.gd | 2 |
+| `assets/shaders/vignette.gdshader` `rays.gdshader` | — | — | 배경 비네트, JACKPOT 회전 광선(팔레트 색 + 알파만) | 손으로 작성 | 2 |

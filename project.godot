@@ -12,7 +12,7 @@ config_version=5
 
 config/name="HOUSE EDGE"
 config/description="1인용 방치형 픽셀아트 룰렛 게임"
-run/main_scene="res://scenes/debug/DebugLogic.tscn"
+run/main_scene="res://scenes/main/Main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
 [autoload]
@@ -33,6 +33,15 @@ window/size/window_height_override=1080
 window/stretch/mode="viewport"
 window/stretch/aspect="keep"
 window/stretch/scale_mode="integer"
+
+[gui]
+
+theme/custom="res://assets/ui/theme_main.tres"
+theme/default_font_antialiasing=0
+theme/default_font_hinting=0
+theme/default_font_subpixel_positioning=0
+common/snap_controls_to_pixels=true
+timers/tooltip_delay_sec=0.3
 
 [input]
 

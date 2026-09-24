@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://damuj36u2rj82"
+path="res://.godot/imported/num14_clover.fnt-3042d84388de6aa7718bf214a7579124.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/num14_clover.fnt"
+dest_files=["res://.godot/imported/num14_clover.fnt-3042d84388de6aa7718bf214a7579124.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

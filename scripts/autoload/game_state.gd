@@ -327,6 +327,28 @@ func remove_bet_at(index: int) -> bool:
 	return true
 
 
+## index 의 베팅을 다른 칸으로 옮긴다(드래그 앤 드롭). 구슬 수는 그대로.
+func replace_bet_at(index: int, bet: Bet) -> bool:
+	if index < 0 or index >= current_bets.size() or bet == null or not bet.is_valid():
+		return false
+	current_bets[index] = bet
+	EventBus.bets_changed.emit()
+	return true
+
+
+## 직전 스핀의 베팅을 다시 건다(금액은 스핀 때 다시 정한다). 구슬 수를 넘는 것은 버린다.
+func restore_last_bets() -> bool:
+	if last_bets.is_empty():
+		return false
+	current_bets.clear()
+	for bet in last_bets:
+		if current_bets.size() >= marble_slots():
+			break
+		current_bets.append(Bet.new(bet.type, bet.number))
+	EventBus.bets_changed.emit()
+	return true
+
+
 func clear_bets() -> void:
 	if current_bets.is_empty():
 		return

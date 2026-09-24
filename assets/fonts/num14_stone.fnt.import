@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://u4eg7jklcnyj"
+path="res://.godot/imported/num14_stone.fnt-7e72b2283dd1dbee49150e5f6f026102.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/num14_stone.fnt"
+dest_files=["res://.godot/imported/num14_stone.fnt-7e72b2283dd1dbee49150e5f6f026102.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

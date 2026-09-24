@@ -14,8 +14,8 @@ CHIP_SIZE_MAX,MAX,MAX
 LABEL_MAX_BET,최대 베팅,Max Bet
 LABEL_MIN_BET,최소 베팅,Min Bet
 LABEL_MARBLES,구슬,Marbles
-BUTTON_SPIN,스핀,Spin
-BUTTON_AUTO,자동,Auto
+BUTTON_SPIN,스핀,SPIN
+BUTTON_AUTO,자동,AUTO
 BUTTON_CLEAR_BETS,베팅 지우기,Clear Bets
 BUTTON_REPEAT_BETS,다시 베팅,Rebet
 TIER_BIG_WIN,BIG WIN!,BIG WIN!
@@ -59,3 +59,31 @@ UPGRADE_GOLDEN_POCKET_DESC,황금 포켓 +1. 공이 황금 포켓에 들어가�
 NPC_RATCHET,래칫 남작,Baron Ratchet
 NPC_LUCY,딜러 루시,Lucy the Dealer
 NPC_VELVET,마담 벨벳,Madame Velvet
+TAB_BET,베팅,Bet
+TAB_UPGRADE,업그레이드,Upgrades
+TAB_SKILLS,스킬트리,Skills
+HISTORY_TITLE,기록,History
+HISTORY_RECENT_100,최근 100스핀,Last 100 spins
+HISTORY_SPINS,스핀,Spins
+HISTORY_STREAK,연승,Streak
+BET_PANEL_TITLE,베팅,Place Your Bets
+LABEL_CHIP_SIZE,칩 크기,Chip size
+LABEL_PER_MARBLE,구슬당 베팅,Per marble
+LABEL_TOTAL_BET,총 베팅,Total bet
+HINT_NO_MARBLES,남은 구슬이 없습니다,No marbles left
+HINT_PLACE_BET,칸을 눌러 구슬을 올리세요,Click a spot to place a marble
+TIP_STRAIGHT,스트레이트 %d,Straight %d
+TIP_BET,%s · %d:1 · 예상 당첨금 %s,%s · %d:1 · Win %s
+AUTO_LOCKED_TIP,스킬트리에서 해금,Unlock in the Skill Tree
+COMING_SOON,준비 중입니다,Coming soon
+UPGRADE_PANEL_TITLE,업그레이드,Upgrades
+SKILLTREE_TITLE,스킬트리,Skill Tree
+SETTINGS_TITLE,설정,Settings
+JACKPOT_CONTINUE,클릭해서 계속,Click to continue
+RESULT_ZERO,제로,Zero
+COLOR_RED,빨강,Red
+COLOR_BLACK,검정,Black
+PARITY_ODD,홀수,Odd
+PARITY_EVEN,짝수,Even
+TOAST_CLOVERS,클로버 +%d,Clovers +%d
+HISTORY_EMPTY,기록 없음,No spins yet

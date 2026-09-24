@@ -45,6 +45,12 @@ func consume_next() -> int:
 	return _queue.pop_front()
 
 
+## 테스트·캡처 도구 전용: 다음 결과를 지정한다(미리 본 결과 뒤가 아니라 맨 앞에 넣는다). 게임 코드에서 쓰지 않는다.
+func force_next(results: Array[int]) -> void:
+	for i in range(results.size() - 1, -1, -1):
+		_queue.push_front(clampi(results[i], 0, RouletteRules.POCKET_COUNT - 1))
+
+
 ## 연출·패널티 등 결과와 무관한 난수.
 func randf_misc() -> float:
 	return _misc_rng.randf()

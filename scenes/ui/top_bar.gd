@@ -1,0 +1,260 @@
+class_name TopBar
+extends Control
+## 상단 바(y 0~23, ART_BIBLE 1장).
+##   왼쪽: 금 칩 아이콘(가장자리 반짝임) · 보유 칩(큰 숫자, 카운트업) · 초당 수익(최근 60초 이동평균)
+##   가운데: 층 이름
+##   오른쪽: 클로버 · 빚(5단계, 숨김) · 탭 [베팅][업그레이드][스킬트리][⚙]
+## 당첨 연출 중에는 hold_payout() 으로 칩 표시를 멈추고, 칩 아이콘이 날아올 때마다 add_payout_step() 으로 올린다.
+
+signal tab_pressed(tab_id: String)
+
+const TAB_BET := "bet"
+const TAB_UPGRADE := "upgrade"
+const TAB_SKILLS := "skills"
+const TAB_SETTINGS := "settings"
+
+const BAR_SIZE := Vector2(640, 24)
+const CHIP_ICON_POS := Vector2(5, 5)
+const CHIP_LABEL_POS := Vector2(21, 1)
+const INCOME_LABEL_POS := Vector2(22, 15)
+const FLOOR_CENTER_X := 262.0
+const FLOOR_LABEL_Y := 5.0
+const FLOOR_LABEL_WIDTH := 180.0
+const RIGHT_BOX_RIGHT := 636.0
+const RIGHT_BOX_Y := 3.0
+const RIGHT_BOX_HEIGHT := 18.0
+const INCOME_REFRESH := 0.5
+const SPARKLE_INTERVAL := 2.6
+const SPARKLE_FRAME_TIME := 0.07
+const SPARKLE_FRAMES := 4
+const SHAKE_TIME := 0.35
+const SHAKE_PX := 2
+const SPEND_DURATION := 0.25
+
+const CHIP_ICON := preload("res://assets/sprites/ui/icon_chip.png")
+const CLOVER_ICON := preload("res://assets/sprites/ui/icon_clover.png")
+const GEAR_ICON := preload("res://assets/sprites/ui/icon_gear.png")
+const SPARKLE := preload("res://assets/sprites/ui/sparkle.png")
+
+var chips_label: CountLabel
+var income_label: CountLabel
+var clover_label: CountLabel
+var floor_label: Label
+var debt_box: HBoxContainer
+var tab_buttons: Dictionary = {}
+
+var _income := IncomeTracker.new()
+var _income_timer: float = 0.0
+var _holding: bool = false
+var _sparkle_timer: float = 1.0
+var _sparkle_frame: int = -1
+var _sparkle_pos := Vector2.ZERO
+var _chip_icon: TextureRect
+var _sparkle_node: Control
+var _shake_left: float = 0.0
+var _chips_home := CHIP_LABEL_POS
+
+
+func _ready() -> void:
+	size = BAR_SIZE
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bg := Panel.new()
+	bg.theme_type_variation = "PanelBar"
+	bg.size = BAR_SIZE
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)
+	_chip_icon = TextureRect.new()
+	_chip_icon.texture = CHIP_ICON
+	_chip_icon.position = CHIP_ICON_POS
+	_chip_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_chip_icon)
+	_sparkle_node = Control.new()
+	_sparkle_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sparkle_node.draw.connect(_draw_sparkle)
+	add_child(_sparkle_node)
+	chips_label = CountLabel.new()
+	chips_label.theme_type_variation = "Num14Gold"
+	chips_label.position = CHIP_LABEL_POS
+	add_child(chips_label)
+	income_label = CountLabel.new()
+	income_label.theme_type_variation = "Num7Stone"
+	income_label.style = CountLabel.Style.PER_SECOND
+	income_label.position = INCOME_LABEL_POS
+	add_child(income_label)
+	floor_label = Label.new()
+	floor_label.theme_type_variation = "LabelBold"
+	floor_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	floor_label.position = Vector2(FLOOR_CENTER_X - FLOOR_LABEL_WIDTH * 0.5, FLOOR_LABEL_Y)
+	floor_label.size = Vector2(FLOOR_LABEL_WIDTH, 14)
+	add_child(floor_label)
+	_build_right()
+	chips_label.set_value(GameState.chips, 0.0)
+	clover_label.set_value(GameState.clovers, 0.0)
+	income_label.set_value(0.0, 0.0)
+	_refresh_floor()
+	EventBus.chips_changed.connect(_on_chips_changed)
+	EventBus.clovers_changed.connect(_on_clovers_changed)
+	EventBus.spin_resolved.connect(_on_spin_resolved)
+	EventBus.floor_changed.connect(func(_i: int) -> void: _refresh_floor())
+
+
+func _build_right() -> void:
+	var box := HBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_END
+	box.add_theme_constant_override("separation", 2)
+	box.size = Vector2(300, RIGHT_BOX_HEIGHT)
+	box.position = Vector2(RIGHT_BOX_RIGHT - 300, RIGHT_BOX_Y)
+	add_child(box)
+	var clover_icon := TextureRect.new()
+	clover_icon.texture = CLOVER_ICON
+	clover_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	clover_icon.custom_minimum_size = Vector2(11, RIGHT_BOX_HEIGHT)
+	box.add_child(clover_icon)
+	clover_label = CountLabel.new()
+	clover_label.theme_type_variation = "Num14Clover"
+	clover_label.custom_minimum_size = Vector2(0, RIGHT_BOX_HEIGHT)
+	clover_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	box.add_child(clover_label)
+	# 빚 표시 자리(5단계). 지금은 숨김.
+	debt_box = HBoxContainer.new()
+	debt_box.visible = false
+	var debt_label := Label.new()
+	debt_label.theme_type_variation = "Num7Red"
+	debt_label.text = "0"
+	debt_box.add_child(debt_label)
+	box.add_child(debt_box)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(6, 0)
+	box.add_child(spacer)
+	var group := ButtonGroup.new()
+	for tab: Array in [[TAB_BET, "TAB_BET"], [TAB_UPGRADE, "TAB_UPGRADE"], [TAB_SKILLS, "TAB_SKILLS"], [TAB_SETTINGS, ""]]:
+		var button := Button.new()
+		button.theme_type_variation = "TabButton"
+		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size = Vector2(0, RIGHT_BOX_HEIGHT)
+		var id := String(tab[0])
+		if id == TAB_SETTINGS:
+			button.icon = GEAR_ICON
+			button.tooltip_text = ""
+			button.custom_minimum_size = Vector2(20, RIGHT_BOX_HEIGHT)
+			button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		else:
+			button.text = String(tab[1])
+		if id == TAB_BET or id == TAB_UPGRADE:
+			button.toggle_mode = true
+			button.button_group = group
+		button.pressed.connect(func() -> void: tab_pressed.emit(id))
+		box.add_child(button)
+		tab_buttons[id] = button
+	(tab_buttons[TAB_BET] as Button).set_pressed_no_signal(true)
+
+
+func select_tab(id: String) -> void:
+	if not tab_buttons.has(id) or not (tab_buttons[id] as Button).toggle_mode:
+		return
+	# set_pressed_no_signal 은 ButtonGroup 의 다른 버튼을 풀지 않으므로 직접 맞춘다.
+	for other_id: String in tab_buttons.keys():
+		var button := tab_buttons[other_id] as Button
+		if button.toggle_mode:
+			button.set_pressed_no_signal(other_id == id)
+
+
+func _refresh_floor() -> void:
+	var floor_def := GameState.current_floor()
+	floor_label.text = tr(floor_def.name_key) if floor_def != null else ""
+
+
+# ── 칩 ───────────────────────────────────────────────────
+
+## 칩 아이콘 중심(전역 좌표). 날아오는 칩의 목적지.
+func chip_target() -> Vector2:
+	return global_position + CHIP_ICON_POS + Vector2(6, 6)
+
+
+func clover_target() -> Vector2:
+	return clover_label.get_global_rect().get_center() - Vector2(12, 0)
+
+
+## 당첨 칩이 날아오는 동안 칩 증가를 표시하지 않는다.
+func hold_payout() -> void:
+	_holding = true
+
+
+## 날아온 칩 하나만큼 표시를 올리고 1px 튄다.
+func add_payout_step(amount: float) -> void:
+	chips_label.set_value(minf(chips_label.value + amount, GameState.chips), CountLabel.DEFAULT_DURATION)
+	chips_label.bump()
+
+
+## 붙잡아 둔 표시를 실제 값으로 맞춘다.
+func release_payout(duration: float = -1.0) -> void:
+	_holding = false
+	chips_label.set_value(GameState.chips, duration)
+
+
+## 칩 부족: 빨갛게 1회 흔들림.
+func shake_chips() -> void:
+	_shake_left = SHAKE_TIME
+	chips_label.theme_type_variation = "Num14Red"
+	AudioManager.play_sfx("deny")
+
+
+func _on_chips_changed(new_value: float, delta: float) -> void:
+	if delta < 0.0:
+		chips_label.set_value(chips_label.value + delta if _holding else new_value, SPEND_DURATION)
+	elif not _holding:
+		chips_label.set_value(new_value)
+
+
+func _on_clovers_changed(new_value: int, delta: int) -> void:
+	clover_label.set_value(new_value)
+	if delta > 0:
+		clover_label.bump()
+
+
+func _on_spin_resolved(outcome: SpinOutcome) -> void:
+	_income.add(_now(), outcome.net)
+	_refresh_income()
+
+
+func _refresh_income() -> void:
+	var per_second := _income.per_second(_now())
+	income_label.theme_type_variation = "Num7Gold" if per_second > 0.0 else "Num7Stone"
+	income_label.set_value(per_second)
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+func _process(delta: float) -> void:
+	_income_timer += delta
+	if _income_timer >= INCOME_REFRESH:
+		_income_timer = 0.0
+		_refresh_income()
+	if _shake_left > 0.0:
+		_shake_left -= delta
+		if _shake_left <= 0.0:
+			chips_label.position = _chips_home
+			chips_label.theme_type_variation = "Num14Gold"
+		else:
+			var step := int(_shake_left / 0.05) % 2
+			chips_label.position = _chips_home + Vector2(SHAKE_PX if step == 0 else -SHAKE_PX, 0)
+	_sparkle_timer -= delta
+	if _sparkle_timer <= 0.0:
+		if _sparkle_frame < 0:
+			_sparkle_frame = 0
+			var angle := RngService.randf_range_misc(-PI, 0.0)
+			_sparkle_pos = (CHIP_ICON_POS + Vector2(6, 6) + Vector2(cos(angle), sin(angle)) * 6.0 - Vector2(2, 2)).round()
+		else:
+			_sparkle_frame += 1
+		_sparkle_timer = SPARKLE_FRAME_TIME
+		if _sparkle_frame >= SPARKLE_FRAMES:
+			_sparkle_frame = -1
+			_sparkle_timer = SPARKLE_INTERVAL
+		_sparkle_node.queue_redraw()
+
+
+func _draw_sparkle() -> void:
+	if _sparkle_frame >= 0:
+		_sparkle_node.draw_texture_rect_region(SPARKLE, Rect2(_sparkle_pos, Vector2(5, 5)), Rect2(_sparkle_frame * 5, 0, 5, 5))

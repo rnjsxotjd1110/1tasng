@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://dkgarn78ybsrc"
+path="res://.godot/imported/num14_red.fnt-19c00d05ed34b90315894eb25d4a4bf5.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/num14_red.fnt"
+dest_files=["res://.godot/imported/num14_red.fnt-19c00d05ed34b90315894eb25d4a4bf5.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

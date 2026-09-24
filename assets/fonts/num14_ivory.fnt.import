@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://d2xxd0fphdkrg"
+path="res://.godot/imported/num14_ivory.fnt-787fd73da1fd9a80fa567952256ca42b.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/num14_ivory.fnt"
+dest_files=["res://.godot/imported/num14_ivory.fnt-787fd73da1fd9a80fa567952256ca42b.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

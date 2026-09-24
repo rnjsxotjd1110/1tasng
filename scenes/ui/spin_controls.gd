@@ -1,0 +1,97 @@
+class_name SpinControls
+extends Control
+## 휠 아래 버튼 영역(y 316~352).
+##   [SPIN] 큰 빨간 카지노 버튼: 준비되면 은은히 숨 쉬는 빛(가산), 누르면 눌림 프레임. Space 로도 동작(main 이 처리)
+##   [AUTO] 토글: 스킬트리에서 해금 전까지 잠김(자물쇠 아이콘, 툴팁)
+
+signal spin_pressed()
+signal auto_pressed()
+
+const AREA_SIZE := Vector2(316, 36)
+const SPIN_SIZE := Vector2(80, 30)
+const SPIN_POS := Vector2(118, 2)
+const GLOW_OFFSET := Vector2(-6, -6)
+const AUTO_SIZE := Vector2(52, 20)
+const AUTO_POS := Vector2(206, 7)
+const BREATH_PERIOD := 2.2
+const BREATH_MIN := 0.15
+const BREATH_MAX := 0.6
+const LOCK_SHAKE_TIME := 0.3
+
+const GLOW := preload("res://assets/ui/spin_glow.png")
+const LOCK := preload("res://assets/sprites/ui/icon_lock.png")
+
+var spin_button: Button
+var auto_button: Button
+## 스킬트리에서 해금되면 false(6단계).
+var auto_locked: bool = true
+var ready_to_spin: bool = true
+
+var _glow: TextureRect
+var _clock: float = 0.0
+var _lock_shake: float = 0.0
+
+
+func _ready() -> void:
+	size = AREA_SIZE
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_glow = TextureRect.new()
+	_glow.texture = GLOW
+	_glow.position = SPIN_POS + GLOW_OFFSET
+	_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var additive := CanvasItemMaterial.new()
+	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_glow.material = additive
+	add_child(_glow)
+	spin_button = Button.new()
+	spin_button.text = "BUTTON_SPIN"
+	spin_button.theme_type_variation = "SpinButton"
+	spin_button.position = SPIN_POS
+	spin_button.size = SPIN_SIZE
+	spin_button.focus_mode = Control.FOCUS_NONE
+	spin_button.pressed.connect(func() -> void: spin_pressed.emit())
+	add_child(spin_button)
+	auto_button = Button.new()
+	auto_button.text = "BUTTON_AUTO"
+	auto_button.icon = LOCK
+	auto_button.theme_type_variation = "ButtonDark"
+	auto_button.position = AUTO_POS
+	auto_button.size = AUTO_SIZE
+	auto_button.focus_mode = Control.FOCUS_NONE
+	auto_button.pressed.connect(_on_auto)
+	auto_button.mouse_entered.connect(_on_auto_hover)
+	auto_button.mouse_exited.connect(func() -> void: TooltipLayer.hide_tip(auto_button))
+	add_child(auto_button)
+
+
+## SPIN 가능 여부(칩 부족이면 비활성).
+func set_spin_enabled(enabled: bool) -> void:
+	spin_button.disabled = not enabled
+
+
+func _on_auto() -> void:
+	if auto_locked:
+		_lock_shake = LOCK_SHAKE_TIME
+		AudioManager.play_sfx("deny")
+		_on_auto_hover()
+		return
+	auto_pressed.emit()
+
+
+func _on_auto_hover() -> void:
+	if auto_locked:
+		TooltipLayer.show_tip(auto_button, tr("AUTO_LOCKED_TIP"), auto_button.get_global_rect())
+
+
+func _process(delta: float) -> void:
+	_clock += delta
+	var breathing := not spin_button.disabled and ready_to_spin
+	if breathing:
+		var u := 0.5 + 0.5 * sin(_clock * TAU / BREATH_PERIOD)
+		_glow.modulate.a = lerpf(BREATH_MIN, BREATH_MAX, u)
+	else:
+		_glow.modulate.a = 0.0
+	if _lock_shake > 0.0:
+		_lock_shake -= delta
+		var step := int(_lock_shake / 0.04) % 2
+		auto_button.position = AUTO_POS + Vector2(1 if step == 0 else -1, 0) if _lock_shake > 0.0 else AUTO_POS

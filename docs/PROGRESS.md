@@ -16,17 +16,18 @@
 - [x] 헤드리스 테스트 전부 통과
 - [x] 디버그 씬 scenes/debug/DebugLogic.tscn
 
-### 2단계 — 메인 화면·룰렛 휠·스핀 애니메이션·베팅창·당첨 연출
-- [ ] tools/capture 스크린샷 도구(씬·언어 지정, 640×360 원본 + 4배 확대본을 build/ 에 저장)
-- [ ] Galmuri 9/11/14 폰트 도입(OFL 파일 포함), 비트맵 숫자 폰트
-- [ ] 공용 Theme(버튼 4상태·호버/클릭음 훅, 패널 9-slice) — 기본 테마 완전 제거
-- [ ] 공용 UI 컴포넌트: 카운트업 라벨, 패널 전환(0.18초), 떠오르는 텍스트, 토스트
-- [ ] 메인 씬(scenes/main): 상단 바, 기록 패널, 휠, 버튼 영역, 오른쪽 패널(ART_BIBLE 좌표)
-- [ ] 룰렛 휠(반지름 규격대로), 공 스핀 애니메이션 → results 포켓 안착 → finish_spin()
-- [ ] 베팅창(RED/BLACK/ODD/EVEN/숫자 37칸, 구슬 배치 표시, 칩 크기 1/10·1/2·MAX)
-- [ ] 당첨 연출 5등급, 흔들림 끄기/번쩍임 줄이기 옵션 훅
-- [ ] 입력: spin(Space), switch_panel(Tab), toggle_fullscreen(F11/Alt+Enter), pause(Esc)
-- [ ] DebugLogic 씬 삭제, 메인 씬 교체
+### 2단계 — 메인 화면·룰렛 휠·스핀 애니메이션·베팅창·당첨 연출 ✅
+- [x] tools/capture 스크린샷 도구(시나리오·언어 지정, 640×360 원본 + 3배 확대본을 tools/capture/out/ 에 저장)
+- [x] Galmuri 9/11/11 Bold/14 폰트 도입(OFL 파일 포함), 비트맵 숫자 폰트 7px·14px × 5색
+- [x] 공용 Theme(버튼 4상태, 탭, 칩 토글, SPIN, 패널 9-slice, 툴팁, 스크롤바, 슬라이더, 체크박스) — 프로젝트 기본 테마
+- [x] 공용 UI 컴포넌트: 카운트업 라벨, 패널 전환(0.18초), 떠오르는 텍스트, 토스트, 툴팁, 정수 흔들림
+- [x] 메인 씬(scenes/main): 상단 바, 기록 패널, 휠, 버튼 영역, 오른쪽 패널(ART_BIBLE 좌표), B1 배경
+- [x] 룰렛 휠(반지름 규격대로), 공 스핀 애니메이션 → results 포켓 안착 → finish_spin(), 착지 테스트 1000회
+- [x] 베팅창(RED/BLACK/ODD/EVEN/숫자 37칸, 구슬 비행·쌓기·드래그·우클릭, 칩 크기 1/10·1/2·MAX, 툴팁)
+- [x] 당첨 연출 5등급, 흔들림 끄기/번쩍임 줄이기 옵션 훅(VisualSettings)
+- [x] 입력: spin(Space), switch_panel(Tab), open_skilltree(K), pause(Esc), toggle_auto(A, 잠김), toggle_fullscreen(F11/Alt+Enter)
+- [x] 효과음 21종(합성) + AudioManager(버스·풀·동시 재생 제한·피치 ±5%·루프)
+- [x] DebugLogic 씬 삭제, 메인 씬 교체
 
 ### 3단계 — 업그레이드·구슬 재질
 - [ ] UpgradeService(구매·비용·레벨 상한·층 요구), upgrade_purchased 발행
@@ -111,3 +112,46 @@
 - 디버그 씬(scenes/debug/)과 `tests/test_debug_scene.gd` 를 삭제하고 `run/main_scene` 을 메인 씬으로 바꾼다.
 - 클라우드 컨테이너에서 화면 확인: `xvfb-run -a -s "-screen 0 1920x1080x24" godot --rendering-driver opengl3 -s <캡처 스크립트>` 가 동작함(Mesa llvmpipe). 루트 뷰포트 텍스처는 640×360.
 - Godot 4.3 주의: `@warning_ignore_start` 없음(4.4+) → 시그널마다 `@warning_ignore("unused_signal")`. `-s` 스크립트 본문은 오토로드 이름을 컴파일 시점에 모르므로 `root.get_node("GameState")` 로 접근하고, 오토로드 `_ready` 는 첫 프레임 전에 끝나지 않으므로 첫 `process_frame` 에서 실행한다.
+
+### 2단계 (2026-09-24) — 메인 화면·룰렛 휠·스핀 애니메이션·베팅창·당첨 연출
+
+**한 일**
+- **스크린샷 도구** `tools/capture/capture.gd`: 메인 씬을 띄워 상태를 강제로 만든 뒤 저장. 시나리오 19개(idle, betting, tooltip, spin_03/06/085, normal, good, big, jackpot, loss, near_miss, no_chips, upgrade_tab, skilltree, multi_ball, golden, golden_idle, marbles12) × ko/en. "캡처 → 검토 → 개선"을 4회 반복했다(아래 "검수 기록").
+- **아트 파이프라인**(Python + Pillow, 36색 강제): `tools/art/pixlib.py`(공용: 팔레트 검사, 원·다각형, 디더링, 4배 미리보기) + `gen_ui.py`(9-slice 프레임·버튼 4상태·탭·SPIN·아이콘·토큰·배지·파티클·펠트 패널), `gen_fonts.py`(비트맵 숫자 폰트, 3×5 숫자), `gen_wheel.py`(휠 고정 레이어), `gen_bg.py`(B1 배경), `gen_fx.py`(네온·JACKPOT 글자), `build_theme.gd`(theme_main.tres).
+- **룰렛 휠**: 고정 스프라이트 4장 + `_draw()` 회전 링(포켓 37·칸막이·숫자·황금 포켓)·터렛·공·불꽃. 모션 블러(링 잔상 3단계, 공 잔상 2개), 대기 중 허브 빛(4~6초), 결과 포켓 3회 점멸 + 빛 링, 공 테두리 빛.
+- **스핀 궤적** `SpinChoreography`(순수 계산): 휠 각도 닫힌 식 → 공 상대각 누적 적분 테이블 + 보정(속도 배율 흡수 후 B 구간 창 분산) → 착지 오차 0(부동소수 수준). 디플렉터를 실제로 지나는 순간에 튕김·불꽃·소리, 공 여러 개(착지 시각·발사 각도·튕김 패턴 다름), 짧은 스핀 규칙, 스킵(0.3초).
+- **메인 화면**: 상단 바(칩·초당 수익·층·클로버·빚 자리·탭), 기록 패널(전광판식 3열 토큰·비율 막대·핫/콜드·스핀/연승), 베팅창(216×328), SPIN/AUTO, 결과 배지, 업그레이드·스킬트리·설정 빈 화면(완성 디자인 + "준비 중").
+- **당첨 연출**(scenes/fx): 떠오르는 텍스트, 칩 파티클, 코인 분수, 플래시, 정수 흔들림, BIG WIN 네온 배너, JACKPOT 전체 화면(회전 광선 셰이더·글자 낙하·코인 비·2초 카운트업·클릭 닫기), 날아가는 칩(도착마다 카운터 1px 튐 + 딸깍), 진 구슬 빨려 들어감·재등장, 황금 포켓 ×3.
+- **배경 B1**: 벽돌 벽·파이프·얼룩·곰팡이, 현상수배 포스터(래칫 남작 복선), 네온 "LUCKY"(글자별 불규칙 깜빡임, 가산), 흔들리는 램프 + 빛 원뿔·빛 웅덩이(가산), 연기, 비네트 셰이더.
+- **사운드**: `tools/audio/gen_sfx.py`(오실레이터·엔벨로프·슬라이드 + 저역 필터 + Schroeder 리버브) 21종, `AudioManager` 구현(버스 Master/Music/SFX/UI, 버스별 풀, 소리별 동시 재생 제한, 피치 ±5%, 속도 연동 루프, 모든 버튼 호버·클릭음 자동 연결).
+- 테스트 102개 / 검사 1959개 전부 통과(추가: 착지 1000회 등 궤적 10개, 기록 통계 4개, 초당 수익 1개, 메인 씬 통합 12개, UI 품질 4개 — 팔레트 밖 픽셀·테마 변형 누락·코드 번역 키 누락·효과음 파일).
+
+**검수 기록(캡처 → 검토 → 개선)**
+1. 첫 캡처: LUCKY 네온이 비네트에 묻힘, 클로버 아이콘이 "×"로 보임, 베팅창 금액 줄이 겹침, 검정 토큰이 어두운 테이프에서 안 보임, BIG WIN 배너가 순이익 텍스트를 가림, 토스트가 베팅창 제목을 가림, 연기가 원형 얼룩으로 보임, 나무 구슬이 나무 트랙에서 안 보임, 잭팟 광선이 너무 굵고 글자가 작음, 결과 점멸 코드 타입 오류 → 전부 수정(발광 요소를 비네트 위로, 클로버 재디자인, 트랙을 더 어둡게 + 공 테두리 빛, 잭팟 글자 ×3 등).
+2. 두 번째: 영어 화면 확인. 토스트가 LUCKY 간판을 가림, 공 2개 결과 배지 부제 겹침, 한국어 "아직 기록이 없습니다" 넘침 → 토스트를 SPIN 위로, 배지 간격 66px, "기록 없음".
+3. 세 번째: 업그레이드 탭을 눌러도 베팅 탭이 선택된 채 남음(ButtonGroup + set_pressed_no_signal), 구슬 12개면 트레이가 넘침, 토스트가 잭팟 화면 위에 그려짐 → 수정.
+4. 네 번째: 황금 포켓·구슬 12개·공 2개·칩 부족 확인, ko/en 전체 재촬영.
+
+**파일**
+- 도구: `tools/capture/capture.gd`, `tools/art/{pixlib,gen_ui,gen_fonts,gen_wheel,gen_bg,gen_fx}.py`, `tools/art/build_theme.gd`, `tools/audio/gen_sfx.py`
+- 로직: `scripts/core/{spin_choreography,history_stats,income_tracker,visual_settings}.gd`, `scripts/autoload/audio_manager.gd`(구현), `game_state.gd`(+replace_bet_at, restore_last_bets), `rng_service.gd`(+force_next, 도구 전용)
+- 씬: `scenes/main/{Main.tscn,main.gd}`, `scenes/main/bg/{BackgroundB1.tscn,background_b1.gd}`, `scenes/roulette/{RouletteWheel.tscn,roulette_wheel.gd,marble_sprite.gd}`, `scenes/ui/{TopBar,HistoryPanel,BetPanel,SpinControls}.tscn` + `top_bar.gd, history_panel.gd, bet_panel.gd, bet_board.gd, spin_controls.gd, count_label.gd, panel_transition.gd, tooltip_layer.gd, pixel_digits.gd, placeholder_screen.gd`, `scenes/fx/{FloatingText,ParticleBurst,ScreenFlash,BigWinBanner,JackpotOverlay,ResultBadge,FlyingChips,ToastLayer}.tscn` + 스크립트, `neon_text.gd`, `screen_shake.gd`
+- 에셋: `assets/fonts/`(Galmuri 4종 + OFL.txt + num7/num14 × 5색), `assets/ui/`(프레임·버튼·theme_main.tres), `assets/sprites/{ui,wheel,bg/b1,fx}/`, `assets/audio/sfx/*.wav`(21), `assets/shaders/{vignette,rays}.gdshader`, `default_bus_layout.tres`
+- 테스트: `tests/test_{spin_choreography,history_stats,income_tracker,main_scene,ui_assets}.gd` (삭제: test_debug_scene.gd, scenes/debug/)
+- 문서: ART_BIBLE(휠 레이어·좌표·타이밍·에셋 목록 116항목), GDD 13장(2단계 세부 규칙), CLAUDE.md(폴더·캡처·에셋 재생성)
+
+**남은 이슈**
+- 파산하면 아직 되돌릴 방법이 없다(대출은 5단계). 2단계 빌드를 직접 플레이하다 칩이 바닥나면 새로 시작해야 한다.
+- 60fps: Xvfb + llvmpipe(소프트웨어 렌더러)에서만 확인해 실제 GPU 프레임 측정은 못 했다. 휠은 프레임마다 다각형 약 150개 × (1 + 잔상 3)을 그리므로 부담은 작을 것으로 본다. 8단계 폴리시에서 실기 측정.
+- 효과음은 합성 임시 음원이다. 컨테이너에 오디오 출력이 없어 **귀로 들어 보지 못했다** — 파형 길이·루프 이음매만 검증. 로컬 PC 에서 볼륨 균형 확인 필요(8단계에서 교체).
+- 드래그 앤 드롭·호버는 코드 경로 테스트와 캡처(호버 툴팁)로만 확인했고, 실제 마우스 조작은 로컬에서 한 번 확인할 것.
+- 사용자 Windows PC 의 Godot 경로는 여전히 미확인(CLAUDE.md 표).
+- 업그레이드·스킬트리·설정 화면은 디자인된 빈 화면("준비 중")이다.
+
+**다음 단계(3단계)가 알아야 할 것**
+- 구슬 재질이 바뀌면 `main.wheel.refresh_marble()` 과 `main.bet_panel.board.refresh_marble()` 을 부른다(`MarbleSprite` 가 재질별 텍스처를 캐시).
+- 황금 포켓은 `GameState.golden_pockets` 를 휠이 매 프레임 읽어 금색 + 반짝임으로 그린다. 적중 시 `outcome.golden_hit` → 결과 포켓 금색 + "×3" 떠오르는 텍스트까지 이미 연결됨.
+- 업그레이드창은 `Main.upgrade_panel`(지금 `PlaceholderScreen`) 자리에 216×328 로 넣고 `switch_panel()` 전환을 그대로 쓴다.
+- 새 버튼은 테마 변형(`Button`, `ButtonGold`, `ButtonDark`, `ChipButton`, `TabButton`)만 쓰면 호버·클릭음까지 자동이다. 새 문자열은 strings.csv 에 ko/en 추가 후 `godot --headless --import`.
+- 휠 속도 업그레이드로 스핀 시간이 1.5초까지 줄어도 `SpinChoreography` 가 단계 비율을 자동 조정한다(T<2.5초면 튕김 1회).
+- 화면 검수는 `tools/capture/capture.gd` 에 시나리오를 추가해서 한다(3단계: 업그레이드창, 구슬 재질별 공).

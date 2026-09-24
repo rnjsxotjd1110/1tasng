@@ -6,6 +6,8 @@ extends Control
 ##   같은 칸에 여러 개면 겹쳐 쌓고 개수 배지를 단다
 ##   호버: 칸이 밝아지고 툴팁("스트레이트 17 · 35:1 · 예상 당첨금 1.2M")
 ## 베팅 상태의 원본은 GameState.current_bets 이고, 여기서는 구슬이 "보이는" 위치만 관리한다.
+## 그리기 순서: 이 노드(칸·트레이 홈·그림자·재질 뒤 효과) → [공허 렌즈] → 구슬 층(재질 셰이더) → 앞 층(개수 배지·재질 효과·새 슬롯)
+## 구슬은 10px(ART_BIBLE 9장). 구슬 개수 업그레이드로 슬롯이 늘면 새 홈이 '딸깍' 열리고 구슬이 굴러 들어온다(보일 때 재생).
 
 signal tooltip_requested(text: String, rect: Rect2)
 signal tooltip_cleared()
@@ -24,9 +26,9 @@ const OUTSIDE_GAP := 2.0
 const TRAY_Y := 210.0
 const TRAY_H := 14.0
 const TRAY_LABEL_W := 40.0
-const TRAY_STEP := 13.0
-const HOLE_SIZE := 9
-const MARBLE := 7
+const TRAY_STEP := 14.0
+const HOLE_SIZE := 12
+const MARBLE := 10
 const TOKEN := 11
 const STACK_VISIBLE := 3
 const STACK_STEP := Vector2(2, -1)
@@ -41,6 +43,12 @@ const RESPAWN_TIME := 0.25
 const LAND_BOUNCE_TIME := 0.16
 const WIN_GLOW_TIME := 2.2
 const HINT_TIME := 0.5
+# 새 슬롯(구슬 개수 업그레이드): 홈 열림 → 오른쪽에서 굴러 들어옴
+const SLOT_OPEN_TIME := 0.2
+const SLOT_ROLL_TIME := 0.5
+const SLOT_ROLL_TURNS := 2.5
+const LENS_RADIUS := 8.0
+const GOLDEN_REVEAL_DELAY := 0.46
 
 const KEY_RED := "R"
 const KEY_BLACK := "B"
@@ -86,6 +94,15 @@ var _hint_time: float = -1.0
 var _clock: float = 0.0
 var _marble_texture: Texture2D
 var _small_font: Font
+var _marble_layer: Control
+var _front_layer: Control
+var _lens: VoidLens
+## 화면에 알려진 슬롯 수(늘면 새 슬롯 연출).
+var _known_slots: int = 0
+## 연출 중인 새 슬롯: {index, t}. t < 0 이면 아직 시작 전(보드가 보이면 시작).
+var _slot_anims: Array[Dictionary] = []
+## 황금 포켓 금 테두리 등장 대기(빛줄기가 휠에 닿는 시각에 맞춘다): 번호 → 남은 초
+var _golden_reveal: Dictionary = {}
 
 
 func _ready() -> void:
@@ -93,12 +110,32 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_small_font = get_theme_font("font", "LabelSmall")
 	_build_rects()
-	_marble_texture = MarbleSprite.current()
+	_marble_texture = MarbleSprite.template(MarbleSprite.SIZE_BOARD)
+	_lens = VoidLens.create_with_copy(self)
+	_lens.radius = LENS_RADIUS
+	_marble_layer = _overlay("Marbles")
+	_marble_layer.material = MarbleSprite.shared_material()
+	_marble_layer.draw.connect(_draw_marbles)
+	_front_layer = _overlay("Front")
+	_front_layer.draw.connect(_draw_front)
 	for key: String in _rects.keys():
 		_visual[key] = 0
+	_known_slots = GameState.marble_slots()
 	_sync_counts_instant()
+	refresh_marble()
 	EventBus.bets_changed.connect(_on_bets_changed)
+	EventBus.upgrade_purchased.connect(_on_upgrade_purchased)
+	EventBus.golden_pockets_added.connect(_on_golden_added)
 	mouse_exited.connect(_on_mouse_exited)
+
+
+func _overlay(node_name: String) -> Control:
+	var layer := Control.new()
+	layer.name = node_name
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.size = BOARD_SIZE
+	add_child(layer)
+	return layer
 
 
 func _build_rects() -> void:
@@ -177,11 +214,11 @@ func _marble_pos(key: String, k: int) -> Vector2:
 	var rect := spot_rect(key)
 	var anchor: Vector2
 	if key == _straight_key(0):
-		anchor = Vector2(rect.position.x + rect.size.x * 0.5 + 12, rect.position.y + 3)
+		anchor = Vector2(rect.position.x + rect.size.x * 0.5 + 12, rect.position.y + 1)
 	elif key.begins_with(STRAIGHT_PREFIX):
-		anchor = rect.position + Vector2(38, 3)
+		anchor = rect.position + Vector2(36, 1)
 	else:
-		anchor = rect.position + Vector2(rect.size.x - 24, 4)
+		anchor = rect.position + Vector2(rect.size.x - 28, 2)
 	return anchor + STACK_STEP * mini(k, STACK_VISIBLE - 1)
 
 
@@ -196,7 +233,7 @@ func _tray_hole_pos(index: int) -> Vector2:
 	var step := _tray_step()
 	var width := slots * step
 	var x0 := TRAY_LABEL_W + roundf((BOARD_SIZE.x - TRAY_LABEL_W - width) * 0.5)
-	return Vector2(x0 + index * step + 2, TRAY_Y + 3)
+	return Vector2(x0 + index * step + 2, TRAY_Y + 2)
 
 
 func _returning_count() -> int:
@@ -207,10 +244,20 @@ func _returning_count() -> int:
 	return count
 
 
-## 트레이에 보이는 구슬 수.
+## 트레이에 보이는 구슬 수(굴러 들어오는 중인 새 구슬 제외).
 func tray_count() -> int:
 	var dragging_from_tray := 1 if (not _drag.is_empty() and String(_drag["from"]) == "") else 0
-	return maxi(0, GameState.marble_slots() - GameState.current_bets.size() - _returning_count() - dragging_from_tray)
+	return maxi(0, GameState.marble_slots() - GameState.current_bets.size() - _returning_count() - dragging_from_tray - _slot_anims.size())
+
+
+## 승급한 구슬이 날아올 곳(트레이 첫 홈 중심, 전역).
+func tray_target_global() -> Vector2:
+	return global_position + _tray_hole_pos(0) + Vector2(MARBLE, MARBLE) * 0.5
+
+
+## 연출 중인 새 슬롯 수.
+func pending_slot_count() -> int:
+	return _slot_anims.size()
 
 
 # ── 베팅 조작 ────────────────────────────────────────────
@@ -309,10 +356,36 @@ func _sync_counts_instant() -> void:
 	queue_redraw()
 
 
-## 구슬 재질이 바뀌면 호출.
+## 구슬 재질이 바뀌면 호출(재질 색은 공용 머티리얼이 바꾼다).
 func refresh_marble() -> void:
-	_marble_texture = MarbleSprite.current()
+	_lens.visible = MarbleSprite.shared_tier() == MarbleFx.TIER_VOID
+	_redraw_layers()
+
+
+func _redraw_layers() -> void:
 	queue_redraw()
+	if _marble_layer != null:
+		_marble_layer.queue_redraw()
+		_front_layer.queue_redraw()
+
+
+func _on_upgrade_purchased(_id: String, _level: int) -> void:
+	_check_new_slots()
+
+
+## 슬롯이 늘었으면 새 슬롯 연출을 예약한다(보드가 보일 때 시작).
+func _check_new_slots() -> void:
+	var slots := GameState.marble_slots()
+	if slots > _known_slots:
+		for index in range(_known_slots, slots):
+			_slot_anims.append({"index": index, "t": -1.0})
+	_known_slots = slots
+	_redraw_layers()
+
+
+func _on_golden_added(numbers: Array[int]) -> void:
+	for number in numbers:
+		_golden_reveal[number] = GOLDEN_REVEAL_DELAY
 
 
 func _make_flight(kind: Flight, key: String, from: Vector2, to: Vector2, duration: float) -> Dictionary:
@@ -490,8 +563,8 @@ func tooltip_text(key: String) -> String:
 	var winning := _representative_result(bet, context)
 	var payout := RouletteRules.bet_return(bet, winning, context)
 	var ratio := RouletteRules.payout_ratio(bet.type)
-	var name_text := tr("TIP_STRAIGHT") % bet.number if bet.type == Bet.Type.STRAIGHT else tr(bet.label_key())
-	return tr("TIP_BET") % [name_text, ratio, NumberFormat.format(payout)]
+	var name_text := tr("TIP_STRAIGHT") % NumberFormat.format(bet.number) if bet.type == Bet.Type.STRAIGHT else tr(bet.label_key())
+	return tr("TIP_BET") % [name_text, NumberFormat.format(ratio), NumberFormat.format(payout)]
 
 
 ## 이 베팅이 이기는 대표 결과(황금 포켓이 아닌 것 우선 — 개별숫자는 그 숫자).
@@ -542,22 +615,154 @@ func _process(delta: float) -> void:
 		_hint_time += delta
 		if _hint_time > HINT_TIME:
 			_hint_time = -1.0
-	queue_redraw()
+	_update_slot_anims(delta)
+	for number: int in _golden_reveal.keys():
+		_golden_reveal[number] = float(_golden_reveal[number]) - delta
+		if float(_golden_reveal[number]) <= 0.0:
+			_golden_reveal.erase(number)
+	if _lens.visible:
+		var centers: Array[Vector2] = []
+		for item in _marble_items():
+			if float(item["alpha"]) >= 1.0:
+				centers.append(Vector2(item["pos"]) + Vector2(MARBLE, MARBLE) * 0.5)
+		_lens.set_centers(centers)
+	_redraw_layers()
+
+
+func _update_slot_anims(delta: float) -> void:
+	if _slot_anims.is_empty():
+		return
+	if not is_visible_in_tree():
+		return
+	var first: Dictionary = _slot_anims[0]
+	if float(first["t"]) < 0.0:
+		first["t"] = 0.0
+		AudioManager.play_sfx("slot_open")
+	var before := float(first["t"])
+	first["t"] = before + delta
+	if before < SLOT_OPEN_TIME and float(first["t"]) >= SLOT_OPEN_TIME:
+		AudioManager.play_sfx("marble_roll")
+	if float(first["t"]) >= SLOT_OPEN_TIME + SLOT_ROLL_TIME:
+		_slot_anims.pop_front()
+		AudioManager.play_sfx("marble_place")
 
 
 func _draw() -> void:
 	_draw_grid_frame()
 	for key: String in _rects.keys():
 		_draw_cell(key)
+	_draw_golden_cells()
+	_draw_tray_holes()
+	var tier := MarbleSprite.shared_tier()
+	for item in _marble_items():
+		if bool(item["shadow"]):
+			draw_texture(MarbleSprite.shadow_texture(MARBLE), Vector2(item["pos"]) + Vector2(1, 1), Color(1, 1, 1, 0.5 * float(item["alpha"])))
+		if bool(item["aura"]):
+			MarbleFx.draw_aura_back(self, tier, Vector2(item["pos"]) + Vector2(MARBLE, MARBLE) * 0.5, MARBLE, 1, _clock, float(item["alpha"]))
+
+
+## 이번 프레임에 보이는 모든 구슬: {pos(좌상단), alpha, brightness, roll, shadow, aura}
+func _marble_items() -> Array[Dictionary]:
+	var items: Array[Dictionary] = []
 	for key: String in _rects.keys():
-		_draw_stack(key)
-	_draw_tray()
+		var count := int(_visual.get(key, 0))
+		if count <= 0:
+			continue
+		var bounce := 0.0
+		if _land_bounce.has(key):
+			var u := float(_land_bounce[key]) / LAND_BOUNCE_TIME
+			bounce = roundf(2.0 * sin(u * PI))
+		var visible_count := mini(count, STACK_VISIBLE)
+		for k in visible_count:
+			var pos := _marble_pos(key, k)
+			var top := k == visible_count - 1
+			if top:
+				pos.y -= bounce
+			items.append(_item(pos, 1.0, 1.0, 0.0, k == 0, top))
+	var hint_hop := 0.0
+	if _hint_time >= 0.0:
+		hint_hop = roundf(2.0 * absf(sin(_hint_time / HINT_TIME * PI * 2.0)))
+	for i in tray_count():
+		items.append(_item(_tray_hole_pos(i) - Vector2(0, hint_hop), 1.0, 1.0, 0.0, false, true))
 	for flight in _flights:
-		_draw_flight(flight)
+		var item := _flight_item(flight)
+		if not item.is_empty():
+			items.append(item)
+	for anim in _slot_anims:
+		var t := float(anim["t"])
+		if t < SLOT_OPEN_TIME:
+			continue
+		var u := clampf((t - SLOT_OPEN_TIME) / SLOT_ROLL_TIME, 0.0, 1.0)
+		var e := 1.0 - pow(1.0 - u, 3.0)
+		var hole := _tray_hole_pos(int(anim["index"]))
+		var start := Vector2(BOARD_SIZE.x, hole.y)
+		var pos := start.lerp(hole, e).round()
+		items.append(_item(pos, 1.0, 1.0, -SLOT_ROLL_TURNS * (1.0 - e), false, true))
 	if not _drag.is_empty():
-		var pos := (Vector2(_drag["pos"]) - Vector2(3, 3)).round()
-		draw_texture(MarbleSprite.shadow_texture(), pos + Vector2(2, 3), Color(1, 1, 1, 0.5))
-		draw_texture(_marble_texture, pos - Vector2(0, 2))
+		var drag_pos := (Vector2(_drag["pos"]) - Vector2(MARBLE, MARBLE) * 0.5).round() - Vector2(0, 2)
+		items.append(_item(drag_pos, 1.0, 1.0, 0.0, true, true))
+	return items
+
+
+static func _item(pos: Vector2, alpha: float, brightness: float, roll: float, shadow: bool, aura: bool) -> Dictionary:
+	return {"pos": pos, "alpha": alpha, "brightness": brightness, "roll": roll, "shadow": shadow, "aura": aura}
+
+
+func _flight_item(flight: Dictionary) -> Dictionary:
+	if flight.has("delay") and float(flight["delay"]) > 0.0:
+		if int(flight["kind"]) == Flight.SUCK:
+			return _item(Vector2(flight["from"]).round(), 1.0, 1.0, 0.0, false, false)
+		return {}
+	var u := clampf(float(flight["t"]) / float(flight["dur"]), 0.0, 1.0)
+	var from := Vector2(flight["from"])
+	var to := Vector2(flight["to"])
+	var pos: Vector2
+	var alpha := 1.0
+	var darkness := 0.0
+	match int(flight["kind"]):
+		Flight.PLACE, Flight.RETURN:
+			var e := u * u * (3.0 - 2.0 * u)
+			pos = from.lerp(to, e) - Vector2(0, PLACE_ARC * 4.0 * u * (1.0 - u))
+		Flight.SUCK:
+			pos = from.lerp(to, u * u)
+			alpha = 1.0 - u * u
+			darkness = clampf(u * 2.0, 0.0, 1.0) * 0.7
+		Flight.RESPAWN:
+			pos = from.lerp(to, u)
+			alpha = u
+	# 어두워짐은 셰이더의 밝기(void 로 덮기)로 표현한다(팔레트 밖 색을 만들지 않음)
+	return _item(pos.round(), alpha, 1.0 - darkness, u * 0.5, false, false)
+
+
+func _draw_marbles() -> void:
+	for item in _marble_items():
+		_marble_layer.draw_texture(_marble_texture, item["pos"],
+			MarbleSprite.instance_color(float(item["alpha"]), float(item["roll"]), 0.0, float(item["brightness"])))
+
+
+func _draw_front() -> void:
+	var tier := MarbleSprite.shared_tier()
+	for item in _marble_items():
+		if bool(item["aura"]):
+			MarbleFx.draw_aura(_front_layer, tier, Vector2(item["pos"]) + Vector2(MARBLE, MARBLE) * 0.5, MARBLE, 1, _clock, float(item["alpha"]))
+	for key: String in _rects.keys():
+		var count := int(_visual.get(key, 0))
+		if count > 1:
+			var visible_count := mini(count, STACK_VISIBLE)
+			var badge_pos := _marble_pos(key, visible_count - 1) + Vector2(MARBLE + 1, 8)
+			_front_layer.draw_string(BADGE_FONT, badge_pos, "x" + NumberFormat.format(count), HORIZONTAL_ALIGNMENT_LEFT, -1, BADGE_FONT_SIZE, Color.WHITE)
+
+
+## 황금 포켓 칸: 금 테두리 + 안쪽 은은한 금빛(빛줄기가 휠에 닿은 뒤부터).
+func _draw_golden_cells() -> void:
+	for number in GameState.golden_pockets:
+		if _golden_reveal.has(number):
+			continue
+		var rect := spot_rect(_straight_key(number))
+		var pulse := 0.5 + 0.5 * sin(_clock * 3.0 + number)
+		draw_rect(Rect2(rect.position + Vector2(1, 1), rect.size - Vector2(3, 3)), Palette.with_alpha(Palette.GOLD_HL, 0.1 + 0.08 * pulse))
+		draw_rect(Rect2(rect.position, rect.size), Palette.GOLD_HL, false, -1.0)
+		draw_rect(Rect2(rect.position + Vector2(1, 1), rect.size - Vector2(2, 2)), Palette.with_alpha(Palette.GOLD_L, 0.5 + 0.3 * pulse), false, -1.0)
 
 
 func _draw_grid_frame() -> void:
@@ -604,70 +809,28 @@ func _draw_outside_label(key: String, rect: Rect2) -> void:
 	draw_string(BADGE_FONT, rect.position + Vector2(52, 11), "1:1", HORIZONTAL_ALIGNMENT_LEFT, -1, BADGE_FONT_SIZE, Color.WHITE)
 
 
-func _draw_stack(key: String) -> void:
-	var count := int(_visual.get(key, 0))
-	if count <= 0:
-		return
-	var bounce := 0.0
-	if _land_bounce.has(key):
-		var u := float(_land_bounce[key]) / LAND_BOUNCE_TIME
-		bounce = roundf(2.0 * sin(u * PI))
-	var visible_count := mini(count, STACK_VISIBLE)
-	for k in visible_count:
-		var pos := _marble_pos(key, k)
-		if k == visible_count - 1:
-			pos.y -= bounce
-		if k == 0:
-			draw_texture(MarbleSprite.shadow_texture(), pos + Vector2(1, 1), Color(1, 1, 1, 0.5))
-		draw_texture(_marble_texture, pos)
-	if count > 1:
-		var badge := "x%d" % count
-		var badge_pos := _marble_pos(key, visible_count - 1) + Vector2(MARBLE + 1, 6)
-		draw_string(BADGE_FONT, badge_pos, badge, HORIZONTAL_ALIGNMENT_LEFT, -1, BADGE_FONT_SIZE, Color.WHITE)
-
-
-func _draw_tray() -> void:
+func _draw_tray_holes() -> void:
 	var slots := GameState.marble_slots()
-	var filled := tray_count()
 	draw_string(_small_font, Vector2(0, TRAY_Y + 10), tr("LABEL_MARBLES"), HORIZONTAL_ALIGNMENT_LEFT, TRAY_LABEL_W, 10, Palette.MIST)
-	var hint_hop := 0.0
-	if _hint_time >= 0.0:
-		hint_hop = roundf(2.0 * absf(sin(_hint_time / HINT_TIME * PI * 2.0)))
+	var opening: Dictionary = {}
+	for anim in _slot_anims:
+		opening[int(anim["index"])] = float(anim["t"])
 	for i in slots:
 		var pos := _tray_hole_pos(i)
 		var hole := Rect2(pos - Vector2(1, 1), Vector2(HOLE_SIZE, HOLE_SIZE))
+		if opening.has(i):
+			# 홈이 위아래로 벌어지며 열린다(닫힘 1줄 → 절반 → 전체, 프레임 교체)
+			var t: float = opening[i]
+			if t < 0.0:
+				draw_rect(Rect2(hole.position + Vector2(0, HOLE_SIZE * 0.5 - 1), Vector2(HOLE_SIZE, 2)), Palette.VOID)
+				continue
+			var frame := clampi(int(t / SLOT_OPEN_TIME * 3.0), 0, 2)
+			var h := [2, HOLE_SIZE / 2, HOLE_SIZE][frame] as int
+			hole = Rect2(hole.position + Vector2(0, (HOLE_SIZE - h) / 2), Vector2(HOLE_SIZE, h))
+			if frame < 2:
+				draw_rect(hole, Palette.VOID)
+				draw_rect(Rect2(hole.position - Vector2(1, 1), hole.size + Vector2(2, 2)), Palette.with_alpha(Palette.GOLD_HL, 0.8), false, -1.0)
+				continue
 		draw_rect(hole, Palette.VOID)
 		draw_rect(Rect2(hole.position + Vector2(1, 1), hole.size - Vector2(2, 2)), Palette.NIGHT)
 		draw_rect(Rect2(hole.position + Vector2(1, hole.size.y - 2), Vector2(hole.size.x - 2, 1)), Palette.FELT_D)
-		if i < filled:
-			draw_texture(_marble_texture, pos - Vector2(0, hint_hop))
-
-
-func _draw_flight(flight: Dictionary) -> void:
-	if flight.has("delay") and float(flight["delay"]) > 0.0:
-		if int(flight["kind"]) == Flight.SUCK:
-			draw_texture(_marble_texture, Vector2(flight["from"]).round())
-		return
-	var u := clampf(float(flight["t"]) / float(flight["dur"]), 0.0, 1.0)
-	var from := Vector2(flight["from"])
-	var to := Vector2(flight["to"])
-	var kind := int(flight["kind"])
-	var pos: Vector2
-	var alpha := 1.0
-	var darkness := 0.0
-	match kind:
-		Flight.PLACE, Flight.RETURN:
-			var e := u * u * (3.0 - 2.0 * u)
-			pos = from.lerp(to, e) - Vector2(0, PLACE_ARC * 4.0 * u * (1.0 - u))
-		Flight.SUCK:
-			var e2 := u * u
-			pos = from.lerp(to, e2)
-			alpha = 1.0 - u * u
-			darkness = clampf(u * 2.0, 0.0, 1.0) * 0.7
-		Flight.RESPAWN:
-			pos = from.lerp(to, u)
-			alpha = u
-	draw_texture(_marble_texture, pos.round(), Color(1, 1, 1, alpha))
-	if darkness > 0.0:
-		# 어두워짐: 구슬 모양 void 를 알파로 덮는다(팔레트 밖 색을 만들지 않음)
-		draw_texture(MarbleSprite.shadow_texture(), pos.round(), Color(1, 1, 1, darkness * alpha))

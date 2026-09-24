@@ -376,6 +376,107 @@ def coin_drop() -> None:
     write("coin_drop", reverb(x, 0.2, 0.3, 0.12), 0.4)
 
 
+# ── 3단계: 업그레이드·구슬 승급 ──────────────────────────
+
+def buy_coin() -> None:
+    """업그레이드 구매 코인음. 연속 구매 시 AudioManager 가 피치를 올린다."""
+    n = at(0.22)
+    x = np.zeros(n)
+    for k, (dt, f) in enumerate([(0.0, 1976.0), (0.045, 2637.0)]):
+        m = at(0.16)
+        s = at(dt)
+        part = (np.sin(phase_from_freq(np.full(m, f))) + 0.45 * np.sin(phase_from_freq(np.full(m, f * 2.01)))) * exp_decay(m, 0.045)
+        end = min(n, s + m)
+        x[s:end] += part[:end - s] * (1.0 - 0.25 * k)
+    click = highpass(noise(n), 3000) * exp_decay(n, 0.002) * 0.3
+    write("buy_coin", reverb(x + click, 0.18, 0.35, 0.14), 0.62)
+
+
+def slot_open() -> None:
+    """트레이 새 홈이 열리는 '딸깍'(금속 걸쇠 두 번)."""
+    n = at(0.16)
+    x = np.zeros(n)
+    for dt, f in [(0.0, 1400.0), (0.055, 2100.0)]:
+        m = at(0.05)
+        s = at(dt)
+        part = (highpass(noise(m), 1800) * 0.7 + np.sin(phase_from_freq(np.full(m, f))) * 0.6) * exp_decay(m, 0.006)
+        x[s:s + m] += part
+    write("slot_open", reverb(lowpass(x, 7000), 0.12, 0.25, 0.08), 0.7)
+
+
+def marble_roll() -> None:
+    """구슬이 트레이로 굴러 들어오는 짧은 구름 소리(점점 느려짐)."""
+    n = at(0.5)
+    t = np.arange(n) / SR
+    rate = 38 * (1 - t / 0.55)
+    ph = np.cumsum(rate) / SR
+    ticks = (np.sin(2 * np.pi * ph) > 0.92).astype(float)
+    body = lowpass(noise(n), 900) * 0.6 + ticks * highpass(noise(n), 2500) * 0.5
+    x = body * env_adsr(n, 0.02, 0.45, 0.4, 0.1)
+    write("marble_roll", reverb(x, 0.1, 0.3, 0.1), 0.5)
+
+
+def golden_beam() -> None:
+    """황금 포켓 빛줄기: 위에서 내려오는 반짝이 스윕 + 종소리."""
+    n = at(1.0)
+    sweep = osc("sine", np.geomspace(2600, 700, n)) * env_adsr(n, 0.01, 0.45, 0.0) * 0.4
+    shimmer = np.zeros(n)
+    for k in range(10):
+        m = at(0.08)
+        s = at(0.02 + k * 0.04)
+        shimmer[s:s + m] += np.sin(phase_from_freq(np.full(m, note(96 - k)))) * exp_decay(m, 0.02) * 0.25
+    bell_n = at(0.7)
+    bell = (np.sin(phase_from_freq(np.full(bell_n, note(84)))) + 0.4 * np.sin(phase_from_freq(np.full(bell_n, note(84) * 2.76)))) * exp_decay(bell_n, 0.25)
+    x = mix((sweep + shimmer, 0), (bell * 0.6, at(0.42)))
+    write("golden_beam", reverb(x, 0.3, 0.7, 0.5), 0.7)
+
+
+def promote_charge() -> None:
+    """승급: 빛이 모이며 차오르는 소리(1.0초, 상승)."""
+    n = at(0.75)
+    t = np.arange(n) / SR
+    f = np.geomspace(180, 1400, n)
+    trem = 0.6 + 0.4 * np.sin(2 * np.pi * (6 + 22 * t / 0.75) * t)
+    x = (osc("saw", f) * 0.25 + osc("sine", f * 2) * 0.3) * trem * np.linspace(0.2, 1.0, n)
+    x = lowpass(x, 3500) + highpass(noise(n), 4000) * np.linspace(0, 0.25, n)
+    write("promote_charge", reverb(x, 0.2, 0.5, 0.2), 0.6)
+
+
+def promote_flash() -> None:
+    """승급: 흰 섬광 순간의 '쨍' + 폭발."""
+    n = at(0.8)
+    boom = lowpass(noise(n), 700) * exp_decay(n, 0.12) * 0.9
+    ping = (np.sin(phase_from_freq(np.full(n, 1760.0))) + 0.5 * np.sin(phase_from_freq(np.full(n, 2640.0)))) * exp_decay(n, 0.18) * 0.5
+    x = boom + ping + highpass(noise(n), 3000) * exp_decay(n, 0.05) * 0.4
+    write("promote_flash", reverb(x, 0.3, 0.6, 0.4), 0.85)
+
+
+def promote_jingle(name: str, level: int) -> None:
+    """승급 징글. level 1(나무~은) · 2(금~에메랄드) · 3(다이아~코스믹): 높을수록 길고 화음·반짝임이 많다."""
+    if level == 1:
+        x = arpeggio([72, 76, 79, 84], 0.08, 0.35, "square", sparkle=True)
+        write(name, reverb(x, 0.2, 0.5, 0.3), 0.7)
+        return
+    if level == 2:
+        parts = [
+            (arpeggio([67, 71, 74, 79, 83], 0.07, 0.3, "square", sparkle=True) * 0.8, 0),
+            (brass([67, 71, 74, 79], 0.9), at(0.38)),
+        ]
+        write(name, reverb(mix(*parts), 0.26, 0.65, 0.45), 0.8)
+        return
+    parts = [
+        (brass([60, 64, 67], 0.16), 0),
+        (brass([62, 65, 69], 0.16), at(0.17)),
+        (brass([64, 67, 71], 0.16), at(0.34)),
+        (brass([60, 64, 67, 72, 76], 1.6), at(0.52)),
+    ]
+    for k in range(24):
+        parts.append((arpeggio([96 + (k * 7) % 12], 0.0, 0.14, "tri", sparkle=True) * 0.3, at(0.55 + k * 0.055)))
+    bass_n = at(1.6)
+    parts.append((osc("sine", np.full(bass_n, note(36))) * env_adsr(bass_n, 0.02, 1.2, 0.3, 0.3) * 0.5, at(0.52)))
+    write(name, reverb(mix(*parts), 0.32, 0.8, 0.7), 0.88)
+
+
 def main() -> None:
     ui_hover()
     ui_click()
@@ -398,6 +499,15 @@ def main() -> None:
     clover_get()
     neon_flicker()
     coin_drop()
+    buy_coin()
+    slot_open()
+    marble_roll()
+    golden_beam()
+    promote_charge()
+    promote_flash()
+    promote_jingle("promote_jingle_1", 1)
+    promote_jingle("promote_jingle_2", 2)
+    promote_jingle("promote_jingle_3", 3)
     print("sfx ok:", sorted(os.listdir(OUT)))
 
 

@@ -106,8 +106,8 @@
 | 최소 베팅액 | 최대 베팅액 × 0.1 | Economy.min_bet |
 | 칩 크기 | 최대 베팅액 × {0.1, 0.5, 1.0} | Economy.chip_amount |
 | 업그레이드 비용 | base × growth^level × upgrade_cost_mult | Economy.upgrade_cost |
-| 광택 배율 | 1.25^광택 단계 (0~5) | Economy.polish_mult |
-| 광택 비용 | polish_base_cost × 2^현재 단계 × upgrade_cost_mult (초안) | Economy.polish_cost |
+| 광택 배율 | 1.25^광택 단계 (0~5) | upgrade:marble_polish 수정자 |
+| 광택 비용 | 현재 재질 polish_base_cost(= 재질 비용 × 0.08) × 1.7^현재 단계 × upgrade_cost_mult | UpgradeService.cost_at |
 | 스핀 시간 | max(1.5, 6.0 × 0.9^(휠 속도 레벨) × spin_duration_mult) 초 | Economy.spin_duration |
 | 파산 | 보유 칩 < 최소 베팅액 **이고** 진행 중인 스핀이 없음 | Economy.is_bankrupt |
 
@@ -119,7 +119,7 @@
 
 ```
 반환 = 베팅액 × (배당+1)
-     × marble_mult        (base = 재질 배율 × 광택 배율, 구슬 수정자 적용)
+     × marble_mult        (base 1 × upgrade:marble_tier(재질 배율) × upgrade:marble_polish(1.25^광택) × 그 외 수정자)
      × floor_mult         (base = 층 payout_mult)
      × payout_mult_all
      × { RED/BLACK: payout_mult_color | ODD/EVEN: payout_mult_parity | STRAIGHT: 1 + straight_payout_bonus }
@@ -144,18 +144,23 @@
 
 ---
 
-## 5. 업그레이드 (구현은 3단계, 데이터는 1단계에서 초안 작성)
+## 5. 업그레이드 (3단계 구현. 수치는 초안, 9단계에서 조정)
 
-| id | 이름 | 효과 | 상한 | 데이터(초안) |
-|---|---|---|---|---|
-| (별도) | 구슬 재질 | 15단계, 아래 표 | 층별 상한 | `data/marbles/*.tres` |
-| (별도) | 광택 | 재질마다 0~5단계, 단계당 ×1.25. **재질이 오르면 0으로 초기화** | 5 | MarbleDef.polish_base_cost |
-| bet_limit | 베팅 한도 | 최대 베팅액 ×1.35/레벨 (max_bet_mult MULT 1.35) | 무제한 | base 25, growth 1.55 |
-| marble_count | 구슬 개수 | 구슬 +1/레벨 (marble_slots_bonus ADD 1) | 7레벨(=8개) | base 100, growth 12 |
-| wheel_speed | 휠 속도 | 스핀 시간 ×0.9/레벨 (spin_duration_mult MULT 0.9), 최소 1.5초 | 13레벨 | base 40, growth 2.2 |
-| golden_pocket | 황금 포켓 | 황금 포켓 +1/레벨. 결과가 황금 포켓이면 모든 당첨 ×3 | 5 | base 5000, growth 40, 1F부터 |
+구매 규칙은 `UpgradeService`(scripts/core), 데이터는 `data/upgrades/*.tres`(UpgradeDef). 효과는 전부 StatModifiers 수정자(source `upgrade:<id>`), 비용에는 모두 `upgrade_cost_mult` 가 곱해진다.
 
-- 황금 포켓 위치: 개수가 늘 때 아직 황금이 아닌 포켓 중 무작위(RngService misc). 0번 포함 가능.
+| id (카드 순서) | 이름 | 효과 | 상한 | 비용 | 조건 |
+|---|---|---|---|---|---|
+| marble_tier | 구슬 재질 | 다음 재질로 교체. marble_mult MULT = 재질 배율 | 14(코스믹), **현재 층 marble_tier_cap** 까지 | 다음 재질 `MarbleDef.cost` | 한 번에 한 단계(승급 연출) |
+| marble_polish | 광택 | marble_mult MULT 1.25/레벨. **재질이 오르면 0** | 5 | 현재 재질 비용 × 0.08 × 1.7^레벨 (`polish_base_cost`) | 돌 구슬부터(required_marble_tier 1) |
+| bet_limit | 베팅 한도 | max_bet_mult MULT 1.35/레벨 | 무제한 | 20 × 1.2^레벨 | |
+| marble_count | 구슬 개수 | marble_slots_bonus ADD 1 (최대 8개) | 7 | 300 × 22^(개수−1) | |
+| spin_speed | 휠 속도 | spin_duration_mult MULT 0.9/레벨 (최소 1.5초) | 13 | 150 × 3.2^레벨 | |
+| golden_pocket | 황금 포켓 | golden_pocket_count ADD 1. 결과가 황금 포켓이면 모든 당첨 ×3 | 5 | 50K × 800^레벨 | required_floor 2 (층 시스템은 7단계, 지금은 잠금 표시) |
+
+- **구매 수량**: ×1 / ×10 / MAX. ×10 은 남은 레벨이 적으면 그만큼만. MAX 는 등비수열 합 `base·g^L·(g^n − 1)/(g − 1)` 을 역산한 최대 n(부동소수 오차는 ±1 로 보정)이고, 한 레벨도 못 사면 1레벨 비용을 보여 준다. 재질은 수량과 무관하게 한 단계.
+- **연속 구매**: 버튼을 누르고 있으면 0.4초 뒤부터 0.18초 간격으로 반복, 간격은 매번 ×0.85(최소 0.04초).
+- **재질 상한**: `FloorDef.marble_tier_cap`(B1 철, 1F 옥, 2F 에메랄드, 3F 별빛, PH 코스믹). 상한에 닿으면 카드에 "다음 재질은 1F에서".
+- 황금 포켓 위치: 개수가 늘 때 아직 황금이 아닌 포켓 중 무작위(RngService misc). 0번 포함 가능. 새 포켓은 `EventBus.golden_pockets_added` 로 알린다.
 
 ### 5-1. 구슬 재질 15단계
 
@@ -281,7 +286,8 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `spin_resolved(outcome: SpinOutcome)` | 정산 완료 |
 | `bankrupt()` | 파산 조건 성립 |
 | `debt_changed()` | 빚 변화 (5단계) |
-| `upgrade_purchased(id: String, level: int)` | 업그레이드 구매 (3단계) |
+| `upgrade_purchased(id: String, level: int)` | 업그레이드 구매 완료(구매 후 레벨, 여러 레벨을 한 번에 사도 1회) |
+| `golden_pockets_added(numbers: Array[int])` | 황금 포켓이 새로 생김(빛줄기·베팅칸 금 테두리 연출) |
 | `skill_purchased(id: String, level: int)` | 스킬 구매 (6단계) |
 | `floor_changed(floor_index: int)` | 층 이동 (7단계) |
 | `milestone_reached(suffix_index: int)` | 새 칩 단위 첫 도달 |
@@ -325,7 +331,7 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | straight_payout_bonus | 개별숫자 당첨 × (1 + 값), base 0 | 다른 배율과 같은 곱셈 체계 |
 | 황금 포켓 위치 | 개수가 늘 때 무작위 추가(0 포함) | 3단계에서 재배치 기능 추가 가능 |
 | 스핀 시간 최소값 | 모든 배율 적용 후 1.5초로 제한 | 연출 가독성 |
-| 광택 비용 | polish_base_cost × 2^단계 (나무 10, 그 외 재질 비용 × 0.5) | 초안, 3단계에서 조정 |
+| 광택 비용 | ~~polish_base_cost × 2^단계~~ → 3단계에서 재질 비용 × 0.08 × 1.7^단계로 변경(14장) | 초안 |
 
 ---
 
@@ -349,3 +355,24 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | 결과 강제 | `RngService.force_next()` 는 테스트·캡처 도구 전용 | 게임 코드에서 쓰지 않는다 |
 | 헤드리스 소리 | 헤드리스에서는 AudioManager 가 재생하지 않음(`enabled`) | 출력 장치 없음, 종료 시 누수 경고 방지 |
 | 흔들림·번쩍임 설정 | `VisualSettings.screen_shake`, `reduce_flashing`(4단계 설정 화면이 바꿈) | ART_BIBLE 7장 |
+
+---
+
+## 14. 3단계에서 정한 세부 규칙 (업그레이드·구슬 재질)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 업그레이드 id | `wheel_speed` → `spin_speed`, 재질·광택도 업그레이드(`marble_tier`, `marble_polish`)로 통일 | 요청 명세. 모든 효과를 `upgrade:<id>` 수정자로 |
+| 재질 배율 | marble_mult 의 base 는 1, 재질 배율은 `upgrade:marble_tier` MULT(나무 레벨 0 도 ×1 로 건다), 광택은 `upgrade:marble_polish` | "효과는 전부 StatModifiers" 규칙. `GameState.marble_tier/polish_level` 은 읽기용 사본 |
+| 광택 초기화 | 재질 구매 시 `UpgradeService.purchase` 가 광택을 0 으로(`set_upgrade_level` 자체는 초기화하지 않음) | 불러오기(4단계)에서 레벨을 다시 걸 때 광택이 지워지지 않게 |
+| 나무 구슬 광택 | 불가(돌부터). 광택 5 나무(×3.05)가 돌(×1.5)보다 높아 돌 구매가 손해가 되는 역전 방지 | "첫 업그레이드 = 돌" 전환점 유지 |
+| 재질 구매 수량 | ×10·MAX 여도 한 단계 | 단계마다 승급 연출 |
+| MAX 표시 | 살 수 있는 수량을 버튼에 "×37" 로, 0 이면 "×1" + 1레벨 비용 + 부족분 진행 바 | 요청 명세 |
+| 효과 표시 | 재질: 재질 배율(광택 제외) / 광택: 광택 배율 / 베팅 한도: 한도 배율 / 구슬: 보유 개수 / 휠: 스핀 초 / 황금: 개수. MAX·×10 이면 "다음" 은 그 수량 뒤의 값 | `UpgradeService.display_value` |
+| 탭 빨간 점 | 1레벨이라도 살 수 있는 업그레이드가 있으면. 업그레이드창을 연 동안은 숨김 | 이미 보고 있는 화면에 알림을 겹치지 않게 |
+| 승급 적용 시점 | 재질은 구매 즉시 GameState·당첨금에 반영, 화면의 구슬 모양은 승급 연출에서 구슬이 목적지(베팅창 트레이 또는 재질 카드)에 닿는 순간 한꺼번에 바뀐다. 클릭·Space 로 건너뛰면 즉시 | "모든 구슬이 새 재질로 바뀐다" 연출. `MarbleSprite.sync_shared` |
+| 새 슬롯 연출 | 구슬 개수 구매 시 베팅창이 보일 때 재생(업그레이드창에서 샀으면 돌아왔을 때) | 보이지 않는 곳에서 끝나 버리지 않게 |
+| 황금 포켓 표시 | 빛줄기가 포켓에 닿는 순간(0.46초) 휠 포켓이 금색, 베팅칸 금 테두리도 같은 시각 | 요청 명세 |
+| 숫자 표기 | 배율 `format_mult`("×1.25", 1000 미만도 유효숫자 3자리), 초 `format_seconds`, 백분율 `format_percent`. 번역 문자열의 숫자 자리는 `%s` + NumberFormat(%d 금지, 테스트로 검사) | 전수 점검 |
+| 0 과 O | 큰 숫자 폰트(num14)의 0 가운데에 점 | 단위 Oc·Ocd 의 O 와 구분 |
+| 디버그 패널 | F9, 개발 빌드(`OS.is_debug_build()`)에서만 Main 이 `scenes/debug/debug_panel.gd` 를 동적 로드 | 내보내기 빌드에는 붙지 않음 |

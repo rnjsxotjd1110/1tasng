@@ -13,6 +13,8 @@ const STAT_STRAIGHT_HITS := "straight_hits"
 const STAT_TOTAL_EARNED := "total_earned"
 
 const MILESTONE_ICON := "chip"
+const UPGRADE_MARBLE_TIER := "marble_tier"
+const UPGRADE_MARBLE_POLISH := "marble_polish"
 const BUFF_SOURCE_PREFIX := "buff:"
 
 var chips: float = Economy.STARTING_CHIPS
@@ -22,6 +24,7 @@ var floor_index: int = 0
 var upgrade_levels: Dictionary = {}
 ## 스킬 id → 레벨.
 var skill_levels: Dictionary = {}
+## upgrade_levels["marble_tier"] / ["marble_polish"] 의 사본(읽기 편의). 바꿀 때는 set_upgrade_level 로.
 var marble_tier: int = 0
 var polish_level: int = 0
 var current_bets: Array[Bet] = []
@@ -81,6 +84,7 @@ func reset() -> void:
 		STAT_TOTAL_EARNED: 0.0,
 	}
 	modifiers.clear()
+	set_upgrade_level(UPGRADE_MARBLE_TIER, 0)
 	EventBus.chips_changed.emit(chips, 0.0)
 	EventBus.clovers_changed.emit(clovers, 0)
 	EventBus.bets_changed.emit()
@@ -206,11 +210,9 @@ func spin_duration() -> float:
 	return Economy.spin_duration(get_stat(StatModifiers.SPIN_DURATION_MULT, StatModifiers.IDENTITY_MULT))
 
 
-## 구슬 재질 × 광택 × 구슬 수정자.
+## 구슬 배율. 재질(upgrade:marble_tier) × 광택(upgrade:marble_polish) × 그 외 수정자.
 func marble_mult() -> float:
-	var marble := current_marble()
-	var base := marble.mult if marble != null else StatModifiers.IDENTITY_MULT
-	return get_stat(StatModifiers.MARBLE_MULT, base * Economy.polish_mult(polish_level))
+	return get_stat(StatModifiers.MARBLE_MULT, StatModifiers.IDENTITY_MULT)
 
 
 func floor_mult() -> float:
@@ -254,7 +256,8 @@ func get_upgrade_level(id: String) -> int:
 	return int(upgrade_levels.get(id, 0))
 
 
-## 업그레이드 레벨을 정하고 수정자를 다시 건다(구매 처리·비용 차감은 3단계 UpgradeService 가 한다).
+## 업그레이드 레벨을 정하고 수정자를 다시 건다. 구매 규칙(비용·상한·광택 초기화)은 UpgradeService 가 맡는다.
+## 구슬 재질(MARBLE_TIER)은 레벨 0(나무)도 수정자를 건다(값 = 재질 배율).
 func set_upgrade_level(id: String, level: int) -> void:
 	var def := GameData.upgrade(id)
 	if def == null:
@@ -264,8 +267,13 @@ func set_upgrade_level(id: String, level: int) -> void:
 		level = mini(level, def.max_level)
 	level = maxi(level, 0)
 	upgrade_levels[id] = level
+	match def.kind:
+		UpgradeDef.Kind.MARBLE_TIER:
+			marble_tier = level
+		UpgradeDef.Kind.MARBLE_POLISH:
+			polish_level = level
 	modifiers.remove_source(def.source_id())
-	if level > 0 and def.effect_stat != "":
+	if (level > 0 or def.kind == UpgradeDef.Kind.MARBLE_TIER) and def.effect_stat != "":
 		modifiers.add_modifier(def.source_id(), def.effect_stat, def.effect_op, def.effect_value(level))
 	if def.effect_stat == StatModifiers.GOLDEN_POCKET_COUNT:
 		refresh_golden_pockets()
@@ -277,17 +285,22 @@ func rebuild_upgrade_modifiers() -> void:
 		set_upgrade_level(id, int(upgrade_levels[id]))
 
 
-## 황금 포켓 개수를 스탯에 맞춘다. 늘면 아직 황금이 아닌 포켓 중 무작위로 추가, 줄면 뒤에서 제거.
+## 황금 포켓 개수를 스탯에 맞춘다. 늘면 아직 황금이 아닌 포켓 중 무작위로 추가(golden_pockets_added 발행), 줄면 뒤에서 제거.
 func refresh_golden_pockets() -> void:
 	var target := golden_pocket_count()
 	while golden_pockets.size() > target:
 		golden_pockets.pop_back()
+	var added: Array[int] = []
 	while golden_pockets.size() < target:
 		var candidates: Array[int] = []
 		for number in RouletteRules.POCKET_COUNT:
 			if not golden_pockets.has(number):
 				candidates.append(number)
-		golden_pockets.append(candidates[RngService.randi_range_misc(0, candidates.size() - 1)])
+		var picked := candidates[RngService.randi_range_misc(0, candidates.size() - 1)]
+		golden_pockets.append(picked)
+		added.append(picked)
+	if not added.is_empty():
+		EventBus.golden_pockets_added.emit(added)
 
 
 ## 시간제 버프(또는 패널티). buff_started 를 발행하고, 만료되면 buff_ended 가 발행된다.

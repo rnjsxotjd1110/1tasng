@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_rccqg"]
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_myebl"]
 
 [resource]
-script = ExtResource("1_rccqg")
+script = ExtResource("1_myebl")
 tier = 7
 id = "ruby"
 name_key = "MARBLE_RUBY"
 mult = 800000.0
 cost = 1.31072e+13
-polish_base_cost = 6.5536e+12
+polish_base_cost = 1.04858e+12
 color_outline = Color(0.290196, 0.0588235, 0.101961, 1)
 color_shadow = Color(0.541176, 0.101961, 0.168627, 1)
 color_base = Color(0.788235, 0.188235, 0.235294, 1)

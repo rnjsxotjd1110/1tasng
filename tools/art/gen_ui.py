@@ -593,6 +593,13 @@ def main() -> None:
         ("void", "night", "dusk", "void"),
         ("void", "night", "dusk", "void"),
     )
+    button_set(
+        "button_stone",
+        ("void", "ink", "stone", "shadow"),
+        ("void", "stone", "mist", "ink", False, "mist"),
+        ("void", "shadow", "ink", "void"),
+        ("void", "night", "dusk", "void"),
+    )
     tab("tab_normal", "void", "dusk", "shadow", None)
     tab("tab_hover", "void", "shadow", "stone", None)
     tab("tab_selected", "gold_d", "wood", "wood_l", "gold_l")

@@ -150,7 +150,7 @@ func test_multi_ball_costs_once() -> void:
 
 
 func test_payout_uses_modifiers() -> void:
-	GameState.marble_tier = 1  # 돌 ×1.5
+	GameState.set_upgrade_level("marble_tier", 1)  # 돌 ×1.5
 	GameState.modifiers.add_modifier("buff:x", StatModifiers.PAYOUT_MULT_ALL, StatModifiers.Op.MULT, 2.0)
 	var result: int = RngService.peek_next(1)[0]
 	GameState.add_bet(Bet.straight(result))

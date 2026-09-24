@@ -33,11 +33,17 @@ func test_floors() -> void:
 
 
 func test_upgrades() -> void:
-	for id: String in ["bet_limit", "marble_count", "wheel_speed", "golden_pocket"]:
-		var def := GameData.upgrade(id)
-		check(def != null, "%s 존재" % id)
+	var ids: Array[String] = ["marble_tier", "marble_polish", "bet_limit", "marble_count", "spin_speed", "golden_pocket"]
+	check_eq(GameData.upgrades().size(), ids.size(), "업그레이드 6종")
+	for i in ids.size():
+		var def := GameData.upgrade(ids[i])
+		check(def != null, "%s 존재" % ids[i])
 		if def != null:
-			check(StatModifiers.ALL_STATS.has(def.effect_stat), "%s 스탯 키 유효" % id)
+			check(StatModifiers.ALL_STATS.has(def.effect_stat), "%s 스탯 키 유효" % ids[i])
+			check_eq(def.sort_order, i, "%s 카드 순서" % ids[i])
+			check(def.icon() != null, "%s 16×16 아이콘" % ids[i])
+			if def.icon() != null:
+				check_eq(def.icon().get_size(), Vector2(16, 16), "%s 아이콘 크기" % ids[i])
 	check_eq(1 + GameData.upgrade("marble_count").max_level, Economy.MAX_MARBLES_FROM_UPGRADES, "구슬 업그레이드 상한 = 8개")
 	check_eq(GameData.upgrade("golden_pocket").max_level, Economy.GOLDEN_POCKET_MAX, "황금 포켓 5개")
 

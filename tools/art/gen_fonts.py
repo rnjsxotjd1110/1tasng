@@ -39,6 +39,8 @@ SMALL_GLYPHS: dict[str, list[str]] = {
     "8": ["###", "#.#", "###", "#.#", "###"],
     "9": ["###", "#.#", "###", "..#", "###"],
     "K": ["#.#", "#.#", "##.", "#.#", "#.#"],
+    "L": ["#..", "#..", "#..", "#..", "###"],
+    "v": ["...", "...", "#.#", "#.#", ".#."],
     "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#"],
     "B": ["##.", "#.#", "##.", "#.#", "##."],
     "T": ["###", ".#.", ".#.", ".#.", ".#."],
@@ -119,6 +121,13 @@ def galmuri_masks() -> dict[str, np.ndarray]:
         if len(cols) == 0:
             continue
         masks[ch] = arr[:, cols[0]:cols[-1] + 1]
+    # 0 과 O(단위 Oc·Ocd)를 구분하려고 0 가운데에 점을 찍는다(3단계 숫자 표기 점검).
+    zero = masks["0"].copy()
+    rows = np.where(zero.any(axis=1))[0]
+    mid_row = (rows[0] + rows[-1]) // 2
+    mid_col = zero.shape[1] // 2
+    zero[mid_row:mid_row + 2, mid_col - (1 if zero.shape[1] % 2 == 0 else 0):mid_col + 1] = True
+    masks["0"] = zero
     return masks
 
 

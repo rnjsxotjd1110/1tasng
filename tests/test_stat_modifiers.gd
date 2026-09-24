@@ -89,6 +89,6 @@ func test_rejects_invalid_values() -> void:
 func test_upgrade_effect_values() -> void:
 	var bet_limit := GameData.upgrade("bet_limit")
 	check_near(bet_limit.effect_value(3), pow(Economy.BET_LIMIT_GROWTH, 3), 1e-12, "bet_limit 데이터 = Economy.BET_LIMIT_GROWTH")
-	var wheel := GameData.upgrade("wheel_speed")
-	check_near(wheel.effect_value(2), pow(Economy.SPIN_SPEED_FACTOR, 2), 1e-12, "wheel_speed 데이터 = Economy.SPIN_SPEED_FACTOR")
+	var wheel := GameData.upgrade("spin_speed")
+	check_near(wheel.effect_value(2), pow(Economy.SPIN_SPEED_FACTOR, 2), 1e-12, "spin_speed 데이터 = Economy.SPIN_SPEED_FACTOR")
 	check_eq(GameData.upgrade("marble_count").effect_value(3), 3.0, "ADD")

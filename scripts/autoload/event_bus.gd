@@ -21,8 +21,12 @@ signal spin_resolved(outcome: SpinOutcome)
 signal bankrupt()
 @warning_ignore("unused_signal")
 signal debt_changed()
+## 업그레이드 구매 완료(level = 구매 후 레벨, 한 번에 여러 레벨을 사면 한 번만 발행).
 @warning_ignore("unused_signal")
 signal upgrade_purchased(id: String, level: int)
+## 황금 포켓이 새로 생겼다(휠의 빛줄기·베팅창 금 테두리 연출용).
+@warning_ignore("unused_signal")
+signal golden_pockets_added(numbers: Array[int])
 @warning_ignore("unused_signal")
 signal skill_purchased(id: String, level: int)
 @warning_ignore("unused_signal")

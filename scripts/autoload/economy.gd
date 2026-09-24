@@ -37,7 +37,9 @@ const HISTORY_SIZE := 100
 # ── 구슬 재질·광택 ────────────────────────────────────────
 const POLISH_MAX_LEVEL := 5
 const POLISH_MULT_PER_LEVEL := 1.25
-const POLISH_COST_GROWTH := 2.0
+## 광택 n→n+1 비용 = 현재 재질 MarbleDef.polish_base_cost(재질 비용 × 0.08) × POLISH_COST_GROWTH^n
+## marble_polish 업그레이드 데이터의 growth 와 같아야 한다(test_upgrade_service 가 검사).
+const POLISH_COST_GROWTH := 1.7
 
 # ── 황금 포켓 ─────────────────────────────────────────────
 const GOLDEN_POCKET_MAX := 5

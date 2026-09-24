@@ -92,3 +92,21 @@ func test_sfx_files_exist() -> void:
 	for bus: String in AudioManager.BUSES:
 		check(AudioServer.get_bus_index(bus) >= 0, "버스 %s" % bus)
 
+
+
+## 숫자 표시는 NumberFormat 으로만(3단계 전수 점검의 재발 방지): 번역 문자열에 %d 없음, 코드에서 str() 을 라벨에 넣지 않음.
+func test_numbers_go_through_number_format() -> void:
+	var csv := FileAccess.get_file_as_string(CSV_PATH)
+	check(not csv.contains("%d"), "strings.csv 에 %d 없음(숫자는 %s + NumberFormat)")
+	var patterns: Array[RegEx] = [
+		RegEx.create_from_string("\\.text\\s*=\\s*str\\("),
+		RegEx.create_from_string("draw_string\\([^\\n]*str\\("),
+		RegEx.create_from_string("\\.text\\s*=\\s*\"[^\"]*%d"),
+	]
+	for dir in CODE_DIRS:
+		for path in _files(dir, ".gd"):
+			if path.begins_with("res://scenes/debug"):
+				continue
+			var code := FileAccess.get_file_as_string(path)
+			for regex in patterns:
+				check(regex.search(code) == null, "%s: 숫자를 NumberFormat 없이 표시(%s)" % [path, regex.get_pattern()])

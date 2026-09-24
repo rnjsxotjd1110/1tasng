@@ -42,6 +42,15 @@ const SFX: Dictionary = {
 	"clover_get": {"bus": "SFX", "volume_db": -3.0, "max": 2},
 	"neon_flicker": {"bus": "SFX", "volume_db": -10.0, "max": 2},
 	"coin_drop": {"bus": "SFX", "volume_db": -9.0, "max": 4},
+	"buy_coin": {"bus": "UI", "volume_db": -5.0, "max": 3, "jitter": false},
+	"slot_open": {"bus": "SFX", "volume_db": -3.0, "max": 2},
+	"marble_roll": {"bus": "SFX", "volume_db": -6.0, "max": 2},
+	"golden_beam": {"bus": "SFX", "volume_db": -3.0, "max": 2},
+	"promote_charge": {"bus": "SFX", "volume_db": -4.0, "max": 1, "jitter": false},
+	"promote_flash": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"promote_jingle_1": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"promote_jingle_2": {"bus": "SFX", "volume_db": -1.0, "max": 1, "jitter": false},
+	"promote_jingle_3": {"bus": "SFX", "volume_db": 0.0, "max": 1, "jitter": false},
 }
 
 ## 헤드리스(테스트·서버)에서는 소리를 내지 않는다(출력 장치가 없고, 종료 시 재생 객체가 남는다).

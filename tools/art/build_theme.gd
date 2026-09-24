@@ -65,6 +65,8 @@ func _initialize() -> void:
 	_button_type("ButtonGold", "button_gold", Color("#3b2218"), Color("#3b2218"), Color("#3b2218"), STONE, true)
 	_button_type("ButtonDark", "button_dark", MIST, IVORY, GOLD_HL, STONE, true)
 	theme.set_font("font", "ButtonGold", font_bold)
+	# 살 수 없는 구매 버튼(stone 톤, 3단계)
+	_button_type("ButtonStone", "button_stone", MIST, IVORY, GOLD_HL, STONE, true)
 	# 탭: 선택(pressed) 상태가 금색 밑줄
 	theme.set_type_variation("TabButton", "Button")
 	var tab_normal := _box(UI + "tab_normal.png", 4, 4, 4, 4, 5, 3, 5, 3)
@@ -127,6 +129,12 @@ func _initialize() -> void:
 	_panel_variation("PanelBar", _box(UI + "panel_bar.png", 5, 5, 5, 5, 4, 2, 4, 2))
 	_panel_variation("PanelInset", _box(UI + "frame_inset.png", 2, 2, 2, 2, 3, 2, 3, 2))
 	_panel_variation("PanelFelt", _box(UI + "panel_felt.png", 10, 10, 10, 10, 10, 10, 10, 10))
+	# 업그레이드 카드(3단계): 12×12, 9-슬라이스 여백 4
+	for card: Array in [["CardNormal", "card_normal"], ["CardHover", "card_hover"], ["CardReady", "card_ready"],
+			["CardMax", "card_max"], ["CardLocked", "card_locked"], ["CardMarble", "card_marble"]]:
+		_panel_variation(String(card[0]), _box(UI + String(card[1]) + ".png", 4, 4, 4, 4, 4, 4, 4, 4))
+	_panel_variation("CardSlot", _box(UI + "card_slot.png", 2, 2, 2, 2, 2, 2, 2, 2))
+	_panel_variation("BadgeGolden", _box(UI + "badge_golden.png", 4, 4, 4, 4, 5, 2, 5, 2))
 	theme.set_stylebox("panel", "TooltipPanel", _box(UI + "tooltip.png", 2, 2, 2, 2, 4, 3, 4, 3))
 	theme.set_font("font", "TooltipLabel", font_small)
 	theme.set_font_size("font_size", "TooltipLabel", SIZE_SMALL)

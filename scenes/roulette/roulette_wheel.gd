@@ -2,7 +2,8 @@ class_name RouletteWheel
 extends Node2D
 ## 룰렛 휠 연출. 레이어(아래 → 위):
 ##   Shadow(스프라이트) → Base(림·트랙·디플렉터·숫자 링 바탕) → Ring(회전 링, _draw) → Top(포켓 경계·콘)
-##   → Turret(회전 터렛, _draw) → Highlight(고정 반사광) → Balls(공, _draw) → Fx(불꽃·빛 링, _draw)
+##   → Turret(회전 터렛, _draw) → Highlight(고정 반사광) → [공허 왜곡 렌즈] → BallBack(그림자·테두리 빛·뒤 효과·궤적 잔상)
+##   → Balls(공, 구슬 재질 셰이더) → BallFront(재질 부가 효과·궤적 입자) → Fx(불꽃·빛 링·황금 빛줄기, _draw)
 ## 궤적 계산은 SpinChoreography(scripts/core)가 하고, 이 노드는 시간을 흘리며 그리기·소리만 한다.
 ## 노드 위치(휠 중심)는 정수 픽셀이어야 한다.
 
@@ -56,8 +57,23 @@ const ROLL_SPEED_REF := 900.0
 const ROLL_PITCH_MIN := 0.7
 const ROLL_PITCH_MAX := 1.35
 const ROLL_VOLUME_MIN_DB := -16.0
+## 공 둘레(굴림 위상 계산용, 7px 공 π·d).
+const BALL_CIRCUMFERENCE := PI * 7.0
+## 궤적 입자를 뿌리기 시작하는 공 속도(도/초)와 최대 효과 속도.
+const TRAIL_MIN_SPEED := 90.0
+const TRAIL_FULL_SPEED := 700.0
+const TRAIL_DRIFT := 10.0
+const TRAIL_SUCK_RADIUS := 6.0
+const LENS_RADIUS := 9.0
+# 황금 포켓 빛줄기(ART_BIBLE 9-4)
+const BEAM_TIME := 1.1
+const BEAM_IMPACT := 0.42
+const BEAM_WIDTH := 11
+const BEAM_BURST := 14
+const BEAM_TOP := -200.0
 
 const DIGITS_TEXTURE := preload("res://assets/sprites/ui/digits_3x5.png")
+const BEAM_TEXTURE := preload("res://assets/sprites/ui/golden_beam.png")
 const KNOB_TEXTURE := preload("res://assets/sprites/wheel/wheel_knob.png")
 const HUB_TEXTURE := preload("res://assets/sprites/wheel/wheel_hub.png")
 const SPARKLE_TEXTURE := preload("res://assets/sprites/ui/sparkle.png")
@@ -92,6 +108,18 @@ var _clock: float = 0.0
 var _ball_texture: Texture2D
 var _shadow_texture: Texture2D
 var _halo_texture: Texture2D
+var _ball_back: Node2D
+var _ball_front: Node2D
+var _lens: VoidLens
+## 이번 프레임에 그릴 공: {center, top_left, alpha, shadow, roll}
+var _ball_draws: Array[Dictionary] = []
+var _trail: Array[Dictionary] = []
+var _trail_accum: float = 0.0
+var _trail_config: Dictionary = {}
+var _tier: int = 0
+## 빛줄기가 아직 닿지 않은 새 황금 포켓(그때까지는 원래 색).
+var _pending_golden: Array[int] = []
+var _beams: Array[Dictionary] = []
 
 @onready var ring: Node2D = $Ring
 @onready var turret: Node2D = $Turret
@@ -102,8 +130,21 @@ var _halo_texture: Texture2D
 func _ready() -> void:
 	ring.draw.connect(_draw_ring)
 	turret.draw.connect(_draw_turret)
+	_lens = VoidLens.create_with_copy(self, balls_layer)
+	_lens.radius = LENS_RADIUS
+	_ball_back = Node2D.new()
+	_ball_back.name = "BallBack"
+	add_child(_ball_back)
+	move_child(_ball_back, balls_layer.get_index())
+	_ball_front = Node2D.new()
+	_ball_front.name = "BallFront"
+	add_child(_ball_front)
+	move_child(_ball_front, balls_layer.get_index() + 1)
+	_ball_back.draw.connect(_draw_ball_back)
 	balls_layer.draw.connect(_draw_balls)
+	_ball_front.draw.connect(_draw_ball_front)
 	fx_layer.draw.connect(_draw_fx)
+	balls_layer.material = MarbleSprite.shared_material()
 	_shadow_texture = MarbleSprite.shadow_texture()
 	_halo_texture = MarbleSprite.halo_texture()
 	refresh_marble()
@@ -112,9 +153,27 @@ func _ready() -> void:
 		idle_results = [GameState.result_history[-1] if not GameState.result_history.is_empty() else RouletteRules.ZERO]
 
 
-## 구슬 재질이 바뀌면 호출(3단계 업그레이드).
-func refresh_marble() -> void:
-	_ball_texture = MarbleSprite.current()
+## 구슬 재질이 바뀌면 호출. tier < 0 이면 GameState 현재 재질(승급 연출은 새 재질을 먼저 보여 줄 때 tier 를 넘긴다).
+func refresh_marble(tier: int = -1) -> void:
+	MarbleSprite.sync_shared(tier)
+	_tier = MarbleSprite.shared_tier()
+	_ball_texture = MarbleSprite.template(MarbleSprite.SIZE_WHEEL)
+	_trail_config = MarbleFx.trail_config(_tier)
+	_lens.visible = _tier == MarbleFx.TIER_VOID
+	_redraw_all()
+
+
+## 새 황금 포켓에 빛줄기를 떨어뜨린다. 닿는 순간 포켓이 금색으로 바뀐다.
+func play_golden_beam(numbers: Array[int]) -> void:
+	for number in numbers:
+		if not _pending_golden.has(number):
+			_pending_golden.append(number)
+		_beams.append({"number": number, "t": 0.0, "hit": false})
+	AudioManager.play_sfx("golden_beam")
+
+
+func is_beam_playing() -> bool:
+	return not _beams.is_empty()
 
 
 # ── 스핀 ─────────────────────────────────────────────────
@@ -193,6 +252,8 @@ func _process(delta: float) -> void:
 		if _time >= choreo.duration:
 			_finish()
 	_update_sparks(delta)
+	_update_trail(delta)
+	_update_beams(delta)
 	if _flash_time >= 0.0:
 		_flash_time += delta
 	_update_glint(delta)
@@ -260,10 +321,19 @@ func _update_glint(delta: float) -> void:
 
 
 func _redraw_all() -> void:
+	_collect_balls()
 	ring.queue_redraw()
 	turret.queue_redraw()
 	balls_layer.queue_redraw()
+	_ball_back.queue_redraw()
+	_ball_front.queue_redraw()
 	fx_layer.queue_redraw()
+	if _lens.visible:
+		var centers: Array[Vector2] = []
+		for ball in _ball_draws:
+			if float(ball["alpha"]) >= 1.0:
+				centers.append(Vector2(ball["center"]))
+		_lens.set_centers(centers)
 
 
 func _current_wheel_speed() -> float:
@@ -287,7 +357,7 @@ func _draw_ring() -> void:
 func _draw_ring_at(angle: float, alpha: float, full: bool) -> void:
 	var step := RouletteRules.DEGREES_PER_POCKET
 	var half := step * 0.5
-	var golden := GameState.golden_pockets
+	var golden := visible_golden()
 	for index in RouletteRules.POCKET_COUNT:
 		var number: int = RouletteRules.WHEEL_ORDER[index]
 		var center := angle + index * step
@@ -426,37 +496,149 @@ func _draw_glint() -> void:
 				turret.draw_rect(Rect2(x, y, 1, 1), Palette.with_alpha(Palette.GOLD_SHINE, 0.5))
 
 
+## 지금 금색으로 그릴 황금 포켓(빛줄기가 아직 안 닿은 것은 뺀다).
+func visible_golden() -> Array[int]:
+	var out: Array[int] = []
+	for number in GameState.golden_pockets:
+		if not _pending_golden.has(number):
+			out.append(number)
+	return out
+
+
 # ── 공 ───────────────────────────────────────────────────
 
-func _draw_balls() -> void:
+## 이번 프레임의 공 위치·알파·굴림 위상을 모은다(잔상 포함). 재질이 높을수록 잔상이 길다.
+func _collect_balls() -> void:
+	_ball_draws.clear()
+	var extra_ghosts := int(_trail_config.get("ghosts", 0))
 	if spinning and choreo != null:
 		for i in choreo.balls.size():
 			if choreo.ball_speed(i, _time) > BALL_TRAIL_SPEED:
-				for k in BALL_TRAIL_ALPHAS.size():
+				var ghost_count := BALL_TRAIL_ALPHAS.size() + extra_ghosts
+				for k in ghost_count:
 					var tt := _time - BALL_TRAIL_DT * (k + 1)
 					if tt > 0.0:
-						_draw_ball(choreo.ball_offset(i, tt), choreo.ball_height(i, tt), BALL_TRAIL_ALPHAS[k], false)
+						var ghost_alpha: float = BALL_TRAIL_ALPHAS[k] if k < BALL_TRAIL_ALPHAS.size() else BALL_TRAIL_ALPHAS[-1] * pow(0.6, k - BALL_TRAIL_ALPHAS.size() + 1)
+						_add_ball(choreo.ball_offset(i, tt), choreo.ball_height(i, tt), ghost_alpha, false, _roll_of(i, tt))
 			var appear := clampf(_time / (choreo.launch_time * 0.3), 0.0, 1.0)
-			_draw_ball(choreo.ball_offset(i, _time), choreo.ball_height(i, _time), appear, true)
+			_add_ball(choreo.ball_offset(i, _time), choreo.ball_height(i, _time), appear, true, _roll_of(i, _time))
 	else:
 		for number in idle_results:
 			var a := deg_to_rad(wheel_angle + RouletteRules.pocket_angle(number))
-			_draw_ball(Vector2(cos(a), sin(a)) * SpinChoreography.R_POCKET, 0.0, 1.0, true)
+			_add_ball(Vector2(cos(a), sin(a)) * SpinChoreography.R_POCKET, 0.0, 1.0, true, 0.0)
 
 
-func _draw_ball(offset: Vector2, height: float, alpha: float, with_shadow: bool) -> void:
+func _roll_of(index: int, t: float) -> float:
+	return deg_to_rad(choreo.ball_angle(index, t)) * SpinChoreography.R_POCKET / BALL_CIRCUMFERENCE
+
+
+func _add_ball(offset: Vector2, height: float, alpha: float, main_ball: bool, roll: float) -> void:
 	var half := MarbleSprite.SIZE * 0.5
 	var top_left := (offset - Vector2(half, half)).round()
-	if with_shadow:
-		var lift := roundf(height)
-		balls_layer.draw_texture(_shadow_texture, top_left + Vector2(1, 1) + Vector2(lift * 0.5, lift * 0.5).round(),
-			Color(1, 1, 1, BALL_SHADOW_ALPHA * alpha))
-	var ball_pos := top_left - Vector2(0, roundf(height))
-	if with_shadow:
-		# 어두운 트랙·포켓 위에서도 공이 먼저 보이도록 1px 테두리 빛(알파만)
+	var lift := roundf(height)
+	_ball_draws.append({
+		"center": top_left - Vector2(0, lift) + Vector2(half, half),
+		"top_left": top_left - Vector2(0, lift),
+		"shadow": top_left + Vector2(1, 1) + Vector2(lift * 0.5, lift * 0.5).round(),
+		"alpha": alpha, "main": main_ball, "roll": roll,
+	})
+
+
+## 그림자 · 1px 테두리 빛(어두운 트랙 위에서도 공이 먼저 보이게) · 재질 뒤 효과 · 잔상형 궤적.
+func _draw_ball_back() -> void:
+	for particle in _trail:
+		if String(particle["kind"]) == "ghost":
+			var u := float(particle["life"]) / float(particle["max"])
+			var halo := MarbleSprite.halo_texture(MarbleSprite.SIZE_WHEEL, particle["color"])
+			_ball_back.draw_texture(halo, (Vector2(particle["pos"]) - Vector2(3, 3)).round(), Color(1, 1, 1, 0.45 * u))
+	for ball in _ball_draws:
+		if not bool(ball["main"]):
+			continue
+		var alpha := float(ball["alpha"])
+		_ball_back.draw_texture(_shadow_texture, ball["shadow"], Color(1, 1, 1, BALL_SHADOW_ALPHA * alpha))
+		MarbleFx.draw_aura_back(_ball_back, _tier, ball["center"], MarbleSprite.SIZE_WHEEL, 1, _clock, alpha)
 		for dir: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
-			balls_layer.draw_texture(_halo_texture, ball_pos + dir, Color(1, 1, 1, BALL_HALO_ALPHA * alpha))
-	balls_layer.draw_texture(_ball_texture, ball_pos, Color(1, 1, 1, alpha))
+			_ball_back.draw_texture(_halo_texture, Vector2(ball["top_left"]) + dir, Color(1, 1, 1, BALL_HALO_ALPHA * alpha))
+
+
+func _draw_balls() -> void:
+	for ball in _ball_draws:
+		balls_layer.draw_texture(_ball_texture, ball["top_left"], MarbleSprite.instance_color(float(ball["alpha"]), float(ball["roll"])))
+
+
+func _draw_ball_front() -> void:
+	for ball in _ball_draws:
+		if bool(ball["main"]):
+			MarbleFx.draw_aura(_ball_front, _tier, ball["center"], MarbleSprite.SIZE_WHEEL, 1, _clock, float(ball["alpha"]))
+	for particle in _trail:
+		var kind := String(particle["kind"])
+		if kind == "ghost":
+			continue
+		var u := float(particle["life"]) / float(particle["max"])
+		var color := Palette.with_alpha(particle["color"], u)
+		var pos := Vector2(particle["pos"]).floor()
+		_ball_front.draw_rect(Rect2(pos, Vector2(1, 1)), color)
+		if kind == "plus" and u > 0.5:
+			for dir: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+				_ball_front.draw_rect(Rect2(pos + dir, Vector2(1, 1)), Palette.with_alpha(particle["color"], u * 0.5))
+
+
+# ── 궤적 입자(재질이 높을수록 화려하다) ─────────────────
+
+func _update_trail(delta: float) -> void:
+	for particle in _trail:
+		particle["life"] = float(particle["life"]) - delta
+		if String(particle["kind"]) == "suck":
+			var to_target := Vector2(particle["target"]) - Vector2(particle["pos"])
+			particle["pos"] = Vector2(particle["pos"]) + to_target * minf(1.0, delta * 6.0)
+		else:
+			particle["pos"] = Vector2(particle["pos"]) + Vector2(particle["vel"]) * delta
+	_trail = _trail.filter(func(p: Dictionary) -> bool: return float(p["life"]) > 0.0)
+	var rate := float(_trail_config.get("rate", 0.0))
+	if not spinning or choreo == null or rate <= 0.0 or paused:
+		return
+	var colors: Array = _trail_config.get("colors", [])
+	var kind := String(_trail_config.get("kind", "dot"))
+	var life := float(_trail_config.get("life", 0.3))
+	for i in choreo.balls.size():
+		if _landed[i]:
+			continue
+		var speed := choreo.ball_speed(i, _time)
+		if speed < TRAIL_MIN_SPEED:
+			continue
+		_trail_accum += rate * delta * clampf(speed / TRAIL_FULL_SPEED, 0.25, 1.0)
+		var center := choreo.ball_offset(i, _time) - Vector2(0, roundf(choreo.ball_height(i, _time)))
+		while _trail_accum >= 1.0:
+			_trail_accum -= 1.0
+			var jitter := Vector2(RngService.randf_range_misc(-2.0, 2.0), RngService.randf_range_misc(-2.0, 2.0))
+			var color: Color = colors[RngService.randi_range_misc(0, colors.size() - 1)] if not colors.is_empty() else Palette.IVORY
+			var particle := {"pos": center + jitter, "vel": jitter * TRAIL_DRIFT * 0.5, "life": life, "max": life, "color": color, "kind": kind}
+			if kind == "suck":
+				var a := RngService.randf_range_misc(0.0, TAU)
+				particle["pos"] = center + Vector2(cos(a), sin(a)) * TRAIL_SUCK_RADIUS
+				particle["target"] = center
+			elif kind == "ghost":
+				particle["pos"] = center
+			_trail.append(particle)
+
+
+# ── 황금 포켓 빛줄기 ─────────────────────────────────────
+
+func _update_beams(delta: float) -> void:
+	for beam in _beams:
+		beam["t"] = float(beam["t"]) + delta
+		if not bool(beam["hit"]) and float(beam["t"]) >= BEAM_TIME * BEAM_IMPACT:
+			beam["hit"] = true
+			var number := int(beam["number"])
+			_pending_golden.erase(number)
+			var a := deg_to_rad(wheel_angle + RouletteRules.pocket_angle(number))
+			var origin := Vector2(cos(a), sin(a)) * SpinChoreography.R_POCKET
+			for k in BEAM_BURST:
+				var angle := RngService.randf_range_misc(0.0, TAU)
+				_sparks.append({"pos": origin, "vel": Vector2(cos(angle), sin(angle)) * SPARK_SPEED * RngService.randf_range_misc(0.4, 1.1), "life": SPARK_LIFE * 1.6})
+			flash_result([number], true)
+			AudioManager.play_sfx("coin_drop", 1.3)
+	_beams = _beams.filter(func(b: Dictionary) -> bool: return float(b["t"]) < BEAM_TIME)
 
 
 # ── 불꽃·빛 링 ───────────────────────────────────────────
@@ -479,6 +661,19 @@ func _update_sparks(delta: float) -> void:
 
 
 func _draw_fx() -> void:
+	for beam in _beams:
+		var number := int(beam["number"])
+		var a := deg_to_rad(wheel_angle + RouletteRules.pocket_angle(number))
+		var target := (Vector2(cos(a), sin(a)) * SpinChoreography.R_POCKET).round()
+		var u := float(beam["t"]) / BEAM_TIME
+		var head := lerpf(BEAM_TOP, target.y, clampf(u / BEAM_IMPACT, 0.0, 1.0))
+		var fade := 1.0 if u < BEAM_IMPACT else 1.0 - (u - BEAM_IMPACT) / (1.0 - BEAM_IMPACT)
+		var width := BEAM_WIDTH if u >= BEAM_IMPACT or int(u * 40.0) % 2 == 0 else BEAM_WIDTH - 2
+		var rect := Rect2(Vector2(target.x - floorf(width * 0.5), BEAM_TOP), Vector2(width, head - BEAM_TOP))
+		fx_layer.draw_texture_rect(BEAM_TEXTURE, rect, false, Color(1, 1, 1, 0.85 * fade))
+		if u >= BEAM_IMPACT:
+			var ring_u := (u - BEAM_IMPACT) / (1.0 - BEAM_IMPACT)
+			fx_layer.draw_arc(target, lerpf(4.0, 18.0, ring_u), 0.0, TAU, 24, Palette.with_alpha(Palette.GOLD_HL, 0.9 * (1.0 - ring_u)), -1.0)
 	for spark in _sparks:
 		var life := float(spark["life"]) / SPARK_LIFE
 		var color := Palette.GOLD_SHINE if life > 0.6 else (Palette.GOLD_HL if life > 0.3 else Palette.GOLD)

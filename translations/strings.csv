@@ -7,7 +7,7 @@ BET_RED,빨강,Red
 BET_BLACK,검정,Black
 BET_ODD,홀,Odd
 BET_EVEN,짝,Even
-BET_STRAIGHT,숫자 %d,Number %d
+BET_STRAIGHT,숫자 %s,Number %s
 CHIP_SIZE_TENTH,1/10,1/10
 CHIP_SIZE_HALF,1/2,1/2
 CHIP_SIZE_MAX,MAX,MAX
@@ -52,8 +52,6 @@ UPGRADE_BET_LIMIT,베팅 한도,Bet Limit
 UPGRADE_BET_LIMIT_DESC,구슬당 최대 베팅액 ×1.35,Max bet per marble ×1.35
 UPGRADE_MARBLE_COUNT,구슬 개수,Marble Count
 UPGRADE_MARBLE_COUNT_DESC,한 스핀에 베팅할 구슬 +1,+1 marble to bet per spin
-UPGRADE_WHEEL_SPEED,휠 속도,Wheel Speed
-UPGRADE_WHEEL_SPEED_DESC,스핀 시간 ×0.9,Spin time ×0.9
 UPGRADE_GOLDEN_POCKET,황금 포켓,Golden Pocket
 UPGRADE_GOLDEN_POCKET_DESC,황금 포켓 +1. 공이 황금 포켓에 들어가면 모든 당첨 ×3,+1 golden pocket. All wins ×3 when the ball lands on one
 NPC_RATCHET,래칫 남작,Baron Ratchet
@@ -72,8 +70,8 @@ LABEL_PER_MARBLE,구슬당 베팅,Per marble
 LABEL_TOTAL_BET,총 베팅,Total bet
 HINT_NO_MARBLES,남은 구슬이 없습니다,No marbles left
 HINT_PLACE_BET,칸을 눌러 구슬을 올리세요,Click a spot to place a marble
-TIP_STRAIGHT,스트레이트 %d,Straight %d
-TIP_BET,%s · %d:1 · 예상 당첨금 %s,%s · %d:1 · Win %s
+TIP_STRAIGHT,스트레이트 %s,Straight %s
+TIP_BET,%s · %s:1 · 예상 당첨금 %s,%s · %s:1 · Win %s
 AUTO_LOCKED_TIP,스킬트리에서 해금,Unlock in the Skill Tree
 COMING_SOON,준비 중입니다,Coming soon
 UPGRADE_PANEL_TITLE,업그레이드,Upgrades
@@ -85,5 +83,38 @@ COLOR_RED,빨강,Red
 COLOR_BLACK,검정,Black
 PARITY_ODD,홀수,Odd
 PARITY_EVEN,짝수,Even
-TOAST_CLOVERS,클로버 +%d,Clovers +%d
+TOAST_CLOVERS,클로버 +%s,Clovers +%s
 HISTORY_EMPTY,기록 없음,No spins yet
+UPGRADE_MARBLE_TIER,구슬 재질,Marble Material
+UPGRADE_MARBLE_TIER_DESC,더 귀한 재질로 바꿔 당첨 배율을 크게 올린다,Switch to a finer material for a far bigger win multiplier
+UPGRADE_MARBLE_POLISH,광택,Polish
+UPGRADE_MARBLE_POLISH_DESC,구슬 배율 ×1.25. 재질이 바뀌면 0으로 돌아간다,Marble multiplier ×1.25. Resets when the material changes
+UPGRADE_SPIN_SPEED,휠 속도,Wheel Speed
+UPGRADE_SPIN_SPEED_DESC,스핀 시간 ×0.9 (최소 1.5초),Spin time ×0.9 (min 1.5s)
+BUY_X1,×1,×1
+BUY_X10,×10,×10
+BUY_MAX,MAX,MAX
+LABEL_BUY_AMOUNT,구매 수량,Buy
+LABEL_LEVEL,Lv.%s,Lv.%s
+LABEL_WIN_MULT,당첨 배율,Win mult
+LABEL_COLLECTION,수집,Owned
+UPGRADE_LOCK_FLOOR,%s 도달 시 해금,Unlocks at %s
+UPGRADE_LOCK_MARBLE,%s부터 가능,Requires %s
+UPGRADE_NEXT_FLOOR,다음 재질은 %s에서,Next material at %s
+UPGRADE_ALL_OWNED,모든 재질 수집 완료,Every material collected
+TIP_UPGRADE_VALUES,현재 %s → 다음 %s,Now %s → Next %s
+TIP_UPGRADE_COST,비용 %s 칩 (×%s),Cost %s chips (×%s)
+TIP_UPGRADE_SHORT,%s 칩 부족,%s chips short
+TIP_MAX_BET,구슬당 최대 베팅 %s → %s,Max bet per marble %s → %s
+TIP_FORMULA_GEOMETRIC,공식: %s × %s^레벨,Formula: %s × %s^level
+TIP_FORMULA_MARBLE,공식: 다음 재질 가격,Formula: price of the next material
+TIP_FORMULA_POLISH,공식: 재질 가격 × %s × %s^레벨,Formula: material price × %s × %s^level
+TIP_COST_MULT,비용 배율 %s 적용,Cost multiplier %s applied
+TIP_HOLD_TO_BUY,누르고 있으면 연속 구매,Hold to keep buying
+TIP_MAX_LEVEL,최대 레벨,Max level
+PROMOTE_BANNER,%s 획득!,%s acquired!
+PROMOTE_MULT,당첨 배율 %s → %s,Win multiplier %s → %s
+PROMOTE_SKIP,클릭해서 건너뛰기,Click to skip
+TOAST_GOLDEN_POCKET,황금 포켓: %s번,Golden pocket: %s
+TOAST_NEW_MARBLE,구슬 +1,+1 marble
+RESULT_GOLDEN,황금,GOLDEN

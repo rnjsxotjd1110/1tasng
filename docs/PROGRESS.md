@@ -29,11 +29,15 @@
 - [x] 효과음 21종(합성) + AudioManager(버스·풀·동시 재생 제한·피치 ±5%·루프)
 - [x] DebugLogic 씬 삭제, 메인 씬 교체
 
-### 3단계 — 업그레이드·구슬 재질
-- [ ] UpgradeService(구매·비용·레벨 상한·층 요구), upgrade_purchased 발행
-- [ ] 구슬 재질 교체(층별 상한), 광택 0~5(재질 변경 시 0), 황금 포켓 표시
-- [ ] 업그레이드창 UI(오른쪽 패널), 구슬 스프라이트 15종(tools/art)
-- [ ] 비용 곡선 1차 조정
+### 3단계 — 업그레이드·구슬 재질 ✅
+- [x] UpgradeService(구매·비용·레벨 상한·층/재질 조건·재질 상한·×1/×10/MAX), upgrade_purchased·golden_pockets_added 발행
+- [x] 업그레이드 6종 데이터(marble_tier, marble_polish, bet_limit, marble_count, spin_speed, golden_pocket), 효과는 전부 upgrade:<id> 수정자
+- [x] 구슬 재질 교체(층별 상한), 광택 0~5(재질 변경 시 0), 황금 포켓 빛줄기·금 테두리·GOLDEN 배지
+- [x] 업그레이드창 UI(오른쪽 패널, 카드 6장, 스크롤, 연속 구매, 툴팁), 탭 빨간 점, 0.18초 슬라이드 전환
+- [x] 구슬 재질 15종 비주얼(셰이더 + 부가 효과 + 휠 궤적), 크기 3종(7/10/24px), 공허 왜곡
+- [x] 재질 승급 연출, 새 슬롯 연출, 효과음 9종
+- [x] 숫자 표기 전수 점검 + F9 디버그 패널
+- [ ] 비용 곡선 1차 조정 → 요청에 따라 9단계로(아래 남은 이슈)
 
 ### 4단계 — 저장·오프라인 수익·설정
 - [ ] SaveManager: 원자적 저장, 백업, 버전 마이그레이션, 자동 저장
@@ -155,3 +159,52 @@
 - 새 버튼은 테마 변형(`Button`, `ButtonGold`, `ButtonDark`, `ChipButton`, `TabButton`)만 쓰면 호버·클릭음까지 자동이다. 새 문자열은 strings.csv 에 ko/en 추가 후 `godot --headless --import`.
 - 휠 속도 업그레이드로 스핀 시간이 1.5초까지 줄어도 `SpinChoreography` 가 단계 비율을 자동 조정한다(T<2.5초면 튕김 1회).
 - 화면 검수는 `tools/capture/capture.gd` 에 시나리오를 추가해서 한다(3단계: 업그레이드창, 구슬 재질별 공).
+
+### 3단계 (2026-09-24) — 업그레이드 시스템 · 구슬 재질 15종 · 업그레이드 화면
+
+**시작 전 정리**: 작업 브랜치(`claude/brave-mendel-ondxic`)에는 1단계 커밋만 있었고, 2단계는 `claude/tender-wozniak-0c8ada` 에만 있었다. 2단계 커밋을 fast-forward 로 가져온 뒤 3단계를 올렸다.
+
+**한 일**
+- **로직** `scripts/core/upgrade_service.gd`: 종류별 비용(등비 / 다음 재질 가격 / 재질 가격 × 0.08 × 1.7^레벨) × upgrade_cost_mult, 잠금 상태 6종(OK·칩 부족·MAX·층·재질·재질 상한), ×1/×10/MAX(등비수열 합의 역 + ±1 보정), 구매·광택 초기화, 표시용 효과값. `UpgradeDef.kind`(STANDARD/MARBLE_TIER/MARBLE_POLISH)·`sort_order`·`required_marble_tier` 추가. 재질·광택도 `upgrade:marble_tier` / `upgrade:marble_polish` 수정자로 바꿨다(GameState.marble_tier/polish_level 은 사본).
+- **데이터**: 업그레이드 6종 .tres(`wheel_speed` → `spin_speed`), 재질 광택 기본 비용을 재질 비용 × 0.08 로(`tools/data/generate_draft_data.gd` 갱신 후 재생성).
+- **구슬 비주얼**: `assets/shaders/marble.gdshader`(나무 5색 인덱스 템플릿 → 재질 5색 + 강조색, 텍셀 단위 표면 디테일 15종, glint, 보석 면 회전, 다이아 무지개, 흑요석 테두리 맥동, 별 점멸, 공허 소용돌이, 코스믹 성운), `void_lens.gdshader`(공허 주변 화면 왜곡), `MarbleSprite`(템플릿·공용 머티리얼·그림자·테두리 빛), `MarbleFx`(구슬 뒤/앞 부가 효과, 궤적 설정), `MarbleView`(UI 부품), `VoidLens`. 휠은 재질별 궤적 입자·추가 잔상, 베팅판·트레이 구슬은 10px 로 키움.
+- **업그레이드창** `scenes/ui/upgrade_panel.gd`·`upgrade_card.gd`: 수량 토글, 정수 픽셀 부드러운 스크롤 + 드래그 레일, 카드(아이콘·이름·Lv·효과 변화·레벨당 효과·금/stone 구매 버튼·수량·비용·부족분 바), 재질 카드(24px 회전 미리보기·수집 띠 15종), 잠김(실루엣·자물쇠·조건)·MAX(금 테두리·스탬프), 구매 반응(흰 플래시 2프레임 → 아이콘 2px 튐 → 코인음 피치 상승 → 칩 카운터 감소), 누르고 있으면 0.4초 뒤부터 가속 연속 구매, 툴팁(format_full·공식).
+- **Main**: 오른쪽 패널 슬라이드 전환(0.18초, 전환 중만 잘라 냄), 탭 빨간 점(TopBar), 재질 승급 연출 `scenes/fx/marble_promotion.gd`(7단계, 클릭·Space 스킵, 대기열), 새 슬롯 연출(BetBoard), 황금 포켓 빛줄기(휠)·베팅칸 금 테두리·`GoldenBadge`("황금 ×3" + 금 코인).
+- **숫자 표기 전수 점검**: grep 으로 `str()`·`%d` 표시를 찾아 NumberFormat 으로(결과 배지, 기록 %, 베팅 개수 배지, 툴팁·토스트 번역 문자열 %d → %s). `format_mult`·`format_decimal`·`format_seconds`·`format_percent` 추가. num14 의 0 에 가운데 점(Oc·Ocd 의 O 와 구분), num7 에 L·v. 재발 방지 테스트(`test_numbers_go_through_number_format`).
+- **F9 디버그 패널** `scenes/debug/debug_panel.gd`(개발 빌드에서만 Main 이 동적 로드): 칩 1e3/1e15/1e33/1e60, 클로버 +10/+100, 시간 ×1/×4/×10, 층 ±1, 재질 ±1, 업그레이드 +10, 리셋.
+- **아트·사운드**: `tools/art/gen_upgrades.py`(구슬 템플릿 10·24px, 아이콘 6종 + 실루엣, 카드 프레임 6종 + 칸, MAX 스탬프, 알림 점, 화살표, 빛줄기, GOLDEN 배지, 큰 자물쇠), gen_ui.py(stone 버튼), build_theme.gd(ButtonStone·Card*·CardSlot·BadgeGolden), gen_sfx.py(buy_coin, slot_open, marble_roll, golden_beam, promote_charge/flash/jingle_1~3).
+- **캡처 도구**: capture.gd 에 3단계 시나리오 22개(upgrade_early/mid/late, 툴팁, 승급 4시점, 황금 포켓 3, 새 슬롯, 궤적 3, 숫자 1e3~1e60, 탭 슬라이드·점, 디버그 패널) + `tier=` 인자, `tools/capture/marble_sheet.gd`(15종 비교 시트).
+- 테스트 129개 / 검사 3006개 전부 통과(추가: test_upgrade_service 13개, test_upgrade_panel 11개, NumberFormat 2개, 숫자 표기 검사 1개).
+
+**검수 기록(캡처 → 검토 → 개선)**
+1. 첫 비교 시트: 흑요석·코스믹이 보라 덩어리 → 테두리 광이 구슬 위에 그려지고 있었다. 구슬 뒤/앞 효과로 나눔.
+2. 모든 구슬이 칙칙함 → canvas fragment 의 COLOR 에 텍스처 색이 곱해져 밝기 값이 틀렸다. 인스턴스 값을 vertex 에서 varying 으로 받음. 렌더된 구슬 픽셀이 전부 팔레트 색인지 확인(그림자 알파 제외 0개).
+3. 보석이 흰 뚜껑처럼 보임·금이 겨자색·다이아가 파란 지구 같음 → 광택은 빛을 정면으로 받는 좁은 면만, 금은 한 단계 밝게 + 어두운 반사 띠, 다이아는 흰 얼음빛 + 면 중심 무지개 한 점, 별은 1px, 옥은 우윳빛 구름, 코스믹 성운은 크게.
+4. 업그레이드창: 부족분 바가 카드 배경에 가려짐 → 앞 층으로. 영어 긴 이름 + Lv 가 버튼을 침범 → Lv 를 셋째 줄로, 재질 카드는 버튼을 아래로(카드 68px). 잠금 문구가 MAX 스탬프 밑으로 넘침 → 자물쇠를 오른쪽 끝으로, 문구 폭 확대, 재질 MAX 는 문구 대신 스탬프·수집 띠. 이 규칙을 ko/en × 4상태 × 2수량 텍스트 폭 테스트로 고정.
+5. 숫자 1e60: "823Ocd" 가 "8230cd" 로 읽힘 → 0 에 점. bet_limit 9999레벨은 1.35^L 이 inf → 방어 코드가 막음(실제 게임에서는 도달 불가, 아래 남은 이슈).
+6. 승급 연출: 빛 모으기가 약함 → 줄어드는 광선 12개 + 맥동 고리, 배너 뒤 PanelPlain 판.
+
+**파일**
+- 로직·데이터: `scripts/core/upgrade_service.gd`(신규), `scripts/data/upgrade_def.gd`, `scripts/autoload/{game_state,economy,event_bus,audio_manager}.gd`, `scripts/core/number_format.gd`, `data/upgrades/{marble_tier,marble_polish,bet_limit,marble_count,spin_speed,golden_pocket}.tres`(wheel_speed 삭제), `data/marbles/*.tres`(광택 비용), `tools/data/generate_draft_data.gd`
+- 구슬: `assets/shaders/{marble,void_lens}.gdshader`, `scenes/roulette/{marble_sprite,marble_view,marble_fx,void_lens,roulette_wheel}.gd`
+- UI·연출: `scenes/ui/{upgrade_panel,upgrade_card,bet_board,top_bar,history_panel,pixel_digits}.gd`, `scenes/fx/{marble_promotion,golden_badge,result_badge}.gd`, `scenes/main/main.gd`, `scenes/debug/debug_panel.gd`
+- 에셋: `assets/sprites/marbles/`, `assets/sprites/ui/upgrades/`, `assets/sprites/ui/{stamp_max,notify_dot,arrow_right,golden_beam,icon_lock_big}.png`, `assets/ui/{card_*,button_stone_*,badge_golden}.png`, `assets/ui/theme_main.tres`, `assets/fonts/num*`, `assets/audio/sfx/`(9개)
+- 도구: `tools/art/{gen_upgrades.py(신규),gen_ui.py,gen_fonts.py,build_theme.gd}`, `tools/audio/gen_sfx.py`, `tools/capture/{capture.gd,marble_sheet.gd,marble_sheet_view.gd}`
+- 테스트: `tests/test_{upgrade_service,upgrade_panel}.gd`(신규), `test_{data,economy,number_format,stat_modifiers,main_scene,spin_controller,ui_assets}.gd`
+- 문서: GDD 5장·14장·EventBus, ART_BIBLE 6장·9장·에셋 목록, CLAUDE.md, 스크린샷 `docs/screenshots/stage3/`(32장: 업그레이드창 초반·중반·후반 ko/en, 툴팁, 승급 4시점, 황금 포켓, 새 슬롯, 궤적, 숫자 구간, 슬라이드·점, 15종 비교 시트 + 확대본)
+
+**남은 이슈**
+- **구슬 비용 곡선과 층 이동 비용이 아직 맞물리지 않는다**(1단계부터 남은 이슈): 3F 상한 별빛(42.9Sx)과 PH 이동(1No) 사이가 멀고, 공허(3.44Sp)·코스믹(275Sp)은 PH 이동 비용보다 싸서 PH 도착 즉시 둘 다 살 수 있다. 요청대로 수치 조정은 9단계 시뮬레이션에서.
+- 업그레이드 비용·효과 수치는 전부 요청 명세의 초안이다(9단계 조정).
+- 베팅 한도는 무제한이라 1.35^L 이 약 2,360레벨에서 double 을 넘는다(비용 20·1.2^L 이 먼저 1e188 이 되어 실제로는 도달 불가). 방어 코드가 inf 를 막고 "∞" 로 표시한다.
+- 구매 수량 설정(×1/×10/MAX)은 아직 저장하지 않는다(4단계 저장에서 같이).
+- 공허 왜곡(화면 텍스처 읽기)과 구슬 셰이더는 Mesa llvmpipe 에서만 확인했다. 실제 GPU 에서 60fps·모양을 확인할 것(8단계 폴리시).
+- 효과음은 여전히 합성 임시음이고 귀로 들어 보지 못했다(8단계 교체).
+- 황금 포켓 빛줄기는 불러오기(4단계)에서 이미 있는 포켓에는 나오지 않지만, 레벨을 다시 걸 때 개수가 늘면 나온다 — 4단계에서 `rebuild_upgrade_modifiers` 호출 순서를 확인할 것.
+
+**다음 단계(4단계)가 알아야 할 것**
+- 저장할 상태: `GameState.upgrade_levels`(재질·광택 포함 — marble_tier/polish_level 은 사본), `golden_pockets`(위치), `UpgradePanel.mode`(선택). 불러온 뒤 `GameState.rebuild_upgrade_modifiers()` → `MarbleSprite.sync_shared()`(또는 Main 의 `_on_promotion_arrived(tier)`) 로 화면 구슬을 맞춘다. 광택 초기화는 `UpgradeService.purchase` 에만 있어서 레벨을 다시 걸어도 광택이 지워지지 않는다.
+- 설정 화면: `VisualSettings.reduce_flashing` 은 승급 섬광·빛줄기에도 적용된다. `NumberFormat.scientific_mode` 는 `format_mult` 에도 적용된다(1000 이상).
+- 새 UI 문자열은 숫자 자리를 `%s` + NumberFormat 으로(`%d` 는 테스트가 막는다).
+- 구슬을 새로 그리는 곳은 `MarbleView`(UI) 또는 CanvasItem 에 `MarbleSprite.shared_material()` + 템플릿 그리기 + `MarbleFx.draw_aura_back/draw_aura` 를 쓴다.
+- F9 디버그 패널로 칩·층·재질을 바로 바꿀 수 있다(개발 빌드만).

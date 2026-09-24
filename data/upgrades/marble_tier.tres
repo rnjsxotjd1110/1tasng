@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_amlae"]
+
+[resource]
+script = ExtResource("1_amlae")
+id = "marble_tier"
+name_key = "UPGRADE_MARBLE_TIER"
+desc_key = "UPGRADE_MARBLE_TIER_DESC"
+icon_path = "res://assets/sprites/ui/upgrades/icon_marble_tier.png"
+kind = 1
+sort_order = 0
+base_cost = 0.0
+growth = 1.0
+max_level = 14
+effect_stat = "marble_mult"
+effect_op = 1
+effect_per_level = 1.0
+required_floor = 0
+required_marble_tier = 0

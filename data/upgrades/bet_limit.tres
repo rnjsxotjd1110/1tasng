@@ -1,17 +1,20 @@
 [gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_ci08x"]
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_ts3y5"]
 
 [resource]
-script = ExtResource("1_ci08x")
+script = ExtResource("1_ts3y5")
 id = "bet_limit"
 name_key = "UPGRADE_BET_LIMIT"
 desc_key = "UPGRADE_BET_LIMIT_DESC"
-icon_path = ""
-base_cost = 25.0
-growth = 1.55
+icon_path = "res://assets/sprites/ui/upgrades/icon_bet_limit.png"
+kind = 0
+sort_order = 2
+base_cost = 20.0
+growth = 1.2
 max_level = -1
 effect_stat = "max_bet_mult"
 effect_op = 1
 effect_per_level = 1.35
 required_floor = 0
+required_marble_tier = 0

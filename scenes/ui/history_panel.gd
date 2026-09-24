@@ -122,7 +122,7 @@ func refresh(animate: bool) -> void:
 
 
 func _pct(part: int) -> String:
-	return "%d%%" % roundi(_stats.ratio(part) * 100.0)
+	return NumberFormat.format_percent(_stats.ratio(part))
 
 
 func _on_spin_resolved(outcome: SpinOutcome) -> void:

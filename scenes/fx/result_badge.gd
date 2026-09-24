@@ -56,7 +56,7 @@ func show_results(results: Array[int]) -> void:
 		var number := _results[i]
 		var label := Label.new()
 		label.theme_type_variation = "Num14Ivory"
-		label.text = str(number)
+		label.text = NumberFormat.format(number)
 		label.auto_translate = false
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(label)

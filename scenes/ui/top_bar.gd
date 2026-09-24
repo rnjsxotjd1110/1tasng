@@ -34,6 +34,11 @@ const SPEND_DURATION := 0.25
 const CHIP_ICON := preload("res://assets/sprites/ui/icon_chip.png")
 const CLOVER_ICON := preload("res://assets/sprites/ui/icon_clover.png")
 const GEAR_ICON := preload("res://assets/sprites/ui/icon_gear.png")
+const NOTIFY_DOT := preload("res://assets/sprites/ui/notify_dot.png")
+## 업그레이드 탭 빨간 점: 탭 오른쪽 위 모서리, 은은한 맥동(알파만).
+const DOT_OFFSET := Vector2(-6, 1)
+const DOT_PULSE_SPEED := 3.2
+const DOT_ALPHA_MIN := 0.45
 const SPARKLE := preload("res://assets/sprites/ui/sparkle.png")
 
 var chips_label: CountLabel
@@ -53,6 +58,9 @@ var _chip_icon: TextureRect
 var _sparkle_node: Control
 var _shake_left: float = 0.0
 var _chips_home := CHIP_LABEL_POS
+var _dot: TextureRect
+var _dot_time: float = 0.0
+var _upgrade_open: bool = false
 
 
 func _ready() -> void:
@@ -95,7 +103,11 @@ func _ready() -> void:
 	EventBus.chips_changed.connect(_on_chips_changed)
 	EventBus.clovers_changed.connect(_on_clovers_changed)
 	EventBus.spin_resolved.connect(_on_spin_resolved)
-	EventBus.floor_changed.connect(func(_i: int) -> void: _refresh_floor())
+	EventBus.floor_changed.connect(func(_i: int) -> void:
+		_refresh_floor()
+		refresh_upgrade_dot())
+	EventBus.upgrade_purchased.connect(func(_id: String, _l: int) -> void: refresh_upgrade_dot())
+	refresh_upgrade_dot()
 
 
 func _build_right() -> void:
@@ -147,6 +159,27 @@ func _build_right() -> void:
 		box.add_child(button)
 		tab_buttons[id] = button
 	(tab_buttons[TAB_BET] as Button).set_pressed_no_signal(true)
+	_dot = TextureRect.new()
+	_dot.texture = NOTIFY_DOT
+	_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dot.visible = false
+	(tab_buttons[TAB_UPGRADE] as Button).add_child(_dot)
+
+
+## 업그레이드창이 열려 있으면 빨간 점을 숨긴다.
+func set_upgrade_tab_open(open: bool) -> void:
+	_upgrade_open = open
+	refresh_upgrade_dot()
+
+
+## 살 수 있는 업그레이드가 있으면 업그레이드 탭에 빨간 점.
+func refresh_upgrade_dot() -> void:
+	if _dot != null:
+		_dot.visible = not _upgrade_open and UpgradeService.any_affordable()
+
+
+func upgrade_dot_visible() -> bool:
+	return _dot != null and _dot.visible
 
 
 func select_tab(id: String) -> void:
@@ -200,6 +233,7 @@ func shake_chips() -> void:
 
 
 func _on_chips_changed(new_value: float, delta: float) -> void:
+	refresh_upgrade_dot()
 	if delta < 0.0:
 		chips_label.set_value(chips_label.value + delta if _holding else new_value, SPEND_DURATION)
 	elif not _holding:
@@ -228,6 +262,11 @@ func _now() -> float:
 
 
 func _process(delta: float) -> void:
+	if _dot != null and _dot.visible:
+		_dot_time += delta
+		var button := tab_buttons[TAB_UPGRADE] as Button
+		_dot.position = Vector2(button.size.x, 0) + DOT_OFFSET
+		_dot.modulate.a = lerpf(DOT_ALPHA_MIN, 1.0, 0.5 + 0.5 * sin(_dot_time * DOT_PULSE_SPEED))
 	_income_timer += delta
 	if _income_timer >= INCOME_REFRESH:
 		_income_timer = 0.0

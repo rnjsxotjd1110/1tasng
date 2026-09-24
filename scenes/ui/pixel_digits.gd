@@ -9,13 +9,13 @@ const GAP := 1
 
 
 static func width_of(number: int) -> int:
-	var count := str(absi(number)).length()
+	var count := NumberFormat.format(absi(number)).length()
 	return count * DIGIT_W + (count - 1) * GAP
 
 
 ## center 를 중심으로 number 를 그린다.
 static func draw(canvas: CanvasItem, texture: Texture2D, number: int, center: Vector2, modulate: Color = Color.WHITE) -> void:
-	var text := str(absi(number))
+	var text := NumberFormat.format(absi(number))
 	var width := width_of(number)
 	var top_left := (center - Vector2(width * 0.5, DIGIT_H * 0.5)).round()
 	for i in text.length():

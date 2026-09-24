@@ -90,3 +90,25 @@ func test_format_full() -> void:
 	check_eq(NumberFormat.format_full(-1000.0), "-1,000", "음수")
 	check_eq(NumberFormat.format_full(999999999999999.0), "999,999,999,999,999", "1e15 미만")
 	check_eq(NumberFormat.format_full(1e15), "1.00e15", "1e15 이상은 과학적 표기")
+
+
+func test_format_mult_and_decimal() -> void:
+	check_eq(NumberFormat.format_mult(1.0), "×1", "×1")
+	check_eq(NumberFormat.format_mult(1.25), "×1.25", "×1.25")
+	check_eq(NumberFormat.format_mult(1.5), "×1.5", "끝의 0 제거")
+	check_eq(NumberFormat.format_mult(1.5625), "×1.56", "유효숫자 3자리")
+	check_eq(NumberFormat.format_mult(12.0), "×12", "×12")
+	check_eq(NumberFormat.format_mult(900.0), "×900", "×900")
+	check_eq(NumberFormat.format_mult(999.7), "×1.00K", "경계 자리올림")
+	check_eq(NumberFormat.format_mult(8000.0), "×8.00K", "K 단위는 format 과 같다")
+	check_eq(NumberFormat.format_decimal(0.25), "0.25", "1 미만")
+	check_eq(NumberFormat.format_decimal(0.0), "0", "0")
+	check_eq(NumberFormat.format_decimal(-2.5), "-2.5", "음수")
+	check_eq(NumberFormat.format_seconds(5.4), "5.4s", "초")
+	check_eq(NumberFormat.format_seconds(1.5), "1.5s", "최소 1.5초")
+
+
+func test_format_percent() -> void:
+	check_eq(NumberFormat.format_percent(0.486), "49%", "반올림 %")
+	check_eq(NumberFormat.format_percent(0.0), "0%", "0%")
+	check_eq(NumberFormat.format_percent(1.0), "100%", "100%")

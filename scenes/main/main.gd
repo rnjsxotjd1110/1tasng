@@ -2,8 +2,9 @@ class_name Main
 extends Control
 ## 메인 화면. 레이아웃은 ART_BIBLE 1장.
 ##   World(흔들림 대상): 배경 · 룰렛 휠
-##   UI 레이어: 상단 바 · 기록 패널 · 오른쪽 패널(베팅창 ↔ 업그레이드) · 휠 아래 버튼 · 결과 배지
-##   FX 레이어: 떠오르는 텍스트 · 파티클 · 날아가는 칩 · BIG WIN 배너 · 플래시 · JACKPOT · 오버레이 · 토스트 · 툴팁
+##   UI 레이어: 상단 바 · 기록 패널 · 오른쪽 패널(베팅창 ↔ 업그레이드, 0.18초 슬라이드) · 휠 아래 버튼 · 결과 배지
+##   FX 레이어: 떠오르는 텍스트 · 파티클 · 날아가는 칩 · BIG WIN 배너 · 플래시 · JACKPOT · 구슬 승급 · 오버레이 · 토스트 · 툴팁
+##   개발 빌드에서만: F9 디버그 패널(scenes/debug/, 동적 로드)
 ## 흐름: SPIN → SpinController.start_spin() → EventBus.spin_started → 휠 연출 → finish_spin() → EventBus.spin_resolved → 연출
 
 const WHEEL_CENTER := Vector2(262, 192)
@@ -14,8 +15,12 @@ const SPIN_AREA_POS := Vector2(104, 316)
 const SETTINGS_SIZE := Vector2(240, 150)
 const TEXT_ANCHOR := Vector2(262, 150)
 const NEAR_MISS_OFFSET := Vector2(0, 16)
-const GOLDEN_TEXT_OFFSET := Vector2(0, -14)
 const WHEEL_CLICK_RADIUS := 118.0
+## 오른쪽 패널 전환(ART_BIBLE 6장 0.18초): 현재 패널이 밀려나고 새 패널이 들어온다(정수 픽셀).
+const PANEL_SLIDE_TIME := 0.18
+const GOLDEN_BADGE_Y := 72.0
+const GOLDEN_PARTICLES := 26
+const DEBUG_PANEL_PATH := "res://scenes/debug/debug_panel.gd"
 
 ## 등급별 날아가는 칩 개수.
 const CHIP_FLIGHTS := {
@@ -59,7 +64,10 @@ var fx_layer: CanvasLayer
 var top_bar: TopBar
 var history_panel: HistoryPanel
 var bet_panel: BetPanel
-var upgrade_panel: PlaceholderScreen
+var right_clip: Control
+var upgrade_panel: UpgradePanel
+var promotion: MarblePromotion
+var golden_badge: GoldenBadge
 var spin_controls: SpinControls
 var result_badge: ResultBadge
 var float_layer: Control
@@ -77,6 +85,8 @@ var current_tab: String = TopBar.TAB_BET
 var _payout_batch: int = -1
 var _payout_step: float = 0.0
 var _last_affordable: bool = true
+var _slide_tween: Tween
+var _slide_from: Control
 
 
 func _ready() -> void:
@@ -91,8 +101,11 @@ func _ready() -> void:
 	EventBus.bets_changed.connect(_refresh_spin_state)
 	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh_spin_state())
 	EventBus.milestone_reached.connect(_on_milestone)
+	EventBus.upgrade_purchased.connect(_on_upgrade_purchased)
+	EventBus.golden_pockets_added.connect(_on_golden_pockets_added)
 	wheel.spin_finished.connect(_on_wheel_finished)
 	_refresh_spin_state()
+	_attach_debug_panel()
 
 
 func _build_world() -> void:
@@ -118,21 +131,28 @@ func _build_ui() -> void:
 	history_panel = HistoryPanelScene.instantiate()
 	history_panel.position = HISTORY_POS
 	root.add_child(history_panel)
+	# 오른쪽 패널 둘은 같은 자리(right_clip)에 겹쳐 두고, 전환하는 동안만 잘라 낸다
+	right_clip = Control.new()
+	right_clip.name = "RightPanel"
+	right_clip.position = RIGHT_PANEL_POS
+	right_clip.size = RIGHT_PANEL_SIZE
+	right_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(right_clip)
 	bet_panel = BetPanelScene.instantiate()
-	bet_panel.position = RIGHT_PANEL_POS
-	root.add_child(bet_panel)
+	right_clip.add_child(bet_panel)
 	bet_panel.board.wheel_center_global = WHEEL_CENTER
-	upgrade_panel = PlaceholderScreen.new()
-	upgrade_panel.setup(RIGHT_PANEL_SIZE, "UPGRADE_PANEL_TITLE", false)
-	upgrade_panel.position = RIGHT_PANEL_POS
+	upgrade_panel = UpgradePanel.new()
 	upgrade_panel.visible = false
-	root.add_child(upgrade_panel)
+	right_clip.add_child(upgrade_panel)
 	spin_controls = SpinControlsScene.instantiate()
 	spin_controls.position = SPIN_AREA_POS
 	root.add_child(spin_controls)
 	spin_controls.spin_pressed.connect(request_spin)
 	result_badge = ResultBadgeScene.instantiate()
 	root.add_child(result_badge)
+	golden_badge = GoldenBadge.new()
+	golden_badge.center = Vector2(WHEEL_CENTER.x, GOLDEN_BADGE_Y)
+	root.add_child(golden_badge)
 
 
 func _build_fx() -> void:
@@ -157,6 +177,10 @@ func _build_fx() -> void:
 	root.add_child(toasts)
 	jackpot = JackpotScene.instantiate()
 	root.add_child(jackpot)
+	promotion = MarblePromotion.new()
+	promotion.target_provider = _promotion_target
+	promotion.arrived.connect(_on_promotion_arrived)
+	root.add_child(promotion)
 	skill_overlay = PlaceholderScreen.new()
 	skill_overlay.setup(Vector2(640, 336), "SKILLTREE_TITLE", true, "PanelPlain")
 	skill_overlay.position = Vector2(0, 24)
@@ -208,6 +232,7 @@ func request_spin() -> void:
 
 func _on_spin_started(results: Array[int], duration: float) -> void:
 	result_badge.hide_badge()
+	golden_badge.hide_badge()
 	bet_panel.set_locked(true)
 	spin_controls.ready_to_spin = false
 	wheel.play_spin(results, duration)
@@ -233,9 +258,12 @@ func _on_spin_resolved(outcome: SpinOutcome) -> void:
 func play_tier_effects(outcome: SpinOutcome, winners: Array[String]) -> void:
 	var anchor := TEXT_ANCHOR
 	if outcome.golden_hit:
+		# 황금 포켓 적중: "황금 ×3" 배지 + 결과 포켓에서 금색 파티클
+		golden_badge.show_badge(GameState.get_stat(StatModifiers.GOLDEN_POCKET_MULT, Economy.GOLDEN_POCKET_MULT))
 		for number in outcome.results:
-			FloatingText.spawn(float_layer, "×%s" % NumberFormat.format(Economy.GOLDEN_POCKET_MULT), "Num14Gold",
-				wheel.pocket_global_position(number) + GOLDEN_TEXT_OFFSET)
+			if GameState.golden_pockets.has(number):
+				ParticleBurst.spawn(float_layer, ParticleBurst.Kind.COINS, wheel.pocket_global_position(number), GOLDEN_PARTICLES)
+		AudioManager.play_sfx("golden_beam", 1.2, -6.0)
 	if outcome.tier == SpinOutcome.Tier.LOSS:
 		FloatingText.spawn(float_layer, NumberFormat.format(outcome.net), "Num14Stone", anchor)
 		if outcome.near_miss:
@@ -303,7 +331,7 @@ func _on_chips_finished(batch_id: int) -> void:
 
 func _on_milestone(suffix_index: int) -> void:
 	var suffix: String = NumberFormat.SUFFIXES[suffix_index] if suffix_index < NumberFormat.SUFFIXES.size() else "?"
-	EventBus.toast_requested.emit(tr("MILESTONE_REACHED") % suffix + "  " + tr("TOAST_CLOVERS") % Economy.CLOVER_PER_MILESTONE, "clover")
+	EventBus.toast_requested.emit(tr("MILESTONE_REACHED") % suffix + "  " + tr("TOAST_CLOVERS") % NumberFormat.format(Economy.CLOVER_PER_MILESTONE), "clover")
 
 
 func _refresh_spin_state() -> void:
@@ -327,17 +355,94 @@ func _on_tab_pressed(tab_id: String) -> void:
 			_toggle_overlay(settings_overlay)
 
 
-## 오른쪽 패널 전환(베팅창 ↔ 업그레이드).
+## 오른쪽 패널 전환(베팅창 ↔ 업그레이드). 0.18초 동안 현재 패널이 밀려나고 새 패널이 들어온다.
+## 업그레이드는 베팅의 오른쪽에 있는 것처럼 움직인다. 룰렛·스핀은 그대로 계속된다.
 func switch_panel(tab_id: String) -> void:
 	if tab_id == current_tab:
 		return
 	var from: Control = bet_panel if current_tab == TopBar.TAB_BET else upgrade_panel
 	var to: Control = bet_panel if tab_id == TopBar.TAB_BET else upgrade_panel
+	var dir := -1.0 if tab_id == TopBar.TAB_UPGRADE else 1.0
 	current_tab = tab_id
 	top_bar.select_tab(tab_id)
+	top_bar.set_upgrade_tab_open(tab_id == TopBar.TAB_UPGRADE)
 	TooltipLayer.hide_tip(bet_panel.board)
-	PanelTransition.close(from, Vector2(8, 0), false)
-	PanelTransition.open(to, Vector2(-8, 0))
+	_finish_slide()
+	_slide_from = from
+	right_clip.clip_contents = true
+	to.visible = true
+	var width := RIGHT_PANEL_SIZE.x
+	AudioManager.play_sfx("panel_open")
+	_slide_tween = create_tween()
+	_slide_tween.tween_method(func(u: float) -> void:
+		from.position.x = roundf(dir * width * u)
+		to.position.x = roundf(-dir * width * (1.0 - u)), 0.0, 1.0, PANEL_SLIDE_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_slide_tween.tween_callback(_finish_slide)
+
+
+## 진행 중인 전환을 끝 상태로 맞춘다.
+func _finish_slide() -> void:
+	if _slide_tween != null and _slide_tween.is_valid():
+		_slide_tween.kill()
+	_slide_tween = null
+	if _slide_from != null:
+		_slide_from.visible = false
+	_slide_from = null
+	bet_panel.position = Vector2.ZERO
+	upgrade_panel.position = Vector2.ZERO
+	right_clip.clip_contents = false
+
+
+func is_sliding() -> bool:
+	return _slide_tween != null
+
+
+# ── 업그레이드 연출 ─────────────────────────────────────
+
+func _on_upgrade_purchased(id: String, level: int) -> void:
+	match id:
+		GameState.UPGRADE_MARBLE_TIER:
+			var from_tier := promotion.pending_target() if promotion.is_playing() else MarbleSprite.shared_tier()
+			if level > from_tier:
+				promotion.play(from_tier, level)
+			else:
+				_on_promotion_arrived(level)
+		"marble_count":
+			EventBus.toast_requested.emit(tr("TOAST_NEW_MARBLE"), "marble")
+	_refresh_spin_state()
+
+
+## 승급한 구슬이 날아갈 곳: 베팅창이 보이면 트레이, 아니면 재질 카드의 미리보기.
+func _promotion_target() -> Vector2:
+	if bet_panel.visible and not is_sliding():
+		return bet_panel.board.tray_target_global()
+	var marble_card := upgrade_panel.card(GameState.UPGRADE_MARBLE_TIER)
+	if marble_card != null and marble_card.marble_view != null:
+		return marble_card.marble_view.get_global_rect().get_center()
+	return WHEEL_CENTER
+
+
+## 승급 구슬이 닿았다: 모든 구슬(휠·트레이·베팅칸·카드)을 새 재질로 바꾼다.
+func _on_promotion_arrived(tier: int) -> void:
+	wheel.refresh_marble(tier)
+	bet_panel.board.refresh_marble()
+	ParticleBurst.spawn(float_layer, ParticleBurst.Kind.CHIPS, _promotion_target(), 10)
+	AudioManager.play_sfx("marble_place", 1.3)
+
+
+func _on_golden_pockets_added(numbers: Array[int]) -> void:
+	wheel.play_golden_beam(numbers)
+	for number in numbers:
+		EventBus.toast_requested.emit(tr("TOAST_GOLDEN_POCKET") % NumberFormat.format(number), "chip")
+
+
+func _attach_debug_panel() -> void:
+	if not OS.is_debug_build() or not ResourceLoader.exists(DEBUG_PANEL_PATH):
+		return
+	var script: GDScript = load(DEBUG_PANEL_PATH)
+	var panel: Node = script.new()
+	panel.set("main", self)
+	_layer_root(fx_layer).add_child(panel)
 
 
 func _toggle_overlay(overlay: Control) -> void:
@@ -357,7 +462,9 @@ func _close_overlay(overlay: Control) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("spin"):
-		if jackpot.is_open:
+		if promotion.is_playing():
+			promotion.skip()
+		elif jackpot.is_open:
 			jackpot.close()
 		else:
 			request_spin()

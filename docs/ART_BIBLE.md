@@ -131,7 +131,7 @@
 | 13 | 공허 | void | purple_d | neon_purple | neon_pink | ivory | void_swirl |
 | 14 | 코스믹 | purple_d | neon_purple | neon_pink | neon_cyan | gold_shine | cosmic_swirl |
 
-fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 반짝이 픽셀 2~3개, prism = 무지개 하이라이트 순환, stars = 내부 별 점멸, void_swirl/cosmic_swirl = 내부 소용돌이 프레임 애니메이션.
+fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 반짝이 픽셀 2~3개, prism = 무지개 하이라이트 순환, stars = 내부 별 점멸, void_swirl/cosmic_swirl = 내부 소용돌이. **3단계에서 재질별 표면 디테일·부가 효과로 구체화했다(9-1).**
 
 ---
 
@@ -143,6 +143,7 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 - **디더링**은 배경 그라데이션에만 제한적으로.
 - 배경은 채도·명도를 낮추고(void/night/dusk/shadow/felt_d 위주), **휠과 구슬이 화면에서 가장 밝고 선명한 요소**가 되게 한다.
 - 텍스처 필터는 Nearest(프로젝트 기본값). 밉맵 끔.
+- 5색에 더해 재질 강조색(다이아 무지개 red_hl·gold_hl·clover·neon_purple, 흑요석 neon_purple·purple_d, 코스믹 purple_d·neon_purple·neon_pink·neon_cyan)을 셰이더가 쓴다(`MarbleSprite.ACCENTS`).
 - 모든 스프라이트는 정수 좌표에 배치(프로젝트에 2D 픽셀 스냅 켜져 있음). 회전하는 요소(휠)는 저해상도 SubViewport 나 사전 렌더 프레임으로 픽셀 느낌을 유지한다.
 
 ---
@@ -153,7 +154,7 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
   - 9: 작은 라벨·툴팁, 11: 본문·버튼, 14: 제목·강조
   - **안티앨리어싱 끔**(FontFile antialiasing = None, hinting None, subpixel positioning Disabled), 폰트 크기는 원래 픽셀 크기의 정수배만.
   - `assets/fonts/` 에 두고 OFL 라이선스 파일을 함께 넣는다(2단계).
-- 큰 금액은 **전용 비트맵 숫자 폰트**: `num14_*`(Galmuri11 Bold 모양 + 금색 그라데이션·외곽선·그림자, 줄 높이 14) 와 `num7_*`(3×5 직접 디자인 + 외곽선, 줄 높이 7). 색 5종 gold/ivory/red/stone/clover. 숫자는 고정폭이라 카운트업 중 흔들리지 않는다. 테마 변형 `Num14Gold` 등으로 쓰고 글꼴 색은 흰색(곱하기 1)이다.
+- 큰 금액은 **전용 비트맵 숫자 폰트**: `num14_*`(Galmuri11 Bold 모양 + 금색 그라데이션·외곽선·그림자, 줄 높이 14) 와 `num7_*`(3×5 직접 디자인 + 외곽선, 줄 높이 7). 색 5종 gold/ivory/red/stone/clover. 숫자는 고정폭이라 카운트업 중 흔들리지 않는다. 테마 변형 `Num14Gold` 등으로 쓰고 글꼴 색은 흰색(곱하기 1)이다. 3단계: num14 의 0 가운데에 점(단위 Oc·Ocd 의 O 와 구분), num7 에 `L`·`v`(Lv 표기)를 더했다.
 
 ---
 
@@ -172,6 +173,16 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 | 결과 기록 토큰 | 0.32초 낙하(끝에 작게 튐), 나머지는 0.2초에 한 칸 밀림 |
 
 - 스케일 팝은 쓰지 않는다(소수 배율 금지). 대신 1~2px 이동, 프레임 교체, 색·알파 변화.
+
+| 항목(3단계) | 값 |
+|---|---|
+| 오른쪽 패널 전환 | 0.18초 ease-out cubic, 현재 패널이 216px 밀려나고 새 패널이 들어옴(업그레이드는 베팅의 오른쪽). 전환 중에만 잘라 냄 |
+| 업그레이드 구매 반응 | 카드 흰(ivory 0.85) 플래시 2프레임 → 아이콘 2px 튐(0.05초) → 1px(0.05초) → 0 · 코인음 피치 +0.05/연속 구매(최대 1.7, 0.9초 쉬면 처음으로) · 칩 카운터 0.25초 감소 |
+| 연속 구매 | 0.4초 뒤부터, 간격 0.18초 × 0.85^n (최소 0.04초) |
+| 탭 빨간 점 | 5×5, 알파 0.45~1.0 맥동(3.2 rad/s) |
+| 카드 스크롤 | 휠 한 칸 22px, 지수 감쇠(18/s) 후 정수 픽셀로 반올림, 3px 레일 드래그 가능 |
+| 새 슬롯 | 홈이 3프레임(2px → 6px → 12px)으로 0.2초에 열림('딸깍') → 구슬이 오른쪽 끝에서 0.5초 굴러 들어옴(2.5바퀴, ease-out) |
+| 황금 포켓 빛줄기 | 1.1초: 0.46초 동안 위에서 내려와 포켓에 닿음 → 포켓 금색 + 불꽃 14개 + 빛 링, 나머지 시간 페이드 |
 
 ---
 
@@ -192,12 +203,75 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 
 ---
 
+## 9. 업그레이드·구슬 재질 (3단계)
+
+### 9-1. 구슬 재질 15종
+
+- **크기 3종**: 휠 7px(`ui/marble.png`) · 베팅칸·트레이 10px(`marbles/marble_10.png`) · 카드·연출 24px(`marbles/marble_24.png`). 승급 연출의 48px 는 24px 의 2배 정수 확대. 템플릿은 나무 구슬 5색으로 그린 **음영 인덱스 맵**(wood_d 외곽선 · wood 그림자 · wood_l 바탕 · wood_hl 밝은 면 · ivory 광택)이다.
+- **셰이더** `assets/shaders/marble.gdshader`: 인덱스를 재질 5색으로 바꾸고, 텍셀 좌표로 구의 법선을 계산해 **텍셀 단위**로 표면 디테일을 얹는다(출력은 항상 팔레트 색 → 픽셀 퍼펙트). 그리기 색(modulate)이 인스턴스 값: r 밝기(진 구슬이 어두워짐 = void 로 덮기), g 굴림 위상, b 회전 속도(미리보기 1, 정지 0), a 알파.
+- 모든 구슬 CanvasItem 은 `MarbleSprite.shared_material()` 하나를 공유한다 → 재질이 바뀌면 `sync_shared()` 한 번으로 휠·트레이·베팅칸·카드가 함께 바뀐다. 고정 재질이 필요한 곳(비교 시트, 승급 연출의 이전 구슬)은 `material_for(tier)`.
+- 그림자·테두리 빛·부가 효과는 셰이더 없는 CanvasItem(`MarbleFx`)이 그린다. 구슬 뒤: 흑요석 테두리 광, 코스믹 성운 빛, 공허 고리 / 구슬 앞: 반짝임 별, 보석 반짝이, 다이아 무지개, 별빛 궤도 별, 공허 빨려드는 입자, 코스믹 별가루.
+
+| tier | 재질 | 표면 디테일(셰이더) | 부가 효과(MarbleFx) | 휠 궤적 |
+|---|---|---|---|---|
+| 0 | 나무 | 굴러가는 나뭇결 줄 + 옹이(24px) | — | 잔상만 |
+| 1 | 돌 | 어두운·밝은 반점 | — | 잔상만 |
+| 2 | 구리 | 환경 반사 띠 + 가로 금속 결, glint | — | 1px 금속 불티 |
+| 3 | 철 | 어두운 반사 띠 + 긁힌 자국 + 반점, glint | — | 1px 금속 불티 |
+| 4 | 은 | 크롬 반사(밝은 하늘·어두운 수평선), glint | — | 1px 금속 불티 |
+| 5 | 금 | 한 단계 밝은 금 + 수평선 반사 띠 + 아래 반사광, 빠른 glint | 주기적 4방향 별 | 금 반짝이 + 잔상 1 |
+| 6 | 옥 | 은은한 면(8) + 우윳빛 구름 | 반짝이 2~3개, 별 | 재질색 + 모양 + 잔상 1 |
+| 7 | 루비 | 면 12개, 면 경계선 | 〃 | 〃 |
+| 8 | 사파이어 | 면 16개 | 〃 | 〃 |
+| 9 | 에메랄드 | 세로로 긴 면 10개(스텝 컷) | 〃 | 〃 |
+| 10 | 다이아몬드 | 면 24개, 흰 얼음빛 대비, 면 중심의 무지개 스파클 | 무지개 스파클 + 반짝이 + 별 | 무지개 + 잔상 1 |
+| 11 | 흑요석 | 검은 유리 + 조개껍질 물결 + 보라 반사 줄, 외곽선이 보라로 맥동 | 보라빛 테두리 광 + 별 | 보라 잔상 공 + 잔상 2 |
+| 12 | 별빛 | 밤하늘(하늘색·보라) + 점멸하는 1px 별 | 둘레를 도는 별 + 꼬리 | 별 입자 + 잔상 2 |
+| 13 | 공허 | 가운데 검은 구멍 + 빨려드는 소용돌이 팔 + 사건의 지평선 | 어두운 고리 + 빨려드는 입자, **주변 화면 왜곡**(`void_lens.gdshader`) | 빨려드는 입자 + 잔상 2 |
+| 14 | 코스믹 | 흐르는 4색 성운 + 별가루 | 성운 빛 + 궤도 별가루 | 여러 색 별가루(0.8초) + 잔상 3 |
+
+- 금속·금·보석은 주기적으로 대각선 빛(glint)이 스친다(금 2.4초, 나머지 3.2초). 보석(옥~다이아)과 별빛 이후는 정지 상태에서도 천천히 돈다(면 반사가 회전).
+- 공허 왜곡: 구슬 주변 원(휠 9px, 보드 8px) 안의 화면을 정수 픽셀 단위로 소용돌이치며 안쪽으로 당겨 다시 읽는다(BackBufferCopy + 화면 텍스처). 새 색을 만들지 않는다.
+- 검수: `tools/capture/marble_sheet.gd` 로 15종 비교 시트(48·24·10·7px)를 찍는다.
+
+### 9-2. 업그레이드창 (오른쪽 패널 216×328)
+
+| 요소 | 좌표·크기 |
+|---|---|
+| 제목 | y 8, LabelTitle |
+| 구매 수량 | 라벨 (12, 29), 토글 ×1/×10/MAX 34×16 × 3 (오른쪽 끝 x 204), ChipButton |
+| 카드 영역 | (7, 47) 200×274, 잘라 냄. 카드 간격 3px, 레일 x 208 3px(void 바탕, 금 손잡이) |
+| 일반 카드 200×44 | 아이콘 칸 (4,12) 20×20 + 16×16 아이콘 · 이름 (28,3) LabelBold · 효과 (28,22) Num7("×1.35 → ×1.82", 다음 값 clover) · 셋째 줄 (28,33) "Lv.12"(Num7Gold) + 레벨당 효과(Num7Stone) · 구매 버튼 (130,5) 66×28 · 부족분 바 버튼 아래 3px |
+| 재질 카드 200×68 | 미리보기 칸 (4,4) 34×34 + 24px 회전 구슬 · 재질 이름 + "6/15" (42,3) · "당첨 배율" (42,18) · 배율 변화 (42,30) · 버튼 (130,19) · 수집 띠 15종 7px (6,57) 8px 간격(없는 재질은 ink 실루엣) |
+| 구매 버튼 | 살 수 있으면 ButtonGold, 아니면 ButtonStone. 안에 수량 "×37"(Num7, 좌상단) + 칩 아이콘 + 비용(Num14). 누르면 내용 1px 아래로 |
+| 잠김 | CardLocked, 실루엣 아이콘(`*_locked.png`), 이름 LabelMuted, 해금 조건 문구(LabelSmallMuted), 오른쪽 끝 자물쇠 9×11 |
+| 최대 레벨 | CardMax(금 테두리) + MAX 스탬프 30×14(버튼 자리), 효과값 Num7Gold |
+| 카드 배경 | CardNormal(ink 테) · CardHover(stone 테) · CardReady(살 수 있음, 금 테) · CardMax · CardLocked · CardMarble(purple_d 벨벳 + 금 테) |
+| 툴팁 | 이름 — 설명 / 현재 → 다음(format_full) / 비용 전체 숫자 (×수량) / 공식 / 비용 배율 / 부족분 또는 "누르고 있으면 연속 구매" |
+
+### 9-3. 재질 승급 연출 (MarblePromotion, 약 2.4초)
+
+| 시각(초) | 내용 |
+|---|---|
+| 0 ~ 0.25 | 화면 void 알파 0 → 0.72 |
+| 0.1 ~ 0.45 | 이전 구슬 48px 가 화면 중앙(320,150)으로 16px 떠오름(알파 0 → 1, 정수 픽셀) |
+| 0.45 ~ 1.15 | 빛이 모임: 새 재질 밝은 색 입자 70/초가 안쪽으로, 광선 12개가 줄어들며 모임, 고리 맥동. 구슬 흔들림 0 → 1 → 2px(점점 빨라짐). promote_charge |
+| 1.15 | 흰 섬광(ivory 0.9 → 0, 0.25초, 번쩍임 줄이기 따름) + 새 재질로 변신 + 재질 5색 입자 72개 폭발 + 빛 링 2개. promote_flash + 징글(tier 1~4: 1, 5~9: 2, 10~14: 3단계 — 높을수록 길고 화음·반짝임이 많다) |
+| 1.25 ~ | 배너 "금 구슬 획득!"(LabelTitle) + "당첨 배율 ×900 → ×8.00K"(LabelGold)를 PanelPlain 판 위에 8px 아래에서 올리며 표시 |
+| 1.95 ~ 2.35 | 구슬이 트레이(베팅창) 또는 재질 카드로 포물선(34px) 비행, 48 → 24 → 10px 로 템플릿 교체. 닿으면 모든 구슬이 새 재질 |
+| ~ 2.5 | 어둠·배너 페이드 아웃. 클릭·Space 는 즉시 적용 후 0.15초 페이드 |
+
+### 9-4. 황금 포켓
+
+- 구매: 금빛 빛줄기(11px, `golden_beam.png` 세로로 늘림)가 휠 위에서 무작위 포켓으로 떨어지고, 닿는 순간 포켓이 금색(gold/gold_l + 반짝임), 베팅창 해당 숫자 칸에 금 테두리(gold_hl + gold_l 맥동)와 은은한 금빛.
+- 결과가 황금 포켓: 결과 배지 아래 (262, 72) 에 "황금 ×3"(BadgeGolden 금 패널 + LabelBold, 6px 떨어지며 등장, 모서리 반짝임) + 포켓에서 금 코인 파티클 26개. 다음 스핀에 사라짐.
+
 ## 8. 에셋 제작 방식
 
 - 픽셀 에셋은 `tools/art/*.py`(Python + Pillow)로 **팔레트를 고정해 픽셀 단위로 그리는 스크립트**로 만들거나, Godot 에서 저해상도로 절차적으로 그린다.
 - 스크립트는 `Palette` 와 같은 36색 표를 쓰고, 팔레트 밖 색이 나오면 실패하게 만든다.
 - 생성 후 반드시 **4배 확대 미리보기 PNG** 를 직접 보고 수정을 반복한다(미리보기는 커밋하지 않아도 됨: `build/art_preview/` 에 저장).
-- 재생성 순서: `python3 tools/art/gen_ui.py && python3 tools/art/gen_fonts.py && python3 tools/art/gen_wheel.py && python3 tools/art/gen_bg.py && python3 tools/art/gen_fx.py && python3 tools/audio/gen_sfx.py` → `godot --headless --import` → `godot --headless -s tools/art/build_theme.gd`.
+- 재생성 순서: `python3 tools/art/gen_ui.py && python3 tools/art/gen_fonts.py && python3 tools/art/gen_wheel.py && python3 tools/art/gen_bg.py && python3 tools/art/gen_fx.py && python3 tools/art/gen_upgrades.py && python3 tools/audio/gen_sfx.py` → `godot --headless --import` → `godot --headless -s tools/art/build_theme.gd`.
 - 테스트 `test_ui_assets.gd` 가 `assets/sprites`·`assets/ui`·`assets/fonts` 의 모든 PNG 에 팔레트 밖 색이 없는지 검사한다.
 - 모든 에셋의 파일명·크기·용도를 아래 "에셋 목록"에 기록해, 나중에 사람이 그린 그림으로 교체할 수 있게 한다. 교체 시 크기·피벗·프레임 배치를 유지하면 코드 수정이 필요 없어야 한다.
 
@@ -249,7 +323,7 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 | `assets/sprites/ui/icon_odd.png` | 7×7 | 1 | 홀 베팅 | tools/art/gen_ui.py | 2 |
 | `assets/sprites/ui/icon_red.png` | 7×9 | 1 | 빨강 베팅 | tools/art/gen_ui.py | 2 |
 | `assets/sprites/ui/icon_snow.png` | 7×7 | 1 | 콜드 넘버 | tools/art/gen_ui.py | 2 |
-| `assets/sprites/ui/marble.png` | 7×7 | 1 | 구슬 템플릿(나무 색, 런타임 재질 색 치환) | tools/art/gen_ui.py | 2 |
+| `assets/sprites/ui/marble.png` | 7×7 | 1 | 구슬 템플릿 7px(휠), 나무 5색 인덱스 → marble.gdshader 가 재질로 치환 | tools/art/gen_ui.py | 2 |
 | `assets/sprites/ui/particle_chip2.png` | 2×2 | 1 | 칩 파티클 2×2 | tools/art/gen_ui.py | 2 |
 | `assets/sprites/ui/particle_chip3.png` | 3×3 | 1 | 칩 파티클 3×3 | tools/art/gen_ui.py | 2 |
 | `assets/sprites/ui/particle_clover.png` | 3×3 | 1 | 클로버 파티클 | tools/art/gen_ui.py | 2 |
@@ -324,3 +398,24 @@ fx_id 의미(2·3단계에서 구현): glint = 가끔 1px 하이라이트가 스
 | `assets/fonts/Galmuri9.ttf` `Galmuri11.ttf` `Galmuri11-Bold.ttf` `Galmuri14.ttf` | 10·12·12·15px | — | 본문 글꼴(OFL, `assets/fonts/OFL.txt`) | quiple/galmuri dist | 2 |
 | `assets/ui/theme_main.tres` | — | — | 프로젝트 기본 테마(모든 UI) | tools/art/build_theme.gd | 2 |
 | `assets/shaders/vignette.gdshader` `rays.gdshader` | — | — | 배경 비네트, JACKPOT 회전 광선(팔레트 색 + 알파만) | 손으로 작성 | 2 |
+| `assets/sprites/marbles/marble_10.png` | 10×10 | 1 | 구슬 템플릿 10px(베팅칸·트레이), 나무 5색 인덱스 | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/marbles/marble_24.png` | 24×24 | 1 | 구슬 템플릿 24px(카드·연출, 48px 는 ×2) | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/upgrades/icon_{marble_tier,marble_polish,bet_limit,marble_count,spin_speed,golden_pocket}.png` | 16×16 | 1 | 업그레이드 아이콘 6종 | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/upgrades/icon_*_locked.png` | 16×16 | 1 | 잠긴 카드 실루엣(ink + shadow 테) | tools/art/gen_upgrades.py | 3 |
+| `assets/ui/card_{normal,hover,ready,max,locked,marble}.png` | 12×12 | 1 | 업그레이드 카드 배경, 9-slice 4 | tools/art/gen_upgrades.py | 3 |
+| `assets/ui/card_slot.png` | 8×8 | 1 | 카드 아이콘 칸(움푹), 9-slice 2 | tools/art/gen_upgrades.py | 3 |
+| `assets/ui/button_stone_{normal,hover,pressed,disabled}.png` | 14×16 | 1 | 살 수 없는 구매 버튼(stone 톤), 9-slice 3 | tools/art/gen_ui.py | 3 |
+| `assets/ui/badge_golden.png` | 10×12 | 1 | "황금 ×3" 배지 바탕, 9-slice 4 | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/stamp_max.png` | 30×14 | 1 | 최대 레벨 MAX 스탬프 | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/notify_dot.png` | 5×5 | 1 | 탭 빨간 점 | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/arrow_right.png` | 7×5 | 1 | 효과 변화 화살표 | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/golden_beam.png` | 11×64 | 1 | 황금 포켓 빛줄기(세로로 늘려 씀, 알파) | tools/art/gen_upgrades.py | 3 |
+| `assets/sprites/ui/icon_lock_big.png` | 9×11 | 1 | 잠긴 카드 자물쇠 | tools/art/gen_upgrades.py | 3 |
+| `assets/shaders/marble.gdshader` `void_lens.gdshader` | — | — | 구슬 재질(팔레트 치환 + 표면 디테일), 공허 주변 왜곡 | 손으로 작성 | 3 |
+| `assets/audio/sfx/buy_coin.wav` | 0.36초 | — | 업그레이드 구매 코인음(연속 구매 시 피치 상승) | tools/audio/gen_sfx.py | 3 |
+| `assets/audio/sfx/slot_open.wav` | 0.24초 | — | 트레이 새 홈 '딸깍' | tools/audio/gen_sfx.py | 3 |
+| `assets/audio/sfx/marble_roll.wav` | 0.60초 | — | 새 구슬이 굴러 들어옴 | tools/audio/gen_sfx.py | 3 |
+| `assets/audio/sfx/golden_beam.wav` | 1.62초 | — | 황금 포켓 빛줄기 | tools/audio/gen_sfx.py | 3 |
+| `assets/audio/sfx/promote_charge.wav` | 0.95초 | — | 승급: 빛이 모임 | tools/audio/gen_sfx.py | 3 |
+| `assets/audio/sfx/promote_flash.wav` | 1.20초 | — | 승급: 섬광·폭발 | tools/audio/gen_sfx.py | 3 |
+| `assets/audio/sfx/promote_jingle_{1,2,3}.wav` | 0.89·1.73·2.82초 | — | 승급 징글(재질이 높을수록 웅장) | tools/audio/gen_sfx.py | 3 |

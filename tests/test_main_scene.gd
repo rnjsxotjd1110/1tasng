@@ -28,7 +28,7 @@ func _run_wheel_to_end(max_seconds: float = 10.0) -> void:
 
 func test_main_is_project_main_scene() -> void:
 	check_eq(ProjectSettings.get_setting("application/run/main_scene"), MAIN_SCENE, "메인 씬")
-	check(not DirAccess.dir_exists_absolute("res://scenes/debug"), "디버그 씬 삭제")
+	check(not ResourceLoader.exists("res://scenes/debug/DebugLogic.tscn"), "1단계 디버그 씬 삭제")
 	check(main.controller != null and not main.controller.instant_resolve, "연출이 finish_spin 을 부른다")
 
 
@@ -105,7 +105,7 @@ func test_no_bets_and_not_enough_chips() -> void:
 
 
 func test_tooltip_uses_real_payout() -> void:
-	GameState.marble_tier = 1  # 돌 ×1.5
+	GameState.set_upgrade_level("marble_tier", 1)  # 돌 ×1.5
 	var text := main.bet_panel.board.tooltip_text("S17")
 	check(text.contains("17"), "숫자")
 	check(text.contains("35:1"), "배당")

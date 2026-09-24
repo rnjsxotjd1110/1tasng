@@ -1,17 +1,20 @@
 [gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_sleom"]
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_6ywbk"]
 
 [resource]
-script = ExtResource("1_sleom")
+script = ExtResource("1_6ywbk")
 id = "marble_count"
 name_key = "UPGRADE_MARBLE_COUNT"
 desc_key = "UPGRADE_MARBLE_COUNT_DESC"
-icon_path = ""
-base_cost = 100.0
-growth = 12.0
+icon_path = "res://assets/sprites/ui/upgrades/icon_marble_count.png"
+kind = 0
+sort_order = 3
+base_cost = 300.0
+growth = 22.0
 max_level = 7
 effect_stat = "marble_slots_bonus"
 effect_op = 0
 effect_per_level = 1.0
 required_floor = 0
+required_marble_tier = 0

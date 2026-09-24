@@ -27,6 +27,8 @@ func _ready() -> void:
 	EventBus.skill_purchased.connect(func(_id: String, _level: int) -> void: save_game())
 	EventBus.floor_changed.connect(func(_index: int) -> void: save_game())
 	EventBus.debt_changed.connect(save_game)
+	EventBus.ending_triggered.connect(save_game)
+	EventBus.infinite_mode_started.connect(save_game)
 
 
 func _process(delta: float) -> void:
@@ -88,6 +90,7 @@ func load_game() -> bool:
 	GameState.from_dict(data)
 	GameState.rebuild_upgrade_modifiers()
 	GameState.rebuild_skill_modifiers()
+	GameState.rebuild_ending_modifiers()
 	var rng_state: Variant = data.get("rng")
 	if typeof(rng_state) == TYPE_DICTIONARY:
 		RngService.set_state(rng_state)
@@ -102,6 +105,8 @@ func load_game() -> bool:
 		GameState.get_stat(StatModifiers.OFFLINE_CAP_HOURS, Economy.OFFLINE_CAP_HOURS),
 		GameState.get_stat(StatModifiers.OFFLINE_EFFICIENCY, Economy.OFFLINE_EFFICIENCY),
 		Economy.OFFLINE_TIP_EFFICIENCY, clover_hours)
+	if last_load_offline.eligible:
+		GameState.achievement_manager.check_offline_hours(last_load_offline.elapsed_seconds)
 	last_load_ok = true
 	return true
 

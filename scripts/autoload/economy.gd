@@ -128,6 +128,19 @@ const HOT_NUMBER_COUNT := 3
 # ── 엔딩 ──────────────────────────────────────────────────
 ## 1Dc. PH 에서 지불하면 하우스 인수.
 const ENDING_COST := 1e33
+## 무한 모드(오너 모드) 진입 시 payout_mult_all 에 곱해지는 영구 배율("수익 ×2").
+const OWNER_MODE_PAYOUT_MULT := 2.0
+
+# ── 업적(7단계) ───────────────────────────────────────────
+## "1시간 무파산" 업적 조건(초). 파산(bankrupt) 시 타이머가 0으로 돌아간다.
+const ACHIEVEMENT_NO_BANKRUPT_SECONDS := 3600.0
+## "오프라인 8시간" 업적 조건(시간).
+const ACHIEVEMENT_OFFLINE_HOURS := 8.0
+## "누적 칩 1Qa" 업적 조건(GameState.STAT_TOTAL_EARNED 기준).
+const ACHIEVEMENT_TOTAL_CHIPS := 1e15
+## "누적 스핀" 업적 2종의 조건(GameState.STAT_TOTAL_SPINS 기준).
+const ACHIEVEMENT_TOTAL_SPINS_LOW := 1000.0
+const ACHIEVEMENT_TOTAL_SPINS_HIGH := 10000.0
 
 
 ## 구슬당 최대 베팅액. max_bet_mult 에는 베팅 한도 업그레이드(1.35^레벨)가 포함돼 있다.

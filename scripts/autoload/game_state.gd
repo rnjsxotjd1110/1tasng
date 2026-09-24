@@ -98,9 +98,21 @@ var wheel_of_fortune_timer: float = -1.0
 ## 살면서 클로버를 한 번이라도 얻었는지(스킬트리 버튼 자물쇠 해제는 최초 1회만 재생).
 var first_clover_seen: bool = false
 
+# ── 7단계: 층 진행·엔딩·업적 ─────────────────────────────
+## 해금한 업적 id 목록(순서 = 해금 순서).
+var unlocked_achievements: Array[String] = []
+## 숨김 업적 "벨벳 대사 전부 보기" 진행 상황: {대사 키: {변형 인덱스: true}}.
+var achievement_dialogue_seen: Dictionary = {}
+## PH 에서 1Dc 를 내고 하우스 인수를 확정했는가.
+var ending_reached: bool = false
+## 엔딩 크레딧 뒤 "계속하기"로 무한 모드(오너 모드)에 들어갔는가.
+var infinite_mode: bool = false
+var achievement_manager := AchievementManager.new()
+
 
 func _ready() -> void:
 	modifiers.source_expired.connect(_on_modifier_source_expired)
+	achievement_manager.attach()
 	reset()
 
 
@@ -108,6 +120,7 @@ func _process(delta: float) -> void:
 	stats[STAT_PLAY_TIME] = float(stats.get(STAT_PLAY_TIME, 0.0)) + delta
 	modifiers.tick(delta)
 	penalty_manager.process(delta)
+	achievement_manager.process(delta)
 	_tick_investment(delta)
 	_tick_wheel_of_fortune(delta)
 	emergency_fund_cooldown = maxf(0.0, emergency_fund_cooldown - delta)
@@ -197,6 +210,11 @@ func reset() -> void:
 	first_clover_seen = false
 	emergency_fund_tracker.reset()
 	emergency_fund_cooldown = 0.0
+	unlocked_achievements = []
+	achievement_dialogue_seen = {}
+	ending_reached = false
+	infinite_mode = false
+	achievement_manager.reset()
 	stats = {
 		STAT_TOTAL_SPINS: 0,
 		STAT_TOTAL_WINS: 0,
@@ -622,6 +640,13 @@ func rebuild_skill_modifiers() -> void:
 		set_skill_level(id, int(skill_levels[id]))
 
 
+## 무한 모드(오너 모드) 수정자를 infinite_mode 값으로부터 다시 만든다(불러오기 후 호출, rebuild_upgrade_modifiers 와 동형).
+func rebuild_ending_modifiers() -> void:
+	modifiers.remove_source("ending:owner_mode")
+	if infinite_mode:
+		modifiers.add_modifier("ending:owner_mode", StatModifiers.PAYOUT_MULT_ALL, StatModifiers.Op.MULT, Economy.OWNER_MODE_PAYOUT_MULT)
+
+
 ## 황금 포켓 개수를 스탯에 맞춘다. 늘면 아직 황금이 아닌 포켓 중 무작위로 추가(golden_pockets_added 발행), 줄면 뒤에서 제거.
 func refresh_golden_pockets() -> void:
 	var target := golden_pocket_count()
@@ -822,6 +847,10 @@ func to_dict() -> Dictionary:
 		"wheel_of_fortune_timer": wheel_of_fortune_timer,
 		"emergency_fund_cooldown": emergency_fund_cooldown,
 		"first_clover_seen": first_clover_seen,
+		"unlocked_achievements": unlocked_achievements.duplicate(),
+		"achievement_dialogue_seen": achievement_dialogue_seen.duplicate(true),
+		"ending_reached": ending_reached,
+		"infinite_mode": infinite_mode,
 	}
 
 
@@ -877,6 +906,15 @@ func from_dict(data: Dictionary) -> void:
 	wheel_of_fortune_timer = float(data.get("wheel_of_fortune_timer", -1.0))
 	emergency_fund_cooldown = float(data.get("emergency_fund_cooldown", 0.0))
 	first_clover_seen = bool(data.get("first_clover_seen", clovers > 0))
+	unlocked_achievements = []
+	for value in data.get("unlocked_achievements", []):
+		unlocked_achievements.append(String(value))
+	achievement_dialogue_seen = {}
+	var loaded_dialogue_seen: Dictionary = data.get("achievement_dialogue_seen", {})
+	for key: String in loaded_dialogue_seen.keys():
+		achievement_dialogue_seen[key] = (loaded_dialogue_seen[key] as Dictionary).duplicate()
+	ending_reached = bool(data.get("ending_reached", false))
+	infinite_mode = bool(data.get("infinite_mode", false))
 	EventBus.chips_changed.emit(chips, 0.0)
 	EventBus.clovers_changed.emit(clovers, 0)
 	EventBus.bets_changed.emit()

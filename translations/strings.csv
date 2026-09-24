@@ -369,3 +369,63 @@ SKILL_Y13,시간 왜곡,Time Warp
 SKILL_Y13_DESC,모든 시간제 버프의 지속시간이 레벨당 25% 늘어난다.,+25%/level duration for all timed buffs.
 SKILL_Y14,운명의 휠,Wheel of Fortune
 SKILL_Y14_DESC,10분마다 8칸 보너스 휠이 등장한다.,A bonus wheel with 8 slices appears every 10 minutes.
+ACH_FIRST_SPIN_NAME,첫 스핀,First Spin
+ACH_FIRST_SPIN_DESC,룰렛을 처음으로 돌렸다.,Spin the roulette wheel for the first time.
+ACH_FIRST_STRAIGHT_NAME,첫 개별숫자,First Straight-Up
+ACH_FIRST_STRAIGHT_DESC,개별숫자 베팅에 처음 적중했다.,Hit a straight-up number bet for the first time.
+ACH_ZERO_HIT_NAME,초록에 서다,Standing on Green
+ACH_ZERO_HIT_DESC,결과가 0번에 나온 스핀을 봤다.,Land a spin result on the number 0.
+ACH_WIN_STREAK_10_NAME,10연승,Ten in a Row
+ACH_WIN_STREAK_10_DESC,한 스핀에 당첨이 10번 연속 나왔다.,Win on 10 consecutive spins.
+ACH_FIRST_LOAN_NAME,남작과의 첫 만남,First Meeting with the Baron
+ACH_FIRST_LOAN_DESC,래칫 남작에게 처음으로 돈을 빌렸다.,Take your first loan from Baron Ratchet.
+ACH_DEBT_PAID_FIRST_NAME,빚 청산,Debt Cleared
+ACH_DEBT_PAID_FIRST_DESC,모든 빚을 처음으로 완전히 갚았다.,Pay off all your debt for the first time.
+ACH_TRIPLE_LOANS_NAME,장부가 꽉 찼다,Ledger Full
+ACH_TRIPLE_LOANS_DESC,대출을 동시에 3건 짊어졌다.,Carry three loans from the Baron at once.
+ACH_FLOOR_2F_NAME,리버보트 승선,All Aboard
+ACH_FLOOR_2F_DESC,2F 리버보트 카지노에 도착했다.,Reach the 2F Riverboat Casino.
+ACH_FLOOR_3F_NAME,스카이라인 위에서,Above the Skyline
+ACH_FLOOR_3F_DESC,3F 스카이 라운지에 도착했다.,Reach the 3F Sky Lounge.
+ACH_FLOOR_PH_NAME,펜트하우스,The Penthouse
+"ACH_FLOOR_PH_DESC","펜트하우스 ""더 하우스""에 도착했다.","Reach the Penthouse, ""The House."""
+ACH_ENDING_NAME,하우스가 되다,Becoming the House
+ACH_ENDING_DESC,카지노를 인수하고 엔딩을 봤다.,Buy out the casino and reach the ending.
+ACH_MARBLE_GOLD_NAME,황금빛 구슬,A Golden Marble
+ACH_MARBLE_GOLD_DESC,금 구슬을 손에 넣었다.,Acquire the Gold marble.
+ACH_MARBLE_DIAMOND_NAME,영롱한 구슬,A Brilliant Marble
+ACH_MARBLE_DIAMOND_DESC,다이아몬드 구슬을 손에 넣었다.,Acquire the Diamond marble.
+ACH_MARBLE_COSMIC_NAME,우주의 구슬,A Cosmic Marble
+ACH_MARBLE_COSMIC_DESC,코스믹 구슬을 손에 넣었다.,Acquire the Cosmic marble.
+ACH_MARBLES_12_NAME,구슬 한가득,Marbles Galore
+ACH_MARBLES_12_DESC,구슬을 12개까지 늘렸다.,Own 12 marbles at once.
+ACH_SKILL_HALF_NAME,스킬트리 절반,Halfway There
+ACH_SKILL_HALF_DESC,스킬트리 전체 비용의 절반을 투자했다.,Invest half the skill tree's total cost.
+ACH_SKILL_FULL_NAME,스킬트리 완성,Tree Complete
+ACH_SKILL_FULL_DESC,스킬트리를 전부 채웠다.,Fill the entire skill tree.
+ACH_FIRST_FEVER_NAME,첫 피버 타임,First Fever Time
+ACH_FIRST_FEVER_DESC,피버 타임을 처음 발동시켰다.,Trigger Fever Time for the first time.
+ACH_LUCKY_SEVEN_NAME,럭키 세븐,Lucky Seven
+"ACH_LUCKY_SEVEN_DESC","7, 17, 27 중 하나에 개별숫자로 적중했다.","Hit a straight-up bet on 7, 17, or 27."
+ACH_JACKPOT_SHOWN_NAME,잭팟!,Jackpot!
+ACH_JACKPOT_SHOWN_DESC,JACKPOT 등급 당첨을 봤다.,Land a JACKPOT-tier win.
+ACH_DESTINY_FLIP_NAME,운명 역전,Reversal of Fortune
+ACH_DESTINY_FLIP_DESC,운명 뒤집기로 패배가 승리로 바뀌었다.,Have Fate Reversal turn a loss into a win.
+ACH_DOUBLE_BALL_NAME,두 배의 행운,Double the Luck
+ACH_DOUBLE_BALL_DESC,더블 볼로 두 공 모두 적중시켰다.,Land winning bets with both balls in a double-ball spin.
+ACH_GOLDEN_POCKET_HIT_NAME,황금 포켓 적중,Golden Pocket Hit
+ACH_GOLDEN_POCKET_HIT_DESC,황금 포켓에 처음 적중했다.,Land on a golden pocket for the first time.
+ACH_OFFLINE_8H_NAME,오랜만이에요,Long Time No See
+ACH_OFFLINE_8H_DESC,8시간 이상 자리를 비웠다가 돌아왔다.,Return after being away for 8 hours or more.
+ACH_NO_BANKRUPT_1H_NAME,흔들림 없는 한 시간,A Steady Hour
+ACH_NO_BANKRUPT_1H_DESC,파산 없이 1시간을 버텼다.,Go a full hour without going bankrupt.
+ACH_TOTAL_SPINS_1000_NAME,천 번의 스핀,A Thousand Spins
+"ACH_TOTAL_SPINS_1000_DESC","누적 스핀 1,000회를 돌렸다.","Reach 1,000 total spins."
+ACH_TOTAL_SPINS_10000_NAME,만 번의 스핀,Ten Thousand Spins
+"ACH_TOTAL_SPINS_10000_DESC","누적 스핀 10,000회를 돌렸다.","Reach 10,000 total spins."
+ACH_TOTAL_CHIPS_1QA_NAME,억만장자를 넘어,Beyond Billionaire
+ACH_TOTAL_CHIPS_1QA_DESC,누적 획득 칩이 1Qa 를 넘었다.,Earn 1Qa total chips over the course of the game.
+ACH_VELVET_ALL_LINES_NAME,벨벳의 모든 말,Every Word from Velvet
+ACH_VELVET_ALL_LINES_DESC,마담 벨벳의 대사를 전부 들었다.,Hear every one of Madame Velvet's lines.
+ACH_SAME_NUMBER_3_NAME,세 번의 우연,Three of a Kind
+ACH_SAME_NUMBER_3_DESC,같은 숫자가 3번 연속으로 나왔다.,Land on the exact same number three spins in a row.

@@ -74,3 +74,14 @@ signal streak_clover_earned(count: int)
 ## 살면서 처음으로 클로버를 얻었다. 스킬트리 버튼 자물쇠 해제 연출 + 루시 대사 트리거용.
 @warning_ignore("unused_signal")
 signal first_clover_earned()
+
+# ── 7단계: 층 진행·엔딩·업적 ─────────────────────────────
+## 업적을 새로 얻었다. id 로 AchievementData 에서 이름·아이콘을 찾는다.
+@warning_ignore("unused_signal")
+signal achievement_unlocked(id: String)
+## PH 에서 1Dc 를 내고 하우스 인수를 확정했다(엔딩 컷신 시작 신호).
+@warning_ignore("unused_signal")
+signal ending_triggered()
+## 엔딩 크레딧 이후 "계속하기"로 무한 모드(오너 모드)에 들어갔다.
+@warning_ignore("unused_signal")
+signal infinite_mode_started()

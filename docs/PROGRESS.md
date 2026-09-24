@@ -63,10 +63,12 @@
 - [x] 딜러 루시 스프라이트·초상화·연출(월드 액터·대사·복귀 팝업 초상화)
 - [x] 캡처 검수(스킬트리·자동화·루시 확인), 최종 커밋 — 일부 시나리오는 아래 "남은 이슈" 참고
 
-### 7단계 — 층 진행·엔딩·업적
-- [ ] 층 이동(비용, 배율, 클로버 +10, 층별 배경), floor_changed
-- [ ] 엔딩: 1Dc → 마담 벨벳 최후의 스핀 → 크레딧·통계 → 무한 모드
-- [ ] 업적(스팀 업적 연동 준비)
+### 7단계 — 층 진행·엔딩·업적 (진행 중)
+- [x] 층 이동 로직(비용·배율·클로버 +10, `FloorService`), `floor_changed` 발행 지점 — 층별 배경은 2/N
+- [x] 엔딩 로직(1Dc → `EndingService`, `ending_reached`/`infinite_mode` 저장) — 최후의 스핀·크레딧·벨벳 연출은 3/N
+- [x] 업적 로직 30개(`AchievementManager`+`data/achievements.json`, 저장/불러오기) — 토스트·목록 화면은 3/N
+- [ ] 층별 배경 4종·휠 스킨 5종·엘리베이터 UI·컷신 (2/N)
+- [ ] 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면 (3/N)
 
 ### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비
 - [ ] 타이틀 화면, 루시 튜토리얼, 효과음·음악(AudioManager)
@@ -510,3 +512,81 @@
 - 새 UI 요소(BuffBar/ProphecyOrb/FeverGauge/PiggyBankWidget)는 전부 절차적 드로잉(`draw_*`)이라 스프라이트 자산이
   없다 — ART_BIBLE 관점에서 "정식 아이콘"으로 다듬고 싶다면 `tools/art/gen_skills.py` 패턴(배지+글리프)을
   재사용해 8단계 폴리시 패스 때 교체하면 된다.
+
+### 7단계 진행 중 (2026-09-24) — 1/N: 층 이동·엔딩·업적 로직 기반
+
+**시작 전 정리**: 이번 세션이 배정받은 작업 브랜치(`claude/tender-goldberg-scqis9`)에는 1단계 커밋만 있었다(6단계까지
+쌓은 다른 세션들의 브랜치가 여럿 있었지만 전부 별도 브랜치였고, GitHub 에 병합된 PR 은 없었다). GitHub 브랜치를 조사해
+1→2→3→4→5→6(3커밋)단계를 순서대로 쌓은 `claude/friendly-meitner-1ay0i9`(커밋 `22728e9`)를 찾았고, 이 세션 브랜치에는
+그 지점 이후로 고유 커밋이 없음을 확인한 뒤 그 지점으로 안전하게 재설정했다. `godot --headless -s tests/run_tests.gd` 로
+**285 tests, 7889 checks, 0 failures** 를 확인한 뒤(6단계가 정상 종료 상태) 이 문서의 계획대로 7단계를 시작했다.
+작업량이 매우 많아 6단계처럼 하위 작업 단위로 커밋을 나눈다(이 커밋은 1번째: 화면 없이 로직·데이터만).
+
+**층 데이터 재조정**: 이번 요청 명세(당첨 배율 ×1/×10/×1K/×100K/×10M, 1F/2F/3F 구슬 상한 금/루비/흑요석)가 1단계
+초안(GDD 7장, ×1/×2/×4/×8/×16, 상한 옥/에메랄드/별빛)과 달라서 요청 명세로 교체했다(둘 다 "초안 — 9단계에서 조정"
+이라 명시돼 있었다). 이동 비용(1M/1T/1Sx/1No)·베팅 배율(×100/×10K/×1M/×100M)·클로버 보상(+10)·PH 상한(코스믹)·
+`golden_pocket` 업그레이드의 `required_floor=2`(2F 해금)는 1단계 값이 요청과 이미 일치해 그대로 뒀다. `GDD.md` 5·7·10·
+11·17장, `data/floors/*.tres` 4개를 갱신했다. `test_data.gd::test_floors()` 는 배율 단조증가·PH 전체 재질만 검사해서
+영향받지 않았고, `UpgradeCard._lock_text()`("다음 층에서 해금")는 이미 3단계에 구현돼 있어 손대지 않았다.
+
+**한 일**
+- **`FloorService`**(신규, `UpgradeService` 와 동형인 static 클래스): `next_floor_def/is_max_floor/progress/can_move/
+  move_to_next`. `move_to_next()` 가 `spend_chips`→`floor_index` 갱신→`add_clovers`→`EventBus.floor_changed` 순서로
+  처리(리셋 없음). `progress()` 는 상단 바 진행률 바용(2/N).
+- **`EndingService`**(신규): `can_trigger()`(PH+1Dc+아직 안 봄) / `trigger()`(칩 소모 → `GameState.ending_reached=true`
+  → `EventBus.ending_triggered`) / `enter_infinite_mode()`(`GameState.infinite_mode=true` → `payout_mult_all` 영구
+  ×2 수정자 `ending:owner_mode`, 멱등). `GameState.rebuild_ending_modifiers()`(`rebuild_upgrade_modifiers` 와 동형)를
+  `SaveManager.load_game()` 이 불러오기 뒤 호출해 재적용한다.
+- **`AchievementManager`**(신규, `GameState.achievement_manager` 가 소유, `PenaltyManager` 와 동형): `attach()` 로
+  `EventBus`(`spin_resolved/debt_changed/floor_changed/upgrade_purchased/skill_purchased/buff_started/chips_changed/
+  bankrupt/ending_triggered`) 를 구독해 조건을 코드로 판정하고 `process(delta)` 로 "1시간 무파산" 만 시간으로 잰다.
+  `data/achievements.json`(신규, `DialogueData` 와 동형 로더 `AchievementData`)은 표시용 메타(id·category·name_key·
+  desc_key·icon·hidden)만 담고, 조건은 전부 `AchievementManager` 코드에 있다.
+- **업적 30개**: 요청 명세를 항목별로 세면 27개라("누적 스핀 1000/10000"을 2개로 세어도), 진행·기능 카테고리에
+  "2F 도달"·"3F 도달"·"첫 황금 포켓 적중" 3개를 더해 30개를 맞췄다(GDD 10-3, 새 시스템 의존 없이 구현 가능).
+  더블 볼 "둘 다 적중"은 `SpinOutcome.BetResult.hit_count` 가 공 두 개를 합산해 버려 공별로 못 나누므로, 결과 배열의
+  두 숫자 각각에 순수 함수 `RouletteRules.bet_wins(bet, number)` 를 다시 적용해 판정했다(새 상태 없이 기존 함수 재사용).
+  숨김 업적 "벨벳 대사 전부 보기"는 `AchievementManager.mark_dialogue_seen(key, index)` 인터페이스만 만들었다(호출부는
+  마담 벨벳 화면이 있는 3/N) — 테스트는 기존 대사 키(`debt_paid`, 3변형)를 빌려 직접 호출로 검증했다.
+- **`GameState`**: `unlocked_achievements`(Array[String])·`achievement_dialogue_seen`(Dictionary)·`ending_reached`·
+  `infinite_mode` 필드 + `to_dict()/from_dict()` 왕복, `achievement_manager.attach()`(_ready)·`process()`(_process).
+- **`SaveManager`**: `load_game()` 뒤 `rebuild_ending_modifiers()` 추가 호출. 오프라인 복귀 시(`last_load_offline.
+  eligible`) `GameState.achievement_manager.check_offline_hours(elapsed_seconds)` 호출("오프라인 8시간" 업적).
+  `ending_triggered`/`infinite_mode_started` 도 즉시 저장 트리거 목록에 추가(업그레이드·스킬·층 이동·빚 변화와 동일).
+- **`Economy`**: `OWNER_MODE_PAYOUT_MULT`(2.0), `ACHIEVEMENT_*` 상수 5개(무파산 시간·오프라인 시간·누적 칩·누적 스핀
+  2종) 추가.
+- **`EventBus`**: `achievement_unlocked(id)`·`ending_triggered()`·`infinite_mode_started()` 신규 시그널.
+- **테스트 신규**: `tests/test_floor_service.gd`(7)·`tests/test_ending_service.gd`(5)·`tests/test_achievement_manager.gd`
+  (18, 데이터 무결성 30개 전수 검사 + 조건 30종 대부분을 직접 `EventBus` 신호를 발행해 검증 — 스킬 50/100% 는 실제
+  57개 노드를 하나씩 최대로 올리며 문턱을 직접 넘겨 데이터 값에 의존하지 않게 짰다). 전체 **315 tests, 8321 checks,
+  0 failures**.
+- 번역 키 60개 추가(업적 이름·설명 30×2). `godot --headless --import` 로 클래스 캐시·번역 재생성(새 `class_name`
+  스크립트 4개가 캐시에 없으면 파싱 에러가 나므로 파일 추가 뒤 반드시 다시 돌려야 했다).
+
+**남은 이슈**
+- 이번 커밋에는 화면 요소가 전혀 없다(로직·데이터·테스트로만 검증). 다음 커밋(2/N)부터 층별 배경 4종·휠 스킨 5종·
+  엘리베이터 UI·컷신을 만들고, 3/N 에서 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면을 붙인다.
+- `EndingService.trigger()`·`FloorService.move_to_next()`는 로직만 있고 아무 화면도 아직 호출하지 않는다(지금 PH 에서
+  1Dc 를 채워도 화면엔 아무 버튼도 없다 — 3/N 이 연결).
+- 업적 아이콘(24px)은 `data/achievements.json` 에 id 문자열만 있고 실제 스프라이트는 없다(3/N 에서 `tools/art/
+  gen_skills.py` 패턴(배지+글리프)으로 30종 생성 예정).
+- "1시간 무파산" 타이머는 `PenaltyManager.time_left` 와 같은 수준으로 단순화했다 — 불러오기 뒤에는 처음부터 다시
+  잰다(저장하지 않음). 정밀하게 이어가려면 GameState.to_dict 에 타이머 값도 저장해야 하지만, 파산 방지 업적 하나를
+  위해 저장 포맷을 늘리는 비용이 커 보류했다.
+
+**다음 작업(2/N)이 알아야 할 것**
+- `FloorService.progress()`(0~1)를 `TopBar` 의 층 이름 라벨 아래 진행률 바에 쓰면 된다(빚 진행 바와 같은 수동 배치
+  패턴 — `TopBar._debt_bar_bg/_debt_bar` 참고). 90% 이상이면 빛나는 연출은 화면 쪽에서 새로 만들어야 한다.
+- 엘리베이터 버튼(휠 오른쪽 위, 맥동)은 `FloorService.can_move()` 로 표시 여부를 정하고, 눌리면 확인 팝업 → 컷신 →
+  `FloorService.move_to_next()` 순서로 호출하면 수치는 끝난다(연출만 새로 만들면 됨).
+- 휠 스킨은 `scenes/roulette/roulette_wheel.gd` 의 Shadow/Base/Top/Highlight/Hub/Knob 이 `tools/art/gen_wheel.py` 가
+  만든 단일 텍스처 세트를 쓰고 있고, 포켓 링·터렛은 `Palette` 색을 코드에서 직접 읽어 `_draw()` 한다 — 층별 스킨은
+  (1) `gen_wheel.py` 를 층별 팔레트로 파라미터화해 텍스처 세트를 층 수만큼 만들고 (2) `RouletteWheel` 에 그 텍스처를
+  스왑하는 `set_floor_skin(floor_index)` 를 추가하고 포켓 링 색도 층별로 바꿀 방법이 필요하다(현재는 `Palette` 상수
+  고정 참조).
+- 배경은 `scenes/main/bg/background_b1.gd` + `tools/art/gen_bg.py` 가 이미 있는 구성(벽·테이블·램프·빛 웅덩이·연기·
+  비네트, 레이어형 Node2D + 가산 블렌딩 스프라이트)을 그대로 복제해 층별로 채색·소재만 바꾸면 된다(파일 헤더 주석에
+  "층마다 같은 파일 구성을 따르면 7단계에서 배경 씬만 바꿔 끼울 수 있다" 고 이미 적혀 있었다).
+- AudioManager 는 `play_music()` 가 8단계용 스텁(`pass`) 이라 실제 음원·크로스페이드는 없다 — 2/N 에서는 "층별 BGM
+  id 슬롯"만 연결(예: `FloorDef` 에 `music_id` 필드 추가하고 `floor_changed` 때 `AudioManager.play_music(id)` 호출)
+  하고, 실제로 들리는 재생은 8단계 몫이다.

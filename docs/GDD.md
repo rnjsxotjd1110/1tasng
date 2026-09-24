@@ -155,11 +155,11 @@
 | bet_limit | 베팅 한도 | max_bet_mult MULT 1.35/레벨 | 무제한 | 20 × 1.2^레벨 | |
 | marble_count | 구슬 개수 | marble_slots_bonus ADD 1 (최대 8개) | 7 | 300 × 22^(개수−1) | |
 | spin_speed | 휠 속도 | spin_duration_mult MULT 0.9/레벨 (최소 1.5초) | 13 | 150 × 3.2^레벨 | |
-| golden_pocket | 황금 포켓 | golden_pocket_count ADD 1. 결과가 황금 포켓이면 모든 당첨 ×3 | 5 | 50K × 800^레벨 | required_floor 2 (층 시스템은 7단계, 지금은 잠금 표시) |
+| golden_pocket | 황금 포켓 | golden_pocket_count ADD 1. 결과가 황금 포켓이면 모든 당첨 ×3 | 5 | 50K × 800^레벨 | required_floor 2 (2F 에서 해금, 7단계 `FloorService` 로 실제 이동 가능) |
 
 - **구매 수량**: ×1 / ×10 / MAX. ×10 은 남은 레벨이 적으면 그만큼만. MAX 는 등비수열 합 `base·g^L·(g^n − 1)/(g − 1)` 을 역산한 최대 n(부동소수 오차는 ±1 로 보정)이고, 한 레벨도 못 사면 1레벨 비용을 보여 준다. 재질은 수량과 무관하게 한 단계.
 - **연속 구매**: 버튼을 누르고 있으면 0.4초 뒤부터 0.18초 간격으로 반복, 간격은 매번 ×0.85(최소 0.04초).
-- **재질 상한**: `FloorDef.marble_tier_cap`(B1 철, 1F 옥, 2F 에메랄드, 3F 별빛, PH 코스믹). 상한에 닿으면 카드에 "다음 재질은 1F에서".
+- **재질 상한**: `FloorDef.marble_tier_cap`(B1 철, 1F 금, 2F 루비, 3F 흑요석, PH 코스믹, 7단계에서 조정 — 7장 참고). 상한에 닿으면 카드에 "다음 재질은 1F에서".
 - 황금 포켓 위치: 개수가 늘 때 아직 황금이 아닌 포켓 중 무작위(RngService misc). 0번 포함 가능. 새 포켓은 `EventBus.golden_pockets_added` 로 알린다.
 
 ### 5-1. 구슬 재질 15단계
@@ -174,13 +174,13 @@
 | 3 | 철 | ×100 | 320K | B1 |
 | 4 | 은 | ×900 | 25.6M | 1F |
 | 5 | 금 | ×8K | 2.05B | 1F |
-| 6 | 옥 | ×70K | 164B | 1F |
+| 6 | 옥 | ×70K | 164B | 2F |
 | 7 | 루비 | ×800K | 13.1T | 2F |
-| 8 | 사파이어 | ×1.2B | 1.05Qa | 2F |
-| 9 | 에메랄드 | ×15B | 83.9Qa | 2F |
+| 8 | 사파이어 | ×1.2B | 1.05Qa | 3F |
+| 9 | 에메랄드 | ×15B | 83.9Qa | 3F |
 | 10 | 다이아몬드 | ×200B | 6.71Qi | 3F |
 | 11 | 흑요석 | ×3T | 537Qi | 3F |
-| 12 | 별빛 | ×50T | 42.9Sx | 3F |
+| 12 | 별빛 | ×50T | 42.9Sx | PH |
 | 13 | 공허 | ×800T | 3.44Sp | PH |
 | 14 | 코스믹 | ×15Qa | 275Sp | PH |
 
@@ -224,20 +224,22 @@ GDD 원문의 "+X%/Lv"·"×N/Lv"·"+N" 표기를 아래 규칙으로 기계적�
 
 ---
 
-## 7. 층 (구현은 7단계, 데이터는 1단계 초안)
+## 7. 층 (7단계 구현)
 
 B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하우스 인수)
 
-| index | 층 | 이동 비용 | 당첨 배율(초안) | 베팅 배율(초안) | 구슬 상한 tier | 클로버 | 목표 도달 |
-|---|---|---|---|---|---|---|---|
-| 0 | B1 | — | ×1 | ×1 | 3 (철) | — | 0:00 |
-| 1 | 1F | 1M | ×2 | ×100 | 6 (옥) | +10 | 0:30 |
-| 2 | 2F | 1T | ×4 | ×10K | 9 (에메랄드) | +10 | 1:30 |
-| 3 | 3F | 1Sx | ×8 | ×1M | 12 (별빛) | +10 | 2:45 |
-| 4 | PH | 1No | ×16 | ×100M | 14 (코스믹) | +10 | 4:00 |
-| — | 엔딩 | 1Dc | | | | | 5:00 |
+| index | 층 | 이동 비용 | 당첨 배율(초안) | 베팅 배율(초안) | 해금 | 구슬 상한 tier | 클로버 | 목표 도달 |
+|---|---|---|---|---|---|---|---|---|
+| 0 | B1 | — | ×1 | ×1 | 기본 | 3 (철) | — | 0:00 |
+| 1 | 1F | 1M | ×10 | ×100 | — | 5 (금) | +10 | 0:30 |
+| 2 | 2F | 1T | ×1K | ×10K | 황금 포켓(`golden_pocket` 업그레이드) | 7 (루비) | +10 | 1:30 |
+| 3 | 3F | 1Sx | ×100K | ×1M | — | 11 (흑요석) | +10 | 2:45 |
+| 4 | PH | 1No | ×10M | ×100M | — | 14 (코스믹) | +10 | 4:00 |
+| — | 엔딩 | 1Dc | | | | | | 5:00 |
 
-- 층 이동은 칩을 지불한다. **리셋 없음**(업그레이드·구슬·스킬 유지). 배율 상승, 클로버 +10.
+- 층 이동은 칩을 지불한다. **리셋 없음**(업그레이드·구슬·스킬 유지). 배율 상승, 클로버 +10. `FloorService.move_to_next()`.
+- 재질 상한에 닿으면(`UpgradeService.Status.CAPPED_BY_FLOOR`) 구슬 재질 카드에 "다음 층에서 해금"이 뜬다(`UpgradeService.floor_for_marble_tier`, 3단계부터 이미 구현돼 있었다).
+- 배율(payout_mult)·구슬 상한은 7단계에서 1단계 초안을 다시 조정했다(17장 참고). 이동 비용(1M/1T/1Sx/1No/1Dc)·베팅 배율·클로버 보상은 1단계 값 그대로.
 
 ---
 
@@ -277,9 +279,24 @@ B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하�
 
 ---
 
-## 10. 엔딩
+## 10. 엔딩과 업적 (7단계 구현)
 
-PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 확정) → 크레딧·통계 → **무한 모드**(계속 플레이, 스킬트리 완성 가능).
+### 10-1. 엔딩 시퀀스
+
+PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마담 벨벳과 **최후의 스핀**(연출, 승리 확정) → 크레딧·통계 → **무한 모드**(계속 플레이, 스킬트리 완성 가능).
+`EndingService.can_trigger()` 는 PH(마지막 층)이고 보유 칩이 `ENDING_COST` 이상이며 아직 엔딩을 안 봤을 때만 true. `trigger()` 는 칩을 낸 뒤 `GameState.ending_reached=true` 로 표시하고 `EventBus.ending_triggered()` 를 발행한다(실제 컷신 연출은 화면 레이어가 이 신호를 듣고 재생).
+
+### 10-2. 무한 모드
+
+엔딩 크레딧 뒤 "계속하기"를 누르면 `EndingService.enter_infinite_mode()` 가 `GameState.infinite_mode=true` 로 표시하고 영구 수정자 `ending:owner_mode`(`payout_mult_all` MULT `Economy.OWNER_MODE_PAYOUT_MULT`=2.0, 오너 모드 "수익 ×2")를 건다. 불러오기 뒤에는 `GameState.rebuild_ending_modifiers()` 가 `infinite_mode` 값을 보고 이 수정자를 다시 건다(`rebuild_upgrade_modifiers`/`rebuild_skill_modifiers` 와 같은 패턴). 상단 바에 왕관 아이콘이 뜬다(연출은 7단계 3/N).
+
+### 10-3. 업적
+
+- `data/achievements.json`(표시용 메타데이터: id·category·name_key·desc_key·icon·hidden) + `AchievementData`(정적 로더, `DialogueData` 와 동형) + `AchievementManager`(`GameState.achievement_manager` 가 소유, `PenaltyManager` 와 동형인 RefCounted — `attach()` 로 필요한 `EventBus` 신호를 구독해 조건을 판정하고, 시간 기반 조건(1시간 무파산)만 `process(delta)` 로 잰다).
+- 조건 판정은 데이터가 아니라 코드(`AchievementManager._on_*`)로 한다 — 30개 안팎의 대부분이 한 번뿐인 개별 조건이라 범용 규칙 엔진보다 명시적 분기가 더 읽기 쉽다(6단계 특수 기능과 같은 판단).
+- 해금되면 `GameState.unlocked_achievements`(Array[String], 저장됨)에 추가하고 `EventBus.achievement_unlocked(id)` 를 발행한다(토스트·목록 화면은 7단계 3/N).
+- 숨김 업적(벨벳 대사 전부 보기)은 `GameState.achievement_dialogue_seen`(저장됨, `{대사 키: {변형 인덱스: true}}`)에 `AchievementManager.mark_dialogue_seen()` 으로 기록하다가 한 키의 모든 변형을 다 보면 해금된다(호출부는 7단계 3/N 벨벳 대사 재생 지점).
+- 목록: 30개 요청 중 "누적 스핀 1000/10000"은 2개로 센다. 명시된 항목을 모두 헤아리면 27개라, 진행·기능 카테고리에 3개(2F 도달·3F 도달·첫 황금 포켓 적중)를 채워 30개를 맞췄다(코드·아이콘 준비 완료, `data/achievements.json` 참고).
 
 ---
 
@@ -328,10 +345,13 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `auto_spin_stopped(reason: String)` | 오토 스핀이 자동으로 꺼짐(칩 부족·베팅 없음·대화 시작·파산) |
 | `streak_clover_earned(count: int)` | 5연승 클로버 지급(연출용, 클로버 자체는 `clovers_changed` 로도 옴) |
 | `first_clover_earned()` | 살면서 처음 클로버 획득 — 스킬트리 탭 자물쇠 해제 + 루시 대사 트리거 |
+| `achievement_unlocked(id: String)` | 업적 해금(7단계). `AchievementData` 로 이름·아이콘 조회 |
+| `ending_triggered()` | PH 에서 1Dc 를 내고 하우스 인수 확정(7단계, 엔딩 컷신 시작 신호) |
+| `infinite_mode_started()` | 엔딩 크레딧 뒤 "계속하기"로 무한 모드(오너 모드) 진입 |
 
 ### 11-3. GameState
 
-- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), number_frequency(포켓 번호 → 누적 출현 횟수, 통계용), golden_pockets, highest_milestone, spin_in_progress, pending_spin_bets/pending_spin_results(스핀 도중 저장용 스냅샷, 4단계), auto_spin_enabled(6단계 자동 스핀. 해금 수단이 없어 지금은 항상 false), last_income_per_second(마지막 저장 시점 초당 순수익, 오프라인 수익 계산용), modifiers(StatModifiers), income_tracker(IncomeTracker, 최근 Economy.LOAN_INCOME_WINDOW(5분) 이동평균, 오프라인 수익·5단계 대출액 계산에 공용)
+- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), number_frequency(포켓 번호 → 누적 출현 횟수, 통계용), golden_pockets, highest_milestone, spin_in_progress, pending_spin_bets/pending_spin_results(스핀 도중 저장용 스냅샷, 4단계), auto_spin_enabled(6단계 자동 스핀. 해금 수단이 없어 지금은 항상 false), last_income_per_second(마지막 저장 시점 초당 순수익, 오프라인 수익 계산용), modifiers(StatModifiers), income_tracker(IncomeTracker, 최근 Economy.LOAN_INCOME_WINDOW(5분) 이동평균, 오프라인 수익·5단계 대출액 계산에 공용), unlocked_achievements(Array[String], 7단계), achievement_dialogue_seen(Dictionary, 7단계 숨김 업적용), achievement_manager(AchievementManager, 7단계), ending_reached/infinite_mode(bool, 7단계)
 - stats: total_spins(총 스핀), total_wins(당첨 스핀 수, 승률 계산용), biggest_win(최대 당첨=한 스핀 최대 반환액), best_streak(최대 연승), play_time(초), loans_taken(대출 횟수), straight_hits(적중 숫자 수), total_earned(누적 획득 칩 = 당첨 반환액 합계, 대출금·오프라인 수익 제외)
 - `add_chips()/spend_chips()` 는 음수·NaN·INF 를 거부하고(경고 로그) false 를 돌려준다. spend 는 잔액 부족도 거부.
 - `to_dict()/from_dict()`(4단계): SaveManager 가 쓴다. `from_dict()` 호출 뒤에는 반드시 `rebuild_upgrade_modifiers()`(영구 수정자 재구성)를 불러야 한다(SaveManager.load_game() 은 이미 그렇게 한다). 시간제(`buff:`) 수정자만 함께 저장/복원하고, 영구 수정자는 upgrade_levels/skill_levels 에서 다시 만든다.
@@ -457,3 +477,18 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | 패널티도 버프 체계 재사용 | 시간제 패널티(감시하는 부하·흐려진 구슬·시가 연기)는 `buff:` 가 아니라 `penalty:` 접두어만 다르고 나머지는 기존 시간제 수정자·`buff_started`/`buff_ended` 신호를 그대로 쓴다. 새 시그널은 토스트 표시에 필요한 `penalty_triggered(id, duration)` 1개뿐 | 이미 있는 시간제 만료·저장/복원 체계를 그대로 재사용해 중복 구현을 피함 |
 | 소매치기만 별도 방어 | `steal = min(chips × rate, max(0, chips − 최소베팅×3))` | 6종 중 유일하게 "즉시 차감"형이라 패널티 자체가 파산을 유발할 수 있는 경로였다. 나머지 5종은 배율·소모형 수정자라 애초에 칩을 직접 줄이지 않는다 |
 | 범위에서 뺀 것 | (1) BIG 이상 당첨 연출·오토스핀 중 패널티 억제는 `PenaltyManager.suppressed` 를 대화창·계약서 팝업 동안만 실제로 세운다(BIG+ 연출 중 억제는 발생 빈도가 낮아 이번 범위에서 제외). (2) 남작 컷신 중 음악 볼륨 덕킹은 음악 시스템 자체가 아직 없어(8단계 예정) 스킵 — 대신 `bass_drop` 효과음 한 번으로 파산 순간을 표현 | 명세의 핵심(대출·상환·패널티·컷신)에 집중하고, 아직 없는 시스템에 의존하는 디테일은 다음 단계로 미룸 |
+
+---
+
+## 17. 7단계에서 정한 세부 규칙 (층 진행·엔딩·업적)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 층 배율·구슬 상한 재조정 | 1단계 초안(payout_mult ×2/×4/×8/×16, 1F/2F/3F 구슬 상한 옥/에메랄드/별빛)을 이번 단계 요청 명세(×10/×1K/×100K/×10M, 상한 금/루비/흑요석)로 교체. 이동 비용(1M/1T/1Sx/1No)·베팅 배율(×100/×10K/×1M/×100M)·클로버 보상(+10)·PH 구슬 상한(코스믹)은 요청과 1단계 값이 이미 같아 그대로 뒀다. 황금 포켓 업그레이드의 `required_floor=2`(2F)도 1단계부터 이미 요청과 일치했다 | "초안 — 9단계에서 조정" 이라 명시된 값이라 최신 요청을 그대로 반영. `test_data.gd::test_floors()` 는 배율 단조증가·PH 전체 재질만 검사해 구체적 수치 변경에 영향받지 않는다 |
+| 층 이동 로직 위치 | `FloorService`(신규, `UpgradeService` 와 동형인 static 클래스): `next_floor_def/is_max_floor/progress/can_move/move_to_next`. `move_to_next()` 가 `spend_chips`→`floor_index` 갱신→`add_clovers`→`EventBus.floor_changed` 순서로 처리 | 기존 "Service = 상태 없는 판정·구매" 패턴을 그대로 따름(구매 성격의 동작이라 `GameState` 에 새 메서드를 얹지 않음) |
+| "다음 층에서 해금" 표시 | 이미 3단계 `UpgradeService.floor_for_marble_tier()` + `UpgradeCard._lock_text()` 가 구현돼 있었다 — 이번 단계는 손대지 않음 | 요청 명세를 살펴보니 설계·구현 모두 이미 끝나 있었다(3단계 작업 범위가 앞서 여기까지 포함) |
+| 업적 조건 판정 방식 | `data/achievements.json` 은 표시 메타데이터만(id·category·name_key·desc_key·icon·hidden), 조건은 `AchievementManager` 코드에서 `EventBus` 구독으로 판정 | 30개 중 다수가 "한 번만 있는" 개별 조건이라 범용 규칙 엔진을 만드는 비용이 이득보다 크다(6단계 특수 기능과 같은 결정) |
+| 더블 볼 "둘 다 적중" 판정 | 결과 배열의 두 숫자 각각에 대해 `RouletteRules.bet_wins(bet, number)` 를 현재 베팅들로 다시 계산해 "그 공 결과 하나만으로 이기는 베팅이 있는가"로 판정(`SpinOutcome.BetResult.hit_count` 는 공 두 개를 합산해 버려서 공별로 못 나눈다) | 기존 순수 함수(`bet_wins`)를 재사용해 새 상태를 안 늘림 |
+| 오너 모드(무한 모드) 배율 | `payout_mult_all` MULT ×2(`Economy.OWNER_MODE_PAYOUT_MULT`), 영구 수정자 `ending:owner_mode` | "수익 ×2" 를 기존 스킬·버프와 같은 곱연산 체계로 표현. 불러오기 후에는 `GameState.rebuild_ending_modifiers()`(`rebuild_upgrade_modifiers` 와 동형)가 다시 건다 |
+| 업적 수 30개 맞추기 | 요청 명세를 항목별로 세면 27개("누적 스핀 1000/10000"은 2개로 계산해도)라, 진행·기능 카테고리에 "2F 도달"·"3F 도달"·"첫 황금 포켓 적중" 3개를 추가해 30개를 채웠다 | 아이콘·조건 모두 기존 시스템(층 이동·황금 포켓)만으로 구현 가능해 새 의존성이 없다. 원치 않으면 9단계에서 제거 가능 |
+| 벨벳 대사 전부 보기(숨김) | `AchievementManager.mark_dialogue_seen(key, variant_index)` 를 대사 재생부(7단계 3/N, 마담 벨벳 화면)가 호출하는 형태로 인터페이스만 1/N 에서 먼저 만들었다 | 벨벳 대사 자체가 3/N(화면) 작업이라 로직 커밋(1/N)에서는 실제 호출부가 없다 — `test_achievement_manager.gd` 는 직접 호출로 검증 |

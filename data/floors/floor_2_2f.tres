@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FloorDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/floor_def.gd" id="1_q6p3k"]
+
+[resource]
+script = ExtResource("1_q6p3k")
+index = 2
+id = "2f"
+name_key = "FLOOR_2F"
+desc_key = "FLOOR_2F_DESC"
+cost = 1e+12
+payout_mult = 4.0
+bet_mult = 10000.0
+clover_reward = 10
+marble_tier_cap = 9
+target_minutes = 90.0

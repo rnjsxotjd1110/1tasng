@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_sdu8y"]
+
+[resource]
+script = ExtResource("1_sdu8y")
+tier = 11
+id = "obsidian"
+name_key = "MARBLE_OBSIDIAN"
+mult = 3e+12
+cost = 5.36871e+20
+polish_base_cost = 2.68435e+20
+color_outline = Color(0.0431373, 0.0392157, 0.0784314, 1)
+color_shadow = Color(0.0862745, 0.0784314, 0.164706, 1)
+color_base = Color(0.184314, 0.164706, 0.321569, 1)
+color_light = Color(0.243137, 0.227451, 0.309804, 1)
+color_shine = Color(0.482353, 0.247059, 0.878431, 1)
+fx_id = "prism"

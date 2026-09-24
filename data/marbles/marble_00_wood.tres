@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_tdmtj"]
+
+[resource]
+script = ExtResource("1_tdmtj")
+tier = 0
+id = "wood"
+name_key = "MARBLE_WOOD"
+mult = 1.0
+cost = 0.0
+polish_base_cost = 10.0
+color_outline = Color(0.231373, 0.133333, 0.0941176, 1)
+color_shadow = Color(0.360784, 0.207843, 0.141176, 1)
+color_base = Color(0.513726, 0.313726, 0.184314, 1)
+color_light = Color(0.658824, 0.439216, 0.247059, 1)
+color_shine = Color(0.956863, 0.941176, 0.909804, 1)
+fx_id = ""

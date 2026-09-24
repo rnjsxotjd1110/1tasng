@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_dqnoo"]
+
+[resource]
+script = ExtResource("1_dqnoo")
+tier = 14
+id = "cosmic"
+name_key = "MARBLE_COSMIC"
+mult = 1.5e+16
+cost = 2.74878e+26
+polish_base_cost = 1.37439e+26
+color_outline = Color(0.239216, 0.121569, 0.45098, 1)
+color_shadow = Color(0.482353, 0.247059, 0.878431, 1)
+color_base = Color(1, 0.309804, 0.639216, 1)
+color_light = Color(0.247059, 0.878431, 1, 1)
+color_shine = Color(1, 0.94902, 0.690196, 1)
+fx_id = "cosmic_swirl"

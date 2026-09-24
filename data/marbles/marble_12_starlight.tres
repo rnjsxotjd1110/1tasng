@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_wpfmn"]
+
+[resource]
+script = ExtResource("1_wpfmn")
+tier = 12
+id = "starlight"
+name_key = "MARBLE_STARLIGHT"
+mult = 5e+13
+cost = 4.29497e+22
+polish_base_cost = 2.14748e+22
+color_outline = Color(0.133333, 0.117647, 0.239216, 1)
+color_shadow = Color(0.239216, 0.121569, 0.45098, 1)
+color_base = Color(0.168627, 0.290196, 0.560784, 1)
+color_light = Color(1, 0.85098, 0.352941, 1)
+color_shine = Color(1, 0.94902, 0.690196, 1)
+fx_id = "stars"

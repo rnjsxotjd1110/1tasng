@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_nwpx1"]
+
+[resource]
+script = ExtResource("1_nwpx1")
+tier = 5
+id = "gold"
+name_key = "MARBLE_GOLD"
+mult = 8000.0
+cost = 2.048e+09
+polish_base_cost = 1.024e+09
+color_outline = Color(0.419608, 0.290196, 0.0705882, 1)
+color_shadow = Color(0.658824, 0.470588, 0.109804, 1)
+color_base = Color(0.878431, 0.67451, 0.172549, 1)
+color_light = Color(1, 0.85098, 0.352941, 1)
+color_shine = Color(1, 0.94902, 0.690196, 1)
+fx_id = "sparkle"

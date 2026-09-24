@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_45ejl"]
+
+[resource]
+script = ExtResource("1_45ejl")
+tier = 9
+id = "emerald"
+name_key = "MARBLE_EMERALD"
+mult = 1.5e+10
+cost = 8.38861e+16
+polish_base_cost = 4.1943e+16
+color_outline = Color(0.0588235, 0.239216, 0.180392, 1)
+color_shadow = Color(0.0862745, 0.341176, 0.247059, 1)
+color_base = Color(0.164706, 0.619608, 0.227451, 1)
+color_light = Color(0.368627, 0.878431, 0.419608, 1)
+color_shine = Color(0.956863, 0.941176, 0.909804, 1)
+fx_id = "sparkle"

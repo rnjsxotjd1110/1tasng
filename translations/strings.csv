@@ -1,0 +1,61 @@
+keys,ko,en
+GAME_TITLE,HOUSE EDGE,HOUSE EDGE
+CURRENCY_CHIPS,칩,Chips
+CURRENCY_CLOVERS,클로버,Clovers
+CURRENCY_DEBT,빚,Debt
+BET_RED,빨강,Red
+BET_BLACK,검정,Black
+BET_ODD,홀,Odd
+BET_EVEN,짝,Even
+BET_STRAIGHT,숫자 %d,Number %d
+CHIP_SIZE_TENTH,1/10,1/10
+CHIP_SIZE_HALF,1/2,1/2
+CHIP_SIZE_MAX,MAX,MAX
+LABEL_MAX_BET,최대 베팅,Max Bet
+LABEL_MIN_BET,최소 베팅,Min Bet
+LABEL_MARBLES,구슬,Marbles
+BUTTON_SPIN,스핀,Spin
+BUTTON_AUTO,자동,Auto
+BUTTON_CLEAR_BETS,베팅 지우기,Clear Bets
+BUTTON_REPEAT_BETS,다시 베팅,Rebet
+TIER_BIG_WIN,BIG WIN!,BIG WIN!
+TIER_JACKPOT,JACKPOT,JACKPOT
+NEAR_MISS,아깝다!,So close!
+BANKRUPT_TITLE,파산,Bankrupt
+MILESTONE_REACHED,새 단위 도달: %s,New tier reached: %s
+MARBLE_WOOD,나무 구슬,Wood Marble
+MARBLE_STONE,돌 구슬,Stone Marble
+MARBLE_COPPER,구리 구슬,Copper Marble
+MARBLE_IRON,철 구슬,Iron Marble
+MARBLE_SILVER,은 구슬,Silver Marble
+MARBLE_GOLD,금 구슬,Gold Marble
+MARBLE_JADE,옥 구슬,Jade Marble
+MARBLE_RUBY,루비 구슬,Ruby Marble
+MARBLE_SAPPHIRE,사파이어 구슬,Sapphire Marble
+MARBLE_EMERALD,에메랄드 구슬,Emerald Marble
+MARBLE_DIAMOND,다이아몬드 구슬,Diamond Marble
+MARBLE_OBSIDIAN,흑요석 구슬,Obsidian Marble
+MARBLE_STARLIGHT,별빛 구슬,Starlight Marble
+MARBLE_VOID,공허 구슬,Void Marble
+MARBLE_COSMIC,코스믹 구슬,Cosmic Marble
+FLOOR_B1,B1 뒷골목 도박장,B1 Back-Alley Den
+FLOOR_B1_DESC,눅눅한 지하실. 모든 것이 여기서 시작된다.,A damp basement. Everything starts here.
+FLOOR_1F,1F 다운타운 카지노,1F Downtown Casino
+FLOOR_1F_DESC,네온과 담배 연기가 가득한 거리의 카지노.,A street casino full of neon and smoke.
+FLOOR_2F,2F 리버보트 카지노,2F Riverboat Casino
+FLOOR_2F_DESC,강 위를 떠다니는 호화 유람선.,A luxury paddle steamer drifting down the river.
+FLOOR_3F,3F 스카이 라운지,3F Sky Lounge
+FLOOR_3F_DESC,도시가 발아래 펼쳐진 VIP 라운지.,A VIP lounge with the city at your feet.
+FLOOR_PH,PH 더 하우스,PH The House
+FLOOR_PH_DESC,마담 벨벳의 펜트하우스. 하우스는 언제나 이긴다.,Madame Velvet's penthouse. The house always wins.
+UPGRADE_BET_LIMIT,베팅 한도,Bet Limit
+UPGRADE_BET_LIMIT_DESC,구슬당 최대 베팅액 ×1.35,Max bet per marble ×1.35
+UPGRADE_MARBLE_COUNT,구슬 개수,Marble Count
+UPGRADE_MARBLE_COUNT_DESC,한 스핀에 베팅할 구슬 +1,+1 marble to bet per spin
+UPGRADE_WHEEL_SPEED,휠 속도,Wheel Speed
+UPGRADE_WHEEL_SPEED_DESC,스핀 시간 ×0.9,Spin time ×0.9
+UPGRADE_GOLDEN_POCKET,황금 포켓,Golden Pocket
+UPGRADE_GOLDEN_POCKET_DESC,황금 포켓 +1. 공이 황금 포켓에 들어가면 모든 당첨 ×3,+1 golden pocket. All wins ×3 when the ball lands on one
+NPC_RATCHET,래칫 남작,Baron Ratchet
+NPC_LUCY,딜러 루시,Lucy the Dealer
+NPC_VELVET,마담 벨벳,Madame Velvet

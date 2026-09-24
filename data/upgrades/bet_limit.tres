@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_ci08x"]
+
+[resource]
+script = ExtResource("1_ci08x")
+id = "bet_limit"
+name_key = "UPGRADE_BET_LIMIT"
+desc_key = "UPGRADE_BET_LIMIT_DESC"
+icon_path = ""
+base_cost = 25.0
+growth = 1.55
+max_level = -1
+effect_stat = "max_bet_mult"
+effect_op = 1
+effect_per_level = 1.35
+required_floor = 0

@@ -60,6 +60,16 @@ const SFX: Dictionary = {
 	"stamp_thud": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
 	"chip_bag_toss": {"bus": "SFX", "volume_db": -3.0, "max": 1},
 	"pickpocket_squeak": {"bus": "SFX", "volume_db": -4.0, "max": 2},
+	# 6단계: 스킬트리·자동화·특수 기능
+	"dialogue_blip_lucy": {"bus": "UI", "volume_db": -10.0, "max": 4, "jitter": false},
+	"lock_break": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"fever_start": {"bus": "SFX", "volume_db": 0.0, "max": 1, "jitter": false},
+	"fever_end": {"bus": "SFX", "volume_db": -4.0, "max": 1, "jitter": false},
+	"piggy_break": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"wof_appear": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"wof_tick": {"bus": "UI", "volume_db": -8.0, "max": 2},
+	"wof_land": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"destiny_flip": {"bus": "SFX", "volume_db": -3.0, "max": 1},
 }
 
 ## 헤드리스(테스트·서버)에서는 소리를 내지 않는다(출력 장치가 없고, 종료 시 재생 객체가 남는다).

@@ -487,6 +487,16 @@ def dialogue_blip_baron() -> None:
     write("dialogue_blip_baron", x, 0.5)
 
 
+# ── 6단계: 딜러 루시 ──────────────────────────────────────
+
+def dialogue_blip_lucy() -> None:
+    """대사 타자기 목소리 '삑'. 밝고 또렷한 톤(남작보다 높고 짧다)."""
+    body = tone("sine", 620, 560, 0.045, 0.002, 0.03) * 0.6
+    sparkle = tone("tri", 1100, 980, 0.045, 0.001, 0.02) * 0.25
+    x = lowpass(body + sparkle, 5200)
+    write("dialogue_blip_lucy", x, 0.5)
+
+
 def baron_footstep() -> None:
     n = at(0.16)
     thud = np.sin(phase_from_freq(np.geomspace(110, 60, n))) * exp_decay(n, 0.05)
@@ -576,6 +586,82 @@ def pickpocket_squeak() -> None:
     write("pickpocket_squeak", x, 0.6)
 
 
+# ── 6단계: 스킬트리·자동화·특수 기능 ──────────────────────
+
+def lock_break() -> None:
+    """첫 클로버: 스킬트리 자물쇠가 깨진다(짧은 크랙 + 밝은 챠임)."""
+    n = at(0.12)
+    crack = highpass(noise(n), 2200) * exp_decay(n, 0.03)
+    m = at(0.5)
+    chime = (osc("sine", np.full(m, note(79))) + 0.5 * osc("sine", np.full(m, note(84)))) * env_adsr(m, 0.005, 0.4, 0.0, 0.1)
+    x = mix((crack * 0.8, 0), (chime * 0.5, at(0.03)))
+    write("lock_break", reverb(x, 0.2, 0.4, 0.3), 0.8)
+
+
+def fever_start() -> None:
+    """피버 타임 발동: 상승 스윕 + 팡파르."""
+    n = at(0.5)
+    sweep = osc("saw", np.geomspace(180, 1400, n)) * env_adsr(n, 0.02, 0.4, 0.2, 0.1) * 0.5
+    m = at(0.35)
+    chord = sum(osc("square", np.full(m, note(p))) for p in [72, 76, 79, 84]) * 0.15
+    x = mix((sweep, 0), (chord * env_adsr(m, 0.01, 0.3, 0.0, 0.05), at(0.35)))
+    write("fever_start", reverb(lowpass(x, 6000), 0.25, 0.5, 0.3), 0.9)
+
+
+def fever_end() -> None:
+    """피버 타임 종료: 부드러운 하강."""
+    n = at(0.4)
+    x = osc("sine", np.geomspace(900, 260, n)) * env_adsr(n, 0.01, 0.35, 0.0, 0.1) * 0.5
+    write("fever_end", lowpass(x, 3500), 0.6)
+
+
+def piggy_break() -> None:
+    """황금 저금통이 깨지며 칩이 쏟아진다."""
+    n = at(0.18)
+    crack = highpass(noise(n), 1800) * exp_decay(n, 0.05)
+    parts: list[tuple[np.ndarray, int]] = [(crack * 0.9, 0)]
+    rng = np.random.default_rng(19)
+    for k in range(10):
+        f = rng.uniform(2400, 4000)
+        m = at(0.05)
+        coin = osc("sine", np.full(m, f)) * exp_decay(m, 0.03)
+        parts.append((coin * 0.3, at(0.08 + k * 0.03)))
+    write("piggy_break", reverb(mix(*parts), 0.2, 0.4, 0.2), 0.8)
+
+
+def wof_appear() -> None:
+    """운명의 휠 등장 챠임."""
+    m = at(0.6)
+    chord = sum(osc("sine", np.full(m, note(p))) for p in [67, 72, 76, 79]) * 0.2
+    write("wof_appear", reverb(chord * env_adsr(m, 0.02, 0.5, 0.1, 0.2), 0.3, 0.6, 0.4), 0.75)
+
+
+def wof_tick() -> None:
+    """운명의 휠이 도는 동안 딸깍거림."""
+    n = at(0.05)
+    x = highpass(noise(n), 3000) * exp_decay(n, 0.02)
+    write("wof_tick", x, 0.4)
+
+
+def wof_land() -> None:
+    """운명의 휠이 칸에 멈춤."""
+    n = at(0.3)
+    thud = osc("sine", np.geomspace(500, 220, n)) * exp_decay(n, 0.12)
+    ring = osc("sine", np.full(n, note(88))) * exp_decay(n, 0.2) * 0.4
+    write("wof_land", reverb(thud * 0.7 + ring, 0.2, 0.4, 0.2), 0.75)
+
+
+def destiny_flip() -> None:
+    """운명 뒤집기: 공이 옆 포켓으로 튕기는 '딱'."""
+    n = at(0.1)
+    click = highpass(noise(at(0.015)), 2500) * exp_decay(at(0.015), 0.006)
+    bounce = osc("tri", np.geomspace(700, 300, n)) * exp_decay(n, 0.06) * 0.6
+    x = np.zeros(n)
+    x[:len(click)] += click
+    x += bounce
+    write("destiny_flip", x, 0.65)
+
+
 def main() -> None:
     ui_hover()
     ui_click()
@@ -616,6 +702,15 @@ def main() -> None:
     stamp_thud()
     chip_bag_toss()
     pickpocket_squeak()
+    dialogue_blip_lucy()
+    lock_break()
+    fever_start()
+    fever_end()
+    piggy_break()
+    wof_appear()
+    wof_tick()
+    wof_land()
+    destiny_flip()
     print("sfx ok:", sorted(os.listdir(OUT)))
 
 

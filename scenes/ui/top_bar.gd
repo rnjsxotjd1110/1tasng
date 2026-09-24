@@ -30,6 +30,10 @@ const SPARKLE_FRAMES := 4
 const SHAKE_TIME := 0.35
 const SHAKE_PX := 2
 const SPEND_DURATION := 0.25
+## 저장 중 표시(4단계): 구석에 칩 아이콘이 0.8초 동안 돈다.
+const SAVE_ICON_POS := Vector2(BAR_SIZE.x - 11.0, 2.0)
+const SAVE_ICON_DURATION := 0.8
+const SAVE_ICON_SPIN_SPEED := TAU * 3.0
 
 const CHIP_ICON := preload("res://assets/sprites/ui/icon_chip.png")
 const CLOVER_ICON := preload("res://assets/sprites/ui/icon_clover.png")
@@ -61,6 +65,8 @@ var _chips_home := CHIP_LABEL_POS
 var _dot: TextureRect
 var _dot_time: float = 0.0
 var _upgrade_open: bool = false
+var _save_icon: TextureRect
+var _save_icon_time: float = -1.0
 
 
 func _ready() -> void:
@@ -95,6 +101,13 @@ func _ready() -> void:
 	floor_label.position = Vector2(FLOOR_CENTER_X - FLOOR_LABEL_WIDTH * 0.5, FLOOR_LABEL_Y)
 	floor_label.size = Vector2(FLOOR_LABEL_WIDTH, 14)
 	add_child(floor_label)
+	_save_icon = TextureRect.new()
+	_save_icon.texture = CHIP_ICON
+	_save_icon.position = SAVE_ICON_POS
+	_save_icon.pivot_offset = CHIP_ICON.get_size() * 0.5
+	_save_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_save_icon.visible = false
+	add_child(_save_icon)
 	_build_right()
 	chips_label.set_value(GameState.chips, 0.0)
 	clover_label.set_value(GameState.clovers, 0.0)
@@ -107,7 +120,14 @@ func _ready() -> void:
 		_refresh_floor()
 		refresh_upgrade_dot())
 	EventBus.upgrade_purchased.connect(func(_id: String, _l: int) -> void: refresh_upgrade_dot())
+	EventBus.save_started.connect(_on_save_started)
 	refresh_upgrade_dot()
+
+
+func _on_save_started() -> void:
+	_save_icon_time = 0.0
+	_save_icon.visible = true
+	_save_icon.rotation = 0.0
 
 
 func _build_right() -> void:
@@ -262,6 +282,12 @@ func _now() -> float:
 
 
 func _process(delta: float) -> void:
+	if _save_icon_time >= 0.0:
+		_save_icon_time += delta
+		_save_icon.rotation += SAVE_ICON_SPIN_SPEED * delta
+		if _save_icon_time >= SAVE_ICON_DURATION:
+			_save_icon_time = -1.0
+			_save_icon.visible = false
 	if _dot != null and _dot.visible:
 		_dot_time += delta
 		var button := tab_buttons[TAB_UPGRADE] as Button

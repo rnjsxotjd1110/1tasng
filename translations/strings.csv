@@ -118,3 +118,69 @@ PROMOTE_SKIP,클릭해서 건너뛰기,Click to skip
 TOAST_GOLDEN_POCKET,황금 포켓: %s번,Golden pocket: %s
 TOAST_NEW_MARBLE,구슬 +1,+1 marble
 RESULT_GOLDEN,황금,GOLDEN
+TOAST_SAVE_RECOVERED,저장 파일이 손상돼 이전 저장으로 복구했어요,Save file was corrupted; recovered from the previous save
+TOAST_SAVE_CORRUPTED,저장 파일을 되돌릴 수 없어요,Save file could not be recovered
+TOAST_DATA_RESET,데이터를 초기화했어요,Data has been reset
+DURATION_HOURS_MINUTES,%s시간 %s분,%sh %sm
+PAUSE_TITLE,일시정지,Paused
+PAUSE_RESUME,계속하기,Resume
+PAUSE_SETTINGS,설정,Settings
+PAUSE_STATS,통계,Stats
+PAUSE_SAVE_AND_TITLE,저장 후 타이틀로,Save and Title
+PAUSE_TITLE_LOCKED_TIP,타이틀 화면은 다음 단계에서 추가됩니다,Title screen coming in a later update
+PAUSE_QUIT,게임 종료,Quit Game
+PAUSE_TIME_FLOWS,메뉴가 열려 있어도 게임 진행,Game keeps running while menu is open
+SETTINGS_TAB_AUDIO,오디오,Audio
+SETTINGS_TAB_SCREEN,화면,Screen
+SETTINGS_TAB_GAME,게임,Game
+SETTINGS_TAB_ACCESSIBILITY,접근성,Accessibility
+SETTINGS_TAB_DATA,데이터,Data
+SETTINGS_AUDIO_MASTER,전체 볼륨,Master Volume
+SETTINGS_AUDIO_MUSIC,음악 볼륨,Music Volume
+SETTINGS_AUDIO_SFX,효과음 볼륨,SFX Volume
+SETTINGS_AUDIO_UI,UI 볼륨,UI Volume
+SETTINGS_SCREEN_MODE,화면 모드,Screen Mode
+SETTINGS_SCREEN_WINDOWED,창모드,Windowed
+SETTINGS_SCREEN_FULLSCREEN,전체화면,Fullscreen
+SETTINGS_SCREEN_SCALE,창 배율,Window Scale
+SETTINGS_SCREEN_VSYNC,VSync,VSync
+SETTINGS_FPS_UNLIMITED,무제한,Unlimited
+SETTINGS_SCREEN_MAX_FPS,최대 FPS,Max FPS
+SETTINGS_GAME_LANGUAGE,언어,Language
+SETTINGS_LANGUAGE_KO,한국어,Korean
+SETTINGS_LANGUAGE_EN,English,English
+SETTINGS_GAME_NUMBER_FORMAT,숫자 표기,Number Format
+SETTINGS_NUMBER_ABBREVIATED,축약,Abbreviated
+SETTINGS_NUMBER_SCIENTIFIC,과학적,Scientific
+SETTINGS_GAME_SPIN_SPEED,스핀 연출 속도,Spin Animation Speed
+SETTINGS_SPEED_NORMAL,보통,Normal
+SETTINGS_SPEED_FAST,빠름,Fast
+SETTINGS_SPEED_FASTEST,최고속,Fastest
+SETTINGS_GAME_BIG_WIN,큰 당첨 연출,Big Win Effects
+SETTINGS_BIG_WIN_FULL,전체,Full
+SETTINGS_BIG_WIN_SIMPLE,간략,Simple
+SETTINGS_GAME_AUTO_EFFECTS,오토 스핀 중 연출 줄이기,Reduce Effects During Auto-Spin
+SETTINGS_A11Y_SCREEN_SHAKE_OFF,화면 흔들림 끄기,Disable Screen Shake
+SETTINGS_A11Y_REDUCE_FLASHING,번쩍임 줄이기,Reduce Flashing
+SETTINGS_A11Y_COLORBLIND,색약 보조,Colorblind Assist
+SETTINGS_A11Y_TOOLTIP_DELAY,툴팁 표시 지연,Tooltip Delay
+SETTINGS_DATA_OPEN_FOLDER,세이브 폴더,Save Folder
+SETTINGS_DATA_OPEN_FOLDER_BUTTON,폴더 열기,Open Folder
+SETTINGS_DATA_RESET,데이터 초기화,Reset Data
+SETTINGS_DATA_RESET_HINT,%s 를 입력하고 3초간 누르세요,Type %s and hold for 3 seconds
+SETTINGS_DATA_RESET_BUTTON,길게 눌러 초기화,Hold to Reset
+STATS_TITLE,통계,Stats
+STATS_PLAY_TIME,총 플레이 시간,Total Play Time
+STATS_TOTAL_SPINS,총 스핀,Total Spins
+STATS_WIN_RATE,승률,Win Rate
+STATS_BIGGEST_WIN,최대 당첨금,Biggest Win
+STATS_BEST_STREAK,최대 연승,Best Win Streak
+STATS_STRAIGHT_HITS,적중 개별숫자,Straight Number Hits
+STATS_LOANS_TAKEN,대출 횟수,Loans Taken
+STATS_MOST_FREQUENT,최다 출현 숫자,Most Frequent Number
+STATS_TOTAL_EARNED,누적 획득 칩,Total Chips Earned
+RETURN_GREETING,돌아오셨네요! 자리를 지켜뒀어요.,Welcome back! We kept your seat warm.
+RETURN_CLAIM,받기,Claim
+RETURN_CAP_APPLIED,(최대 %s시간 적용),(capped at %s hours)
+RETURN_DEBT_REPAID,오프라인 중 빚 %s 자동 상환,%s of debt auto-repaid while away
+TOAST_OFFLINE_CLAIMED,오프라인 수익을 받았어요,Offline earnings collected

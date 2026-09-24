@@ -10,9 +10,19 @@ var _connections: Array[Array] = []
 
 
 ## 각 테스트 전에 호출. 기본값: 게임 상태와 난수를 초기화한다.
+## save.json 등을 지우는 이유: Main._ready() 가 SaveManager.load_game() 을 부르므로(4단계), 컨테이너에
+## 실제로 남아있는 저장 파일이 있으면 Main 을 새로 만드는 테스트(test_main_scene 등)가 그 값을 그대로
+## 불러와 버린다. 매 테스트를 진짜 새 게임처럼 만들기 위해 먼저 지운다.
 func before_each() -> void:
 	GameState.reset()
 	RngService.set_seed(12345)
+	_clear_save_files()
+
+
+func _clear_save_files() -> void:
+	for path in [SaveManager.SAVE_PATH, SaveManager.TMP_PATH, SaveManager.BAK_PATH]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path)
 
 
 func after_each() -> void:

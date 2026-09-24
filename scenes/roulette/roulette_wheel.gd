@@ -21,6 +21,9 @@ const R_POCKET_FILL_OUT := 74.5
 const R_POCKET_FILL_IN := 61.5
 const R_SPOKES := 50.0
 const R_TURRET_IN := 7.0
+## 색약 보조: 빨강 포켓에 점 2개(ART_BIBLE 3-1 "색약 보조").
+const COLORBLIND_DOT_RADIUS := 1.5
+const COLORBLIND_DOT_SPREAD := 5.0
 const R_TURRET_OUT := 25.0
 const R_KNOB := 27.0
 const POCKET_SEGMENTS := 3
@@ -369,6 +372,8 @@ func _draw_ring_at(angle: float, alpha: float, full: bool) -> void:
 		var inset_in := rad_to_deg(POCKET_INSET_PX / R_POCKET_FILL_IN)
 		var inner := _sector_inset(center, half, inset_out, inset_in)
 		ring.draw_colored_polygon(inner, Palette.with_alpha(fill, alpha))
+		if VisualSettings.colorblind_assist and RouletteRules.color_of(number) == RouletteRules.PocketColor.RED:
+			_draw_colorblind_dots(center, alpha)
 		# 칸막이(fret)
 		var a0 := deg_to_rad(center - half)
 		var dir0 := Vector2(cos(a0), sin(a0))
@@ -380,6 +385,15 @@ func _draw_ring_at(angle: float, alpha: float, full: bool) -> void:
 		_draw_number_at(center, number, alpha)
 		if full and golden.has(number):
 			_draw_golden_twinkle(center, number)
+
+
+## 빨강 포켓 안쪽에 아이보리 점 2개(포켓의 중간 반지름을 따라 시계 방향으로 살짝 벌려서).
+func _draw_colorblind_dots(center_deg: float, alpha: float) -> void:
+	var mid_r := (R_POCKET_FILL_OUT + R_POCKET_FILL_IN) * 0.5
+	for offset in [-COLORBLIND_DOT_SPREAD, COLORBLIND_DOT_SPREAD]:
+		var a := deg_to_rad(center_deg + offset)
+		var pos := Vector2(cos(a), sin(a)) * mid_r
+		ring.draw_circle(pos, COLORBLIND_DOT_RADIUS, Palette.with_alpha(Palette.IVORY, alpha))
 
 
 ## [가장자리 색, 안쪽 색]

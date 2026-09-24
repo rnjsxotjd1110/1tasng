@@ -75,6 +75,9 @@ func start_spin() -> SpinError:
 	for i in GameState.ball_count():
 		active_results.append(RngService.consume_next())
 	active_duration = GameState.spin_duration()
+	# 스핀 도중 저장되면(GameState.spin_in_progress 가 true) 이 스냅샷으로 불러오기 즉시 정산한다.
+	GameState.pending_spin_bets = active_bets
+	GameState.pending_spin_results = active_results
 	_set_state(State.SPINNING)
 	EventBus.spin_started.emit(active_results.duplicate(), active_duration)
 	if instant_resolve:
@@ -93,6 +96,28 @@ func finish_spin() -> SpinOutcome:
 	last_outcome = outcome
 	GameState.last_bets = active_bets
 	active_bets = []
+	GameState.pending_spin_bets = []
+	GameState.pending_spin_results = []
+	GameState.spin_in_progress = false
+	_set_state(State.IDLE)
+	EventBus.spin_resolved.emit(outcome)
+	GameState.check_bankruptcy()
+	return outcome
+
+
+## 불러오기 직후 호출. GameState.spin_in_progress 이면(스핀 도중 저장) 연출 없이 즉시 정산한다.
+func settle_pending_spin() -> SpinOutcome:
+	if not GameState.spin_in_progress or GameState.pending_spin_bets.is_empty():
+		GameState.spin_in_progress = false
+		GameState.pending_spin_bets = []
+		GameState.pending_spin_results = []
+		return null
+	var outcome := RouletteRules.resolve(GameState.pending_spin_bets, GameState.pending_spin_results, GameState.build_spin_context())
+	_apply_outcome(outcome)
+	last_outcome = outcome
+	GameState.last_bets = GameState.pending_spin_bets
+	GameState.pending_spin_bets = []
+	GameState.pending_spin_results = []
 	GameState.spin_in_progress = false
 	_set_state(State.IDLE)
 	EventBus.spin_resolved.emit(outcome)
@@ -107,11 +132,13 @@ func _apply_outcome(outcome: SpinOutcome) -> void:
 	GameState.push_results(outcome.results)
 	GameState.increment_stat(GameState.STAT_TOTAL_SPINS)
 	GameState.max_stat(GameState.STAT_BIGGEST_WIN, outcome.total_return)
+	GameState.income_tracker.add(GameState.get_stat_value(GameState.STAT_PLAY_TIME), outcome.net)
 	var straight_hits := outcome.hit_straights.size()
 	if straight_hits > 0:
 		GameState.increment_stat(GameState.STAT_STRAIGHT_HITS, straight_hits)
 		GameState.add_clovers(straight_hits * Economy.CLOVER_PER_STRAIGHT_HIT)
 	if outcome.any_win():
+		GameState.increment_stat(GameState.STAT_TOTAL_WINS)
 		GameState.win_streak += 1
 		GameState.max_stat(GameState.STAT_BEST_STREAK, GameState.win_streak)
 		if GameState.win_streak % Economy.STREAK_LENGTH == 0:

@@ -41,15 +41,17 @@ res://
   project.godot
   docs/        GDD.md, ART_BIBLE.md, PROGRESS.md
   scripts/
-    autoload/  event_bus.gd, game_state.gd, economy.gd, rng_service.gd, save_manager.gd(틀), audio_manager.gd(틀)
+    autoload/  event_bus.gd, game_state.gd, economy.gd, rng_service.gd, save_manager.gd, audio_manager.gd,
+               settings_manager.gd(user://settings.cfg, 세이브와 별도)
     core/      roulette_rules.gd, bet.gd, spin_outcome.gd, spin_context.gd, number_format.gd,
                stat_modifiers.gd, spin_controller.gd, game_data.gd, palette.gd,
                spin_choreography.gd(스핀 궤적), history_stats.gd, income_tracker.gd, visual_settings.gd,
-               upgrade_service.gd(업그레이드 구매 규칙)  ← 순수 로직, 연출 없음
+               upgrade_service.gd(업그레이드 구매 규칙), offline_income.gd(오프라인 수익 계산)  ← 순수 로직, 연출 없음
     data/      upgrade_def.gd, skill_node_def.gd, floor_def.gd, marble_def.gd  (Resource 클래스)
   data/        upgrades/ skills/ floors/ marbles/ dialogue/   ← 밸런스 수치(.tres)
   scenes/      main/(Main.tscn, bg/ 층 배경) roulette/(RouletteWheel, 구슬: marble_sprite·marble_view·marble_fx·void_lens)
-               ui/(상단 바·기록·베팅창·업그레이드창·카드·버튼·툴팁) fx/(재사용 연출, 구슬 승급·황금 배지) skilltree/ npc/  ← 연출·화면
+               ui/(상단 바·기록·베팅창·업그레이드창·카드·버튼·툴팁·설정 화면·통계 화면·focus_style)
+               fx/(재사용 연출, 구슬 승급·황금 배지·복귀 팝업) skilltree/ npc/  ← 연출·화면
                debug/(F9 디버그 패널, 개발 빌드 전용)
   assets/      sprites/(ui wheel bg/<층> fx) ui/(9-slice, theme_main.tres) fonts/ audio/sfx/ audio/music/ shaders/
   translations/strings.csv   (keys,ko,en)
@@ -57,7 +59,10 @@ res://
   tools/       art/(gen_*.py, pixlib.py, build_theme.gd) audio/(gen_sfx.py) capture/(capture.gd, marble_sheet.gd) sim/ data/, setup_godot.sh
 ```
 
-오토로드 순서(project.godot): EventBus → Economy → RngService → GameState → SaveManager → AudioManager.
+오토로드 순서(project.godot): EventBus → Economy → RngService → GameState → SaveManager → AudioManager → SettingsManager.
+
+- `tools/art/*.py`·`tools/audio/gen_sfx.py` 는 Python 3 + `numpy` + `Pillow` 가 필요하다. 클라우드 컨테이너에 없으면
+  `pip install numpy pillow` 로 한 번 설치한다(Godot 설치와 달리 재생성용 도구일 뿐이라 게임 실행엔 필요 없음).
 오토로드 스크립트에는 `class_name` 을 달지 않는다(싱글톤 이름과 충돌).
 
 ## 코드 규칙

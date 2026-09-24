@@ -200,6 +200,7 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 
 - 모든 연출은 설정의 **"흔들림 끄기"** 와 **"번쩍임 줄이기"** 를 따른다(흔들림 0px, 플래시 알파 0 또는 크게 감소).
 - 황금 포켓 적중(`golden_hit`) 시 결과 포켓이 금색으로 번쩍이고 "×3" 표시.
+- 4단계: 설정의 **"큰 당첨 연출 간략"** 이면 BIG·JACKPOT 도 배너·플래시·흔들림을 생략(떠오르는 텍스트·소리·클로버 비행은 유지). **"오토 스핀 중 연출 줄이기"** 는 오토 스핀 중일 때만 BIG 미만(NORMAL·GOOD)의 파티클·흔들림을 생략한다(`VisualSettings.full_effects`).
 
 ---
 
@@ -419,3 +420,29 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 | `assets/audio/sfx/promote_charge.wav` | 0.95초 | — | 승급: 빛이 모임 | tools/audio/gen_sfx.py | 3 |
 | `assets/audio/sfx/promote_flash.wav` | 1.20초 | — | 승급: 섬광·폭발 | tools/audio/gen_sfx.py | 3 |
 | `assets/audio/sfx/promote_jingle_{1,2,3}.wav` | 0.89·1.73·2.82초 | — | 승급 징글(재질이 높을수록 웅장) | tools/audio/gen_sfx.py | 3 |
+| `assets/sprites/ui/icon_vault.png` | 16×16 | 1 | 금고(복귀 팝업, 딜러 루시 초상화 나오기 전 자리) | tools/art/gen_ui.py | 4 |
+| `assets/sprites/ui/icon_warning.png` | 9×9 | 1 | 경고(저장 손상 복구 토스트) | tools/art/gen_ui.py | 4 |
+| `assets/shaders/dither_dim.gdshader` | — | — | 일시정지 오버레이(화면 전체 4×4 Bayer 디더, vignette.gdshader 와 같은 기법·반지름 감쇠 없음) | 손으로 작성 | 4 |
+
+---
+
+## 10. 저장·설정·일시정지·통계 화면 (4단계)
+
+### 10-1. 설정 / 통계 화면
+
+- 스킬트리와 같은 자리: 640×336, 상단 바 아래 전체(`(0, 24)`), `PanelPlain`.
+- 설정: 왼쪽에 탭 5개(오디오/화면/게임/접근성/데이터, 세로 목록, `TabButton`), 오른쪽에 탭별 컨트롤 목록. 슬라이더·체크박스·선택 버튼 그룹(2~4단계에서 이미 준비된 `HSlider`/`CheckBox`/`Button` 테마를 그대로 쓴다 — 새 자산 없음).
+- 통계: 두 단 목록, 숫자는 `CountLabel` 카운트업.
+- 포커스 테두리: `FocusStyle`(`scenes/ui/focus_style.gd`) 가 `neon_cyan`(`Palette.SEM_FOCUS`) 1px 테두리 스타일박스를 개별 컨트롤에 override 한다(전역 테마는 그대로 — 다른 화면 버튼은 여전히 포커스 표시 없음).
+- 열기·닫기: 기존 `PanelTransition`(0.18초)을 그대로 쓴다.
+
+### 10-2. 일시정지 메뉴
+
+- 화면 전체(640×360, 상단 바 포함)를 `dither_dim.gdshader` 로 어둡게 덮고, 가운데 150×190 `PanelFelt` 메뉴.
+- 버튼 5개(세로, 120×20): 계속하기 / 설정 / 통계 / 저장 후 타이틀로(비활성, 잠금 툴팁) / 게임 종료. 아래에 "메뉴 중 게임 진행" 체크박스.
+- `PauseMenu` 는 `process_mode = PROCESS_MODE_ALWAYS` 라 `get_tree().paused` 여도 계속 그려지고 입력을 받는다.
+
+### 10-3. 복귀 팝업
+
+- 272×150 `PanelFelt`, 좌상단 32×32 초상화 자리(`icon_vault.png` ×2 정수 확대, 8단계에 루시 초상화가 생기면 자동 교체), 우측에 인사말·경과 시간·수익 카운트업(1.5초, `CountLabel.Style.SIGNED`)·[받기] 버튼.
+- 카운트업 동안 "chip_click" 효과음을 간격을 0.16초 → 0.03초로 줄여가며 재생(가속 느낌). [받기] 를 누르면 `GameState.add_chips()` 로 실제 지급.

@@ -12,7 +12,8 @@ const HISTORY_POS := Vector2(4, 28)
 const RIGHT_PANEL_POS := Vector2(420, 28)
 const RIGHT_PANEL_SIZE := Vector2(216, 328)
 const SPIN_AREA_POS := Vector2(104, 316)
-const SETTINGS_SIZE := Vector2(240, 150)
+## 스킬트리·설정·통계처럼 상단 바 아래 전체를 덮는 오버레이의 공통 위치(640×336).
+const FULL_OVERLAY_POS := Vector2(0, 24)
 const TEXT_ANCHOR := Vector2(262, 150)
 const NEAR_MISS_OFFSET := Vector2(0, 16)
 const WHEEL_CLICK_RADIUS := 118.0
@@ -53,8 +54,6 @@ const FlashScene := preload("res://scenes/fx/ScreenFlash.tscn")
 const ToastScene := preload("res://scenes/fx/ToastLayer.tscn")
 
 var controller := SpinController.new()
-## 6단계 자동 스핀. 지금은 항상 false(잭팟 자동 닫힘 훅).
-var auto_spin: bool = false
 
 var world: Node2D
 var background: Node2D
@@ -76,7 +75,10 @@ var big_win: BigWinBanner
 var flash: ScreenFlash
 var jackpot: JackpotOverlay
 var skill_overlay: PlaceholderScreen
-var settings_overlay: PlaceholderScreen
+var settings_overlay: SettingsScreen
+var stats_screen: StatsScreen
+var pause_menu: PauseMenu
+var return_popup: ReturnPopup
 var toasts: ToastLayer
 var tooltip_layer: TooltipLayer
 var shaker: ScreenShake
@@ -93,6 +95,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	controller.instant_resolve = false
+	_load_game()
 	_build_world()
 	_build_ui()
 	_build_fx()
@@ -106,6 +109,22 @@ func _ready() -> void:
 	wheel.spin_finished.connect(_on_wheel_finished)
 	_refresh_spin_state()
 	_attach_debug_panel()
+	_show_return_popup_if_needed()
+
+
+## 저장 불러오기(있으면). 스핀 도중 저장된 것이 있으면 연출 없이 즉시 정산한다. UI 를 만들기 전에 해서
+## 처음 그려지는 화면이 이미 불러온 값을 보여주게 한다.
+func _load_game() -> void:
+	SaveManager.load_game()
+	controller.settle_pending_spin()
+
+
+func _show_return_popup_if_needed() -> void:
+	var offline := SaveManager.last_load_offline
+	if offline == null or not offline.eligible:
+		return
+	return_popup.position = ((Vector2(640, 360) - ReturnPopup.SIZE) * 0.5).round()
+	return_popup.open(offline)
 
 
 func _build_world() -> void:
@@ -183,18 +202,36 @@ func _build_fx() -> void:
 	root.add_child(promotion)
 	skill_overlay = PlaceholderScreen.new()
 	skill_overlay.setup(Vector2(640, 336), "SKILLTREE_TITLE", true, "PanelPlain")
-	skill_overlay.position = Vector2(0, 24)
+	skill_overlay.position = FULL_OVERLAY_POS
 	skill_overlay.visible = false
 	skill_overlay.close_requested.connect(func() -> void: _close_overlay(skill_overlay))
 	root.add_child(skill_overlay)
-	settings_overlay = PlaceholderScreen.new()
-	settings_overlay.setup(SETTINGS_SIZE, "SETTINGS_TITLE", true)
-	settings_overlay.position = ((Vector2(640, 360) - SETTINGS_SIZE) * 0.5).round()
+	settings_overlay = SettingsScreen.new()
+	settings_overlay.position = FULL_OVERLAY_POS
 	settings_overlay.visible = false
 	settings_overlay.close_requested.connect(func() -> void: _close_overlay(settings_overlay))
 	root.add_child(settings_overlay)
+	stats_screen = StatsScreen.new()
+	stats_screen.position = FULL_OVERLAY_POS
+	stats_screen.visible = false
+	stats_screen.close_requested.connect(_close_stats_screen)
+	root.add_child(stats_screen)
+	return_popup = ReturnPopup.new()
+	return_popup.visible = false
+	return_popup.claimed.connect(func() -> void: EventBus.toast_requested.emit(tr("TOAST_OFFLINE_CLAIMED"), "chip"))
+	root.add_child(return_popup)
 	tooltip_layer = TooltipLayer.new()
 	root.add_child(tooltip_layer)
+	pause_menu = PauseMenu.new()
+	pause_menu.visible = false
+	pause_menu.resume_requested.connect(_close_pause_menu)
+	pause_menu.settings_requested.connect(func() -> void:
+		_close_pause_menu()
+		_toggle_overlay(settings_overlay))
+	pause_menu.stats_requested.connect(func() -> void:
+		_close_pause_menu()
+		_open_stats_screen())
+	root.add_child(pause_menu)
 	shaker = ScreenShake.new()
 	shaker.targets = [world, ui_layer]
 	add_child(shaker)
@@ -235,7 +272,8 @@ func _on_spin_started(results: Array[int], duration: float) -> void:
 	golden_badge.hide_badge()
 	bet_panel.set_locked(true)
 	spin_controls.ready_to_spin = false
-	wheel.play_spin(results, duration)
+	# "스핀 연출 속도" 설정은 연출(휠 애니메이션)만 빠르게 한다. GameState.spin_duration() 자체(경제 공식)는 그대로.
+	wheel.play_spin(results, duration * SettingsManager.spin_visual_speed_mult())
 	_refresh_spin_state()
 
 
@@ -254,15 +292,18 @@ func _on_spin_resolved(outcome: SpinOutcome) -> void:
 	_refresh_spin_state()
 
 
-## 등급별 당첨 연출(ART_BIBLE 7장).
+## 등급별 당첨 연출(ART_BIBLE 7장). full 이 false 면(오토 스핀 중 BIG 미만, 또는 "간략" 설정) 파티클·배너·
+## 플래시·흔들림을 생략하고 떠오르는 텍스트·소리만 남긴다(VisualSettings.full_effects).
 func play_tier_effects(outcome: SpinOutcome, winners: Array[String]) -> void:
 	var anchor := TEXT_ANCHOR
+	var full := VisualSettings.full_effects(outcome.tier, GameState.auto_spin_enabled)
 	if outcome.golden_hit:
 		# 황금 포켓 적중: "황금 ×3" 배지 + 결과 포켓에서 금색 파티클
 		golden_badge.show_badge(GameState.get_stat(StatModifiers.GOLDEN_POCKET_MULT, Economy.GOLDEN_POCKET_MULT))
-		for number in outcome.results:
-			if GameState.golden_pockets.has(number):
-				ParticleBurst.spawn(float_layer, ParticleBurst.Kind.COINS, wheel.pocket_global_position(number), GOLDEN_PARTICLES)
+		if full:
+			for number in outcome.results:
+				if GameState.golden_pockets.has(number):
+					ParticleBurst.spawn(float_layer, ParticleBurst.Kind.COINS, wheel.pocket_global_position(number), GOLDEN_PARTICLES)
 		AudioManager.play_sfx("golden_beam", 1.2, -6.0)
 	if outcome.tier == SpinOutcome.Tier.LOSS:
 		FloatingText.spawn(float_layer, NumberFormat.format(outcome.net), "Num14Stone", anchor)
@@ -276,27 +317,31 @@ func play_tier_effects(outcome: SpinOutcome, winners: Array[String]) -> void:
 	_fly_payout(outcome, winners)
 	match outcome.tier:
 		SpinOutcome.Tier.NORMAL:
-			ParticleBurst.spawn(float_layer, ParticleBurst.Kind.CHIPS, anchor, NORMAL_SPARKLE)
+			if full:
+				ParticleBurst.spawn(float_layer, ParticleBurst.Kind.CHIPS, anchor, NORMAL_SPARKLE)
 			AudioManager.play_sfx("win_normal")
 		SpinOutcome.Tier.GOOD:
-			ParticleBurst.spawn(float_layer, ParticleBurst.Kind.CHIPS, anchor, GOOD_PARTICLES)
-			shaker.shake(GOOD_SHAKE, GOOD_SHAKE_TIME)
+			if full:
+				ParticleBurst.spawn(float_layer, ParticleBurst.Kind.CHIPS, anchor, GOOD_PARTICLES)
+				shaker.shake(GOOD_SHAKE, GOOD_SHAKE_TIME)
 			AudioManager.play_sfx("win_good")
 		SpinOutcome.Tier.BIG:
-			_big_effects(outcome)
+			_big_effects(outcome, full)
 			AudioManager.play_sfx("win_big")
 		SpinOutcome.Tier.JACKPOT:
-			_big_effects(outcome, false)
-			shaker.shake(JACKPOT_SHAKE, JACKPOT_SHAKE_TIME)
-			jackpot.open(outcome.net, auto_spin)
+			_big_effects(outcome, full, false)
+			if full:
+				shaker.shake(JACKPOT_SHAKE, JACKPOT_SHAKE_TIME)
+			jackpot.open(outcome.net, GameState.auto_spin_enabled)
 
 
-func _big_effects(outcome: SpinOutcome, banner: bool = true) -> void:
-	if banner:
-		big_win.play()
-	flash.flash()
-	ParticleBurst.spawn(float_layer, ParticleBurst.Kind.COINS, WHEEL_CENTER, BIG_COINS)
-	shaker.shake(BIG_SHAKE, BIG_SHAKE_TIME)
+func _big_effects(outcome: SpinOutcome, full: bool, banner: bool = true) -> void:
+	if full:
+		if banner:
+			big_win.play()
+		flash.flash()
+		ParticleBurst.spawn(float_layer, ParticleBurst.Kind.COINS, WHEEL_CENTER, BIG_COINS)
+		shaker.shake(BIG_SHAKE, BIG_SHAKE_TIME)
 	if not outcome.hit_straights.is_empty():
 		var sources: Array[Vector2] = []
 		for number in outcome.results:
@@ -449,7 +494,7 @@ func _toggle_overlay(overlay: Control) -> void:
 	if overlay.visible:
 		_close_overlay(overlay)
 	else:
-		for other: Control in [skill_overlay, settings_overlay]:
+		for other: Control in [skill_overlay, settings_overlay, stats_screen]:
 			if other != overlay and other.visible:
 				_close_overlay(other)
 		PanelTransition.open(overlay)
@@ -458,6 +503,42 @@ func _toggle_overlay(overlay: Control) -> void:
 func _close_overlay(overlay: Control) -> void:
 	if overlay.visible:
 		PanelTransition.close(overlay)
+
+
+# ── 일시정지·통계(4단계) ─────────────────────────────────
+
+func _open_pause_menu() -> void:
+	for other: Control in [skill_overlay, settings_overlay, stats_screen]:
+		_close_overlay(other)
+	PanelTransition.open(pause_menu)
+	pause_menu.refresh_time_flows_checkbox()
+	pause_menu.focus_first()
+	_update_pause_freeze()
+
+
+func _close_pause_menu() -> void:
+	if not pause_menu.visible:
+		return
+	PanelTransition.close(pause_menu).tween_callback(_update_pause_freeze)
+
+
+func _open_stats_screen() -> void:
+	stats_screen.refresh()
+	for other: Control in [skill_overlay, settings_overlay]:
+		_close_overlay(other)
+	PanelTransition.open(stats_screen)
+	_update_pause_freeze()
+
+
+func _close_stats_screen() -> void:
+	if not stats_screen.visible:
+		return
+	PanelTransition.close(stats_screen).tween_callback(_update_pause_freeze)
+
+
+## 일시정지 메뉴·통계 화면이 열려 있고 "메뉴 중 게임 진행"이 꺼져 있으면 게임 시간을 멈춘다(기본은 흐름).
+func _update_pause_freeze() -> void:
+	get_tree().paused = (pause_menu.visible or stats_screen.visible) and not SettingsManager.pause_time_flows
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -476,17 +557,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		_toggle_overlay(skill_overlay)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause"):
-		if skill_overlay.visible:
+		# pause_menu 가 열려 있을 때 닫는 것은 PauseMenu 자신의 _unhandled_input 이 맡는다
+		# (PROCESS_MODE_ALWAYS 라 "메뉴 중 진행 끄기" 로 tree 가 paused 여도 동작해야 하기 때문).
+		if stats_screen.visible:
+			_close_stats_screen()
+			get_viewport().set_input_as_handled()
+		elif settings_overlay.visible:
+			_close_overlay(settings_overlay)
+			get_viewport().set_input_as_handled()
+		elif skill_overlay.visible:
 			_close_overlay(skill_overlay)
-		else:
-			_toggle_overlay(settings_overlay)
-		get_viewport().set_input_as_handled()
+			get_viewport().set_input_as_handled()
+		elif not pause_menu.visible:
+			_open_pause_menu()
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_auto"):
 		spin_controls.auto_button.pressed.emit()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_fullscreen"):
-		var fullscreen := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if fullscreen else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		SettingsManager.fullscreen = not SettingsManager.fullscreen
+		SettingsManager.commit()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton:
 		var button := event as InputEventMouseButton

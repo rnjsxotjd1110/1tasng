@@ -24,6 +24,8 @@ const SCENARIOS: Array[String] = [
 	"promote_charge", "promote_flash", "promote_banner", "promote_fly", "golden_beam", "golden_wheel", "slot_open",
 	"trail_gold", "trail_cosmic", "trail_void", "numbers_1e3", "numbers_1e15", "numbers_1e33", "numbers_1e60",
 	"debug_panel", "tab_slide", "tab_dot",
+	"settings_audio", "settings_display", "settings_game", "settings_accessibility", "settings_data",
+	"pause_menu", "stats_screen", "return_popup", "toast_recovered", "colorblind",
 ]
 const UPGRADE_SERVICE := "res://scripts/core/upgrade_service.gd"
 
@@ -155,7 +157,8 @@ func _hover_card(id: String) -> void:
 	motion.position = Vector2(rect.position.x + 60, rect.position.y + 20)
 	motion.global_position = motion.position
 	root.push_input(motion)
-	await _wait_seconds(0.3)
+	# VisualSettings.tooltip_delay(기본 0.3초) + 페이드(0.1초) 이후까지 넉넉히 기다린다.
+	await _wait_seconds(0.5)
 
 
 func _promote(from_tier: int, to_tier: int, wait: float) -> void:
@@ -224,7 +227,7 @@ func _capture(scenario: String, lang: String) -> void:
 			await _wait_seconds(0.4)
 			var board: Control = main.get("bet_panel").get("board")
 			board.call("_set_hover", "S17")
-			await _wait_seconds(0.3)
+			await _wait_seconds(0.5)
 		"spin_03", "spin_06", "spin_085":
 			game_state.call("set_upgrade_level", "marble_count", 2)
 			if _tier_arg >= 0:
@@ -386,6 +389,49 @@ func _capture(scenario: String, lang: String) -> void:
 		"tab_dot":
 			_set_chips(900.0)
 			await _wait_seconds(0.5)
+		"settings_audio", "settings_display", "settings_game", "settings_accessibility", "settings_data":
+			main.call("_toggle_overlay", main.get("settings_overlay"))
+			var tab: String = {
+				"settings_audio": "audio", "settings_display": "screen", "settings_game": "game",
+				"settings_accessibility": "accessibility", "settings_data": "data",
+			}[scenario]
+			main.get("settings_overlay").call("select_tab", tab)
+			await _wait_seconds(0.35)
+		"pause_menu":
+			main.call("_open_pause_menu")
+			await _wait_seconds(0.3)
+		"stats_screen":
+			game_state.call("increment_stat", "total_spins", 128.0)
+			game_state.call("increment_stat", "total_wins", 54.0)
+			game_state.call("max_stat", "biggest_win", 48200.0)
+			game_state.call("max_stat", "best_streak", 9.0)
+			game_state.call("increment_stat", "straight_hits", 3.0)
+			game_state.call("increment_stat", "loans_taken", 2.0)
+			game_state.call("increment_stat", "total_earned", 96400.0)
+			game_state.call("increment_stat", "play_time", 3.0 * 3600.0 + 12.0 * 60.0)
+			var stats_results: Array[int] = [7, 7, 7, 22, 5]
+			game_state.call("push_results", stats_results)
+			main.call("_open_stats_screen")
+			await _wait_seconds(1.7)
+		"return_popup":
+			var offline: Object = (load("res://scripts/core/offline_income.gd") as GDScript).new()
+			offline.set("income", 2400.0)
+			offline.set("elapsed_seconds", 3.0 * 3600.0 + 12.0 * 60.0)
+			offline.set("capped_seconds", 2.0 * 3600.0)
+			offline.set("eligible", true)
+			offline.set("mode", 2)
+			main.get("return_popup").call("open", offline)
+			await _wait_seconds(1.7)
+		"toast_recovered":
+			root.get_node("EventBus").emit_signal("toast_requested", tr("TOAST_SAVE_RECOVERED"), "warning")
+			await _wait_seconds(0.3)
+		"colorblind":
+			var cb_settings := root.get_node("SettingsManager")
+			cb_settings.set("colorblind_assist", true)
+			cb_settings.call("apply_all")
+			game_state.call("set_upgrade_level", "marble_count", 1)
+			_bets(["R", "S32"])
+			await _wait_seconds(0.6)
 		_:
 			push_error("capture: 모르는 시나리오 %s" % scenario)
 	await _wait_frames(1)

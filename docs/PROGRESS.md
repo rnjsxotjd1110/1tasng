@@ -39,11 +39,13 @@
 - [x] 숫자 표기 전수 점검 + F9 디버그 패널
 - [ ] 비용 곡선 1차 조정 → 요청에 따라 9단계로(아래 남은 이슈)
 
-### 4단계 — 저장·오프라인 수익·설정
-- [ ] SaveManager: 원자적 저장, 백업, 버전 마이그레이션, 자동 저장
-- [ ] GameState.to_dict()/from_dict(), RngService 상태, 수정자 재구성
-- [ ] 오프라인 수익(offline_efficiency, offline_cap_hours)
-- [ ] 설정: 언어, 볼륨, 전체화면, 과학적 표기, 흔들림 끄기, 번쩍임 줄이기
+### 4단계 — 저장·오프라인 수익·설정·일시정지·통계 ✅
+- [x] SaveManager: 원자적 저장(tmp→검증→교체), .bak 백업, 체크섬(sha256), 버전 마이그레이션 틀, 자동 저장 6종, 종료 시 저장
+- [x] GameState.to_dict()/from_dict(), RngService 상태, 업그레이드 수정자 재구성, 스핀 도중 저장 즉시 정산
+- [x] 오프라인 수익(OfflineIncome: 팁/없음/전체 분기, 상한·효율, 시계 조작 방어, 60초 미만 무시), 복귀 팝업
+- [x] SettingsManager(user://settings.cfg): 오디오·화면·게임·접근성, 설정 화면(탭 5개), 포커스 테두리
+- [x] 일시정지 메뉴(Esc, 디더 오버레이, 시간 흐름 옵션), 통계 화면(카운트업)
+- [x] 색약 보조(휠·베팅판 점 무늬, 프로시저럴)
 
 ### 5단계 — 빚·래칫 남작
 - [ ] 파산 → 대출(공식), 2배 상환, 자동 상환 25%, 최대 3건
@@ -208,3 +210,51 @@
 - 새 UI 문자열은 숫자 자리를 `%s` + NumberFormat 으로(`%d` 는 테스트가 막는다).
 - 구슬을 새로 그리는 곳은 `MarbleView`(UI) 또는 CanvasItem 에 `MarbleSprite.shared_material()` + 템플릿 그리기 + `MarbleFx.draw_aura_back/draw_aura` 를 쓴다.
 - F9 디버그 패널로 칩·층·재질을 바로 바꿀 수 있다(개발 빌드만).
+
+### 4단계 (2026-09-24) — 저장·오프라인 수익·설정·일시정지·통계
+
+**시작 전 정리**: 작업 브랜치(`claude/beautiful-franklin-nc1a2i`)가 1단계 시점에서 분기돼 있었고, 실제 최신 상태(1~3단계)는 `claude/brave-mendel-ondxic`(PR 없음)에 있었다. 그 브랜치 기준으로 재설정한 뒤 4단계를 올렸다.
+
+**한 일**
+- **SaveManager**: `user://save.json` = `{"version","saved_at","checksum","data"}`, `data` 는 `JSON.stringify()` 한 문자열을 한 번 더 담는다(이유: Godot JSON 숫자 파서가 1e250 급 큰 실수를 다시 읽을 때 마지막 비트가 흔들려, 객체로 두면 체크섬이 정상 파일을 오검출할 수 있음을 실측 확인 — `check_rel` 1e-9 로 테스트). `save.tmp` 에 쓰고 다시 읽어 검증 → `save.json`→`save.bak` 교체 → `save.tmp`→`save.json` 교체(`DirAccess.rename_absolute`). 체크섬 불일치·손상 시 `.bak` 복구 + 토스트, 실패하면 새 게임처럼. 마이그레이션은 `match from_version` 틀만(지금은 v1 뿐). 자동 저장: 30초 타이머, 업그레이드·스킬·층 이동·대출, 포커스 상실, `NOTIFICATION_WM_CLOSE_REQUEST`(저장 후 종료). 저장 중 TopBar 구석에 칩 회전 아이콘 0.8초(`EventBus.save_started/save_finished`).
+- **GameState**: `to_dict()/from_dict()`(모든 필드 + 시간제 버프만), `pending_spin_bets/results`(스핀 도중 저장 스냅샷), `auto_spin_enabled`(`Main.auto_spin` 에서 옮김)·`auto_spin_unlocked()`(6단계까지 항상 false), `income_tracker`(5분 창, 오프라인·5단계 대출액 공용), `number_frequency`+`most_frequent_number()`, `stats.total_wins`(승률용). `SpinController.settle_pending_spin()`: 불러온 뒤 스핀 도중 저장분을 연출 없이 즉시 정산.
+- **오프라인 수익**: `Economy.offline_income()`(상한×효율) + `OfflineIncome.compute()`(팁 5%/없음/전체 30%(초안 0.25→요청 명세 0.3) 분기, 시계 조작·60초 미만 방어). `ReturnPopup`(딜러 루시 초상화 없으면 `icon_vault.png`, 경과시간 "N시간 M분(최대 적용)", 수익 1.5초 카운트업 + 가속 코인음, [받기]로 지급).
+- **SettingsManager**(신규 오토로드, `user://settings.cfg`): 오디오 4·화면 4·게임 5·접근성 4 필드, `commit()`(적용+저장) 하나로 개별 setter 없이 처리. `SettingsScreen`(640×336, 탭 5개, 기존 슬라이더/체크박스 테마 재사용, `FocusStyle` neon_cyan 포커스, 데이터 탭 RESET 3초 홀드+문구 입력).
+- **PauseMenu**(Esc): 화면 전체 `dither_dim.gdshader`(4×4 Bayer, vignette 와 같은 기법) + 계속하기/설정/통계/저장후타이틀(비활성)/게임종료 + 시간 흐름 체크박스. `PROCESS_MODE_ALWAYS` 라 `get_tree().paused` 여도 자기 자신은 동작. 옵션 꺼짐(기본)이면 파산 없이 항상 흐름, 켜면 일시정지·통계 화면이 열린 동안만 멈춤.
+- **StatsScreen**: 한 줄 목록(처음엔 두 단으로 만들었다가 겹침 발견 → 한 단으로 재설계, 아래 검수 기록), `CountLabel` 카운트업.
+- **색약 보조**: 새 텍스처 없이 프로시저럴 점 2개 — 휠(`RouletteWheel._draw_colorblind_dots`, 포켓 채우기 위 `draw_circle`), 베팅판(`BetBoard._draw_colorblind_dots`, 숫자 토큰·바깥 R 칸).
+- **스핀 연출 속도**: `Main._on_spin_started` 가 `wheel.play_spin` 의 duration 에만 곱한다(Economy·GameState 는 그대로).
+- **큰 당첨/오토 연출 간략화**: `VisualSettings.full_effects(tier, is_auto_spin)`, `Main.play_tier_effects`/`_big_effects` 에 적용.
+- **툴팁 지연**: `TooltipLayer` 에 지연 타이머 추가(취소 토큰 방식 — `SceneTreeTimer` 자체는 취소할 수 없어서).
+- 신규 아이콘 2개(`icon_vault`, `icon_warning`, 기존 `gen_ui.py` 파이프라인), 신규 셰이더(`dither_dim.gdshader`).
+- 테스트 65개 신규(save_manager 8·offline_income 8·settings_manager 6·settings_screen 4·pause_menu 5·stats_screen 3·return_popup 5, 기존 파일 보강) / 전체 168개·검사 3413개 통과.
+
+**검수 기록(캡처 → 검토 → 개선)**
+1. 설정 탭 버튼 2개가 동시에 "눌림" 상태로 보임 → `SettingsScreen.select_tab()` 이 대상 탭만 누르고 나머지를 풀지 않았던 버그(`set_pressed_no_signal` 은 ButtonGroup 의 다른 버튼을 풀지 않음 — TopBar 에 있던 것과 같은 주의사항인데 놓침). 전부 명시적으로 다시 맞추게 수정.
+2. 통계 화면 두 단 배치가 "3시간 12분"처럼 넓은 값에서 오른쪽 단 라벨과 겹치고, 오른쪽 단 값은 화면 오른쪽으로 잘림 → 애초에 640px 안에 두 단 라벨+값이 들어갈 공간이 없었다. 한 단짜리 세로 목록으로 재설계(9줄이 세로 공간은 충분히 남았음).
+3. 복귀 팝업이 "경과 시간" 자리에 상한이 적용된 시간(예: "2시간 0분")을 보여주고 있었음 → 요청 명세 예시("3시간 12분 (최대 2시간 적용)")는 실제 경과 시간이 머리글이어야 함. `elapsed_seconds` 로 수정.
+4. `Main._ready()` 가 `SaveManager.load_game()` 을 부르게 되면서, 컨테이너에 남아있던 실제 `save.json`(이전 테스트가 만든 것)을 `test_main_scene` 이 그대로 불러와 칩이 9억대로 나오는 등 테스트가 깨짐 → `tests/lib/test_case.gd` 공용 `before_each()` 에서 저장 파일을 먼저 지우게 수정(모든 테스트에 적용).
+5. `SettingsManager`/`VisualSettings` 필드를 바꾸는 테스트가 자기 값을 원래대로 되돌리지 않아 다른 테스트 파일에 새어나감(예: `scientific_mode=true` 가 남아 업그레이드 카드 숫자가 과학적 표기로 보임) → `SettingsManager.reset_to_defaults()` 를 추가하고 관련 테스트의 `after_each()` 에서 호출.
+6. `TooltipLayer` 에 표시 지연을 넣은 뒤 캡처 스크립트의 기존 대기 시간(0.3초)이 지연(0.3초)+페이드(0.1초)보다 짧아져 툴팁이 안 보임 → `_hover_card()`·"tooltip" 시나리오의 대기를 0.5초로.
+7. 색약 보조 점이 실제로 그려지는지 확대해서 확인(휠·베팅판 모두 빨강에만 아이보리 점 2개, 검정엔 없음 — 정상).
+8. 나머지(설정 5탭 ko/en, 일시정지, 통계, 복귀 팝업, 손상 복구 토스트, 기존 베팅/당첨 연출 회귀)는 이상 없음.
+
+**파일**
+- 신규: `scripts/autoload/settings_manager.gd`, `scripts/core/offline_income.gd`, `scenes/ui/{settings_screen,pause_menu,stats_screen,focus_style}.gd`, `scenes/fx/return_popup.gd`, `assets/shaders/dither_dim.gdshader`, `assets/sprites/ui/{icon_vault,icon_warning}.png`
+- 수정: `scripts/autoload/{game_state,save_manager,economy,event_bus}.gd`, `scripts/core/{spin_controller,visual_settings}.gd`, `scenes/main/main.gd`, `scenes/ui/{top_bar,tooltip_layer,bet_board}.gd`, `scenes/roulette/roulette_wheel.gd`, `scenes/fx/toast_layer.gd`, `tools/art/gen_ui.py`, `tools/capture/capture.gd`, `project.godot`, `tests/lib/test_case.gd`
+- 신규 테스트: `tests/test_{save_manager,offline_income,settings_manager,settings_screen,pause_menu,stats_screen,return_popup}.gd`
+- 문서: GDD 15장, ART_BIBLE 10장(신규 화면 레이아웃)·7장(연출 간략화)·에셋 목록, CLAUDE.md(오토로드 순서·폴더 구조·pip 안내)
+
+**남은 이슈**
+- `UpgradePanel.mode`(업그레이드창의 STANDARD/MARBLE 탭 선택)는 저장하지 않는다 — 불러오면 항상 기본 탭으로 열린다(요청 명세에 없던 3단계 핸드오프 노트였고, 이번 범위에서는 생략).
+- `auto_spin_unlocked()`/`GameState.auto_spin_enabled` 는 자리만 만들어 뒀다 — 6단계가 실제 스킬 해금 조건과 오토 스핀 루프를 연결해야 오프라인 "전체 수익" 모드가 실제로 나온다. 지금은 항상 "팁" 모드만 관찰 가능.
+- 설정의 "RESET 입력" 안내처럼 `tr(key) % arg` 로 미리 조합해 둔 라벨(`auto_translate=false`)은 화면을 연 채로 언어를 바꿔도 그 자리에서 다시 조합되지 않는다(화면을 닫고 다시 열면 반영). 대부분의 다른 텍스트는 Godot 기본 번역 갱신으로 즉시 바뀐다.
+- 복귀 팝업의 "쏟아진다" 연출은 카운트업 + 코인음까지만 구현했고, 스핀 당첨처럼 상단 바로 날아가는 칩 애니메이션(`FlyingChips`)은 붙이지 않았다(Main 과의 결합을 늘리는 대신 범위를 좁힘). 8단계 폴리시에서 원하면 추가.
+- 오디오 미리듣기는 Master/SFX/UI 슬라이더에서만 소리가 난다 — Music 슬라이더는 미리들을 음악 트랙이 아직 없다(8단계에서 음악 자산이 생기면 추가).
+- 효과음·셰이더는 여전히 Mesa llvmpipe·더미 오디오 드라이버로만 확인했다(기존 이슈, 이번 단계도 동일 제약).
+
+**다음 단계(5단계)가 알아야 할 것**
+- 대출액 공식이 필요로 하는 "최근 5분 평균 초당 순수익"은 이미 `GameState.income_tracker.per_second(GameState.get_stat_value(GameState.STAT_PLAY_TIME))` 로 바로 쓸 수 있다(오프라인 수익과 공용, 새로 만들 필요 없음).
+- 빚 자동 상환이 생기면 `ReturnPopup.open(offline, debt_repaid)` 의 둘째 인자에 상환액을 넘기면 "오프라인 중 빚 상환" 문구가 자동으로 뜬다(이미 만들어 둠, 지금은 항상 0).
+- 패널티(시간제 StatModifiers 수정자)는 `GameState.add_buff()` 로 걸면 저장·불러오기가 이미 지원한다(`buff:` 소스만 시간제로 왕복). "횟수제"(압류 1스핀, 클로버 수수료 1회) 소모형은 여전히 없음 — 1단계부터 남은 이슈 그대로.
+- `debt_changed` 시그널이 발행되면 SaveManager 가 자동 저장한다(이미 연결돼 있음, 5단계는 그냥 발행만 하면 됨).

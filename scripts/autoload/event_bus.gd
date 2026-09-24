@@ -41,3 +41,9 @@ signal buff_ended(id: String)
 ## 화면 구석 알림. text 는 이미 tr() 된 문자열, icon 은 아이콘 id.
 @warning_ignore("unused_signal")
 signal toast_requested(text: String, icon: String)
+## 저장 시작(4단계). TopBar 가 회전 칩 아이콘을 0.8초 보여준다.
+@warning_ignore("unused_signal")
+signal save_started()
+## 저장 끝(성공 여부와 무관하게 바로 발행. 저장은 동기 처리라 시작과 거의 동시).
+@warning_ignore("unused_signal")
+signal save_finished(ok: bool)

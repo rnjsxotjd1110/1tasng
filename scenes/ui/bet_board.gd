@@ -31,6 +31,7 @@ const HOLE_SIZE := 12
 const MARBLE := 10
 const TOKEN := 11
 const STACK_VISIBLE := 3
+const COLORBLIND_DOT_RADIUS := 1.0
 const STACK_STEP := Vector2(2, -1)
 const DRAG_THRESHOLD := 3.0
 
@@ -797,12 +798,24 @@ func _draw_cell(key: String) -> void:
 		var center := rect.position + Vector2(rect.size.x * 0.5 if number == 0 else 20.0, 6.5)
 		var top_left := (center - Vector2(TOKEN * 0.5, TOKEN * 0.5)).round()
 		draw_texture(TOKENS[RouletteRules.color_of(number)], top_left)
+		if RouletteRules.color_of(number) == RouletteRules.PocketColor.RED:
+			_draw_colorblind_dots(center, TOKEN * 0.28)
 		PixelDigits.draw(self, DIGITS, number, top_left + Vector2(TOKEN * 0.5, TOKEN * 0.5))
+
+
+## 색약 보조: 빨강 칸에 아이보리 점 2개(대각선으로 살짝 벌려서, 숫자 위치는 피한다).
+func _draw_colorblind_dots(center: Vector2, spread: float) -> void:
+	if not VisualSettings.colorblind_assist:
+		return
+	draw_circle((center + Vector2(-spread, -spread)).round(), COLORBLIND_DOT_RADIUS, Palette.IVORY)
+	draw_circle((center + Vector2(spread, spread)).round(), COLORBLIND_DOT_RADIUS, Palette.IVORY)
 
 
 func _draw_outside_label(key: String, rect: Rect2) -> void:
 	var icon: Texture2D = ICONS[key]
 	var icon_pos := rect.position + Vector2(4, roundf((rect.size.y - icon.get_height()) * 0.5))
+	if key == KEY_RED:
+		_draw_colorblind_dots(icon_pos + Vector2(icon.get_width(), icon.get_height()) * 0.5, 2.0)
 	draw_texture(icon, icon_pos)
 	var text_pos := rect.position + Vector2(14, 11)
 	draw_string(_small_font, text_pos, tr(LABEL_KEYS[key]), HORIZONTAL_ALIGNMENT_LEFT, 44, 10, Palette.IVORY)

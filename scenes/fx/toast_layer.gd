@@ -16,6 +16,7 @@ const ICONS := {
 	"chip": preload("res://assets/sprites/ui/icon_chip.png"),
 	"clover": preload("res://assets/sprites/ui/icon_clover.png"),
 	"lock": preload("res://assets/sprites/ui/icon_lock.png"),
+	"warning": preload("res://assets/sprites/ui/icon_warning.png"),
 }
 
 var _toasts: Array[Dictionary] = []

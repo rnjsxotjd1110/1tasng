@@ -294,12 +294,15 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `buff_started(id: String, duration: float)` | 시간제 버프·패널티 시작 |
 | `buff_ended(id: String)` | 시간제 버프·패널티 종료 |
 | `toast_requested(text: String, icon: String)` | 알림 요청 |
+| `save_started()` | 저장 시작(4단계). TopBar 가 구석에 칩 회전 아이콘을 0.8초 보여준다 |
+| `save_finished(ok: bool)` | 저장 끝(저장은 동기 처리라 save_started 와 거의 동시) |
 
 ### 11-3. GameState
 
-- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), golden_pockets, highest_milestone, spin_in_progress, modifiers(StatModifiers)
-- stats: total_spins(총 스핀), biggest_win(최대 당첨=한 스핀 최대 반환액), best_streak(최대 연승), play_time(초), loans_taken(대출 횟수), straight_hits(적중 숫자 수), total_earned(누적 획득 칩 = 당첨 반환액 합계, 대출금 제외)
+- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), number_frequency(포켓 번호 → 누적 출현 횟수, 통계용), golden_pockets, highest_milestone, spin_in_progress, pending_spin_bets/pending_spin_results(스핀 도중 저장용 스냅샷, 4단계), auto_spin_enabled(6단계 자동 스핀. 해금 수단이 없어 지금은 항상 false), last_income_per_second(마지막 저장 시점 초당 순수익, 오프라인 수익 계산용), modifiers(StatModifiers), income_tracker(IncomeTracker, 최근 Economy.LOAN_INCOME_WINDOW(5분) 이동평균, 오프라인 수익·5단계 대출액 계산에 공용)
+- stats: total_spins(총 스핀), total_wins(당첨 스핀 수, 승률 계산용), biggest_win(최대 당첨=한 스핀 최대 반환액), best_streak(최대 연승), play_time(초), loans_taken(대출 횟수), straight_hits(적중 숫자 수), total_earned(누적 획득 칩 = 당첨 반환액 합계, 대출금·오프라인 수익 제외)
 - `add_chips()/spend_chips()` 는 음수·NaN·INF 를 거부하고(경고 로그) false 를 돌려준다. spend 는 잔액 부족도 거부.
+- `to_dict()/from_dict()`(4단계): SaveManager 가 쓴다. `from_dict()` 호출 뒤에는 반드시 `rebuild_upgrade_modifiers()`(영구 수정자 재구성)를 불러야 한다(SaveManager.load_game() 은 이미 그렇게 한다). 시간제(`buff:`) 수정자만 함께 저장/복원하고, 영구 수정자는 upgrade_levels/skill_levels 에서 다시 만든다.
 
 ### 11-4. StatModifiers
 
@@ -314,7 +317,7 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 
 - 스핀 결과(outcome 스트림)와 그 외(misc 스트림)를 분리 → 연출·패널티 난수가 결과를 바꾸지 않는다.
 - `peek_next(n)`: 다음 n개 결과를 소비하지 않고 본다. 이후 `consume_next()` 는 반드시 그 결과를 낸다(예지 스킬).
-- `get_state()/set_state()`: 저장용(4단계).
+- `get_state()/set_state()`: 저장용. SaveManager 가 save 데이터의 `"rng"` 필드로 함께 저장·복원한다.
 
 ---
 
@@ -341,7 +344,7 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 |---|---|---|
 | 스핀 중 베팅 | 휠이 도는 동안 베팅창 잠금(클릭 시 거부음) | 판 위 구슬이 "걸린 구슬"로 보이게. `BetBoard.locked` |
 | 스킵 | 스핀 중 SPIN·Space·휠 클릭 → 남은 연출을 0.3초로 감음 | `RouletteWheel.skip()` |
-| 다음 스핀 | 정산 직후 바로 가능, 당첨 연출은 겹쳐서 계속된다. JACKPOT 만 클릭 대기, 오토 중엔 3초 뒤 자동으로 닫힘 | 방치 흐름 유지. `Main.auto_spin`(6단계) |
+| 다음 스핀 | 정산 직후 바로 가능, 당첨 연출은 겹쳐서 계속된다. JACKPOT 만 클릭 대기, 오토 중엔 3초 뒤 자동으로 닫힘 | 방치 흐름 유지. `GameState.auto_spin_enabled`(4단계에서 GameState 로 옮김, 6단계에서 실제 자동 스핀 루프가 채운다) |
 | SPIN 활성 | 칩 부족(자동 축소해도 최소 베팅 미만)이면 비활성 + 칩 카운터가 빨갛게 1회 흔들림. 베팅이 없으면 활성이지만 누르면 안내 툴팁 | 원인이 다른 두 상황을 구분 |
 | 다시 걸기 | 직전 스핀의 칸 배치를 복원(`GameState.restore_last_bets`). 베팅이 이미 같으면 비활성 | 베팅이 스핀 후에도 남으므로 "초기화 뒤 복구" 용도 |
 | 드래그 이동 | 칸 → 칸 은 `GameState.replace_bet_at`(구슬 수 불변), 칸 → 바깥은 회수 | 베팅 변경은 GameState 로만 |
@@ -376,3 +379,29 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | 숫자 표기 | 배율 `format_mult`("×1.25", 1000 미만도 유효숫자 3자리), 초 `format_seconds`, 백분율 `format_percent`. 번역 문자열의 숫자 자리는 `%s` + NumberFormat(%d 금지, 테스트로 검사) | 전수 점검 |
 | 0 과 O | 큰 숫자 폰트(num14)의 0 가운데에 점 | 단위 Oc·Ocd 의 O 와 구분 |
 | 디버그 패널 | F9, 개발 빌드(`OS.is_debug_build()`)에서만 Main 이 `scenes/debug/debug_panel.gd` 를 동적 로드 | 내보내기 빌드에는 붙지 않음 |
+
+---
+
+## 15. 4단계에서 정한 세부 규칙 (저장·오프라인 수익·설정·일시정지·통계)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 저장 형식 | `{"version","saved_at","checksum","data"}`, `data` 는 (객체가 아니라) `JSON.stringify()` 한 **문자열**을 한 번 더 담는다 | Godot 의 JSON 숫자 파서가 1e250 급 극단적으로 큰 실수를 다시 읽을 때 마지막 몇 비트가 흔들리는 것을 실측 확인. `data` 를 객체로 두면 "체크섬 검증"이 재직렬화 과정에서 그 흔들림 때문에 정상 파일을 손상으로 오검출할 수 있다. 문자열로 감싸면 체크섬은 항상 원문 바이트를 그대로 비교하므로 안전하다. 값 자체의 오차는 상대오차 1e-9 이내로, `NumberFormat` 표시 정밀도(3자리)에는 전혀 영향 없다(`check_rel` 로 테스트) |
+| 원자적 저장 | `save.tmp` 에 쓰고 다시 읽어 JSON 파싱까지 확인 → 기존 `save.json` 이 있으면 `save.bak` 으로 교체 → `save.tmp` 를 `save.json` 으로 교체(둘 다 `DirAccess.rename_absolute`, 대상이 있으면 먼저 지움 — Windows 호환) | 쓰다가 중단돼도 `save.json` 은 항상 이전 버전이거나 완전한 새 버전만 있다 |
+| 손상 복구 | `save.json` 체크섬이 안 맞으면 `save.bak` 을 시도. 그것도 실패하면 토스트로 알리고 새 게임처럼 시작(되돌릴 수 없음) | 요청 명세 |
+| 마이그레이션 | `SaveManager._migrate(data, from_version)`: `match from_version` 에 케이스를 추가하는 구조만 미리 만들어 둠(지금은 버전 1뿐이라 실제 변환은 없음) | 5단계 이후 세이브 필드가 늘 때를 위한 틀 |
+| 스핀 도중 저장 | `SpinController.start_spin()` 이 `GameState.pending_spin_bets/pending_spin_results` 에 스냅샷을 남기고(`spin_in_progress=true`), `finish_spin()` 이 정상 종료되면 비운다. 불러온 뒤 `spin_in_progress` 가 true 면 `SpinController.settle_pending_spin()` 이 연출 없이 즉시 정산(Main 이 UI 를 만들기 전에 호출) | GameState 만 보고도 SaveManager 가 스핀 상태를 저장·복원할 수 있게(core 레이어 안에서 해결) |
+| 오프라인 수익 분기 | `OfflineIncome.compute()`: 오토 스핀 해금 전(`GameState.auto_spin_unlocked()`, 6단계 전엔 항상 false) → 항상 "팁" 모드(효율 5%). 해금 후 오토가 켜져 있었으면 "전체"(기본 30%). 해금 후 꺼져 있었으면 "없음"(0) | 요청 명세. 6단계가 `auto_spin_unlocked()` 를 실제 스킬 조건으로 바꾸고 `GameState.auto_spin_enabled` 를 실제 토글에 연결하면 그대로 동작한다 |
+| 오프라인 수익 상한 | `Economy.offline_income(초당수익, 경과초, cap_hours, efficiency)`: `min(경과, cap_hours×3600) × efficiency`. 경과가 음수(시계 조작)거나 60초(`Economy.OFFLINE_MIN_ELAPSED`) 미만이면 계산 자체를 하지 않음(팝업도 없음) | 요청 명세 |
+| 초당 수익 공용화 | `GameState.income_tracker`(`IncomeTracker`, 창 `Economy.LOAN_INCOME_WINDOW`=5분)를 스핀마다 `SpinController._apply_outcome` 이 채운다. 저장 시점 값을 `income_per_second_at_save` 로 저장 | GDD 9장 "대출액" 공식도 "최근 5분 평균 초당 순수익" 을 쓰므로 5단계가 같은 트래커를 그대로 쓸 수 있다. TopBar 의 60초 창 트래커(2단계, 화면 표시용)와는 별개 |
+| offline_efficiency 기본값 | 1단계 초안 0.25 → 요청 명세대로 **0.3** 으로 조정(`Economy.OFFLINE_EFFICIENCY`) | 초안 수치를 확정 명세로 |
+| 설정 파일 | `user://settings.cfg`(ConfigFile), 세이브(`save.json`)와 완전히 분리. `SettingsManager` 오토로드가 필드를 갖고, 화면은 필드를 직접 바꾼 뒤 `commit()`(적용+저장)만 부른다 | 개별 setter 를 필드마다 만들지 않아도 됨(요청 규모 대비 최소 구현) |
+| 스핀 연출 속도 | `SettingsManager.spin_visual_speed`(보통/빠름/최고속, ×1/×1.5/×2)는 `Main._on_spin_started` 가 `wheel.play_spin` 에 넘기는 duration 에만 곱한다 | `GameState.spin_duration()`(경제 공식)·`Economy` 는 그대로 — "연출"이라는 이름대로 scenes 레이어에서만 적용. `SpinChoreography` 는 이미 다양한 duration 에 적응하므로 추가 변경 없이 동작 |
+| 큰 당첨/오토 연출 간략화 | `VisualSettings.full_effects(tier, is_auto_spin)`: 오토 스핀 중이고 "오토 연출 줄이기" 켜져 있으면 BIG 미만은 파티클·흔들림 생략. "큰 당첨 연출 간략" 이면 BIG·JACKPOT 도 배너·플래시·흔들림 생략. 두 경우 모두 떠오르는 텍스트·소리·클로버 비행은 그대로 | 요청 명세. `auto_spin_enabled` 가 실제로 true 가 되는 건 6단계부터라 지금은 이 분기가 항상 "전체 연출" 쪽으로만 간다 |
+| 색약 보조 | 새 텍스처 없이 프로시저럴로: 휠은 빨강 포켓 채우기 위에 아이보리 점 2개(`RouletteWheel._draw_colorblind_dots`), 베팅판은 숫자 칸 토큰·바깥 R 칸에 같은 방식(`BetBoard._draw_colorblind_dots`) | 새 팔레트 확인이 필요한 에셋을 늘리지 않음 |
+| 일시정지 시간 흐름 | 기본은 "흐름"(옵션 꺼짐, `SettingsManager.pause_time_flows=true`) → `get_tree().paused` 를 건드리지 않는다. 옵션을 켜면(흐름 끔) 일시정지 메뉴·통계 화면이 열려 있는 동안만 `get_tree().paused=true`. `PauseMenu`·`StatsScreen` 은 `process_mode=PROCESS_MODE_ALWAYS` 라 멈춰 있어도 자기 자신은 계속 동작(Esc 로 닫기 포함) | 방치형 기본 정체성(항상 진행)은 지키면서 원하면 완전히 멈출 수 있게. `Main._update_pause_freeze()` |
+| Esc 우선순위 | 통계 → 설정 → 스킬트리 → 일시정지 메뉴 순으로 열려 있는 것부터 닫고, 아무것도 없으면 일시정지 메뉴를 연다. 일시정지 메뉴가 열려 있을 때 닫는 것은 `PauseMenu` 자신의 `_unhandled_input` 이 맡는다(Main 은 `pause_menu.visible` 이면 그 branch 를 건너뛴다) | `Main` 은 `PROCESS_MODE_ALWAYS` 가 아니라 tree 가 paused 면 입력을 못 받으므로, "멈춰 있을 때도 Esc 로 닫기"는 항상 동작하는 PauseMenu 쪽이 책임진다 |
+| 통계 신규 항목 | `GameState.stats["total_wins"]`(당첨 스핀 수, 승률=`total_wins/total_spins`), `GameState.number_frequency`(포켓 번호 → 누적 횟수, `most_frequent_number()`) 를 4단계에서 추가 | 승률·최다 출현 숫자는 기존 필드로 계산할 수 없었음 |
+| 복귀 팝업 | 딜러 루시 초상화가 없으면(`assets/sprites/npc/lucy_portrait.png` 존재 여부로 자동 판단) `icon_vault.png`. [받기] 를 누르면 `GameState.add_chips(income, count_as_earned=false)` | 오프라인 수익은 "당첨 반환액"이 아니므로 `total_earned` 통계에는 넣지 않는다(GDD 11-3 정의 유지). 8단계에서 초상화 파일만 추가하면 자동으로 바뀐다 |
+| auto_spin 이동 | `Main.auto_spin`(항상 false 였던 6단계용 자리) 를 `GameState.auto_spin_enabled` 로 옮김 | 오프라인 수익·저장이 필요로 하는 값이라 GameState 소유가 맞음. `SpinControls.auto_locked` 는 여전히 true(6단계에서 스킬로 해금) |
+| 테스트 격리 | `tests/lib/test_case.gd` 의 공용 `before_each()` 가 `save.json/.tmp/.bak` 을 먼저 지운다 | `Main._ready()` 가 이제 `SaveManager.load_game()` 을 부르므로, 컨테이너에 실제로 남은 저장 파일이 있으면 Main 을 새로 만드는 모든 테스트가 그 값을 그대로 불러와 버린다(실제로 겪은 문제) |

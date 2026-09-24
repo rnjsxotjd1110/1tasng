@@ -14,6 +14,10 @@ var _panel: PanelContainer
 var _label: Label
 var _tween: Tween
 var _owner_id: int = 0
+## 아직 뜨지 않은 예약(설정의 "툴팁 표시 지연"). SceneTreeTimer 자체는 취소할 수 없으므로,
+## 늦게 도착한 예약은 _pending_token 이 바뀌었는지로 걸러낸다.
+var _pending_owner_id: int = 0
+var _pending_token: int = 0
 
 
 func _ready() -> void:
@@ -52,8 +56,26 @@ func current_text() -> String:
 
 func _show(owner: Object, text: String, anchor: Rect2, below: bool) -> void:
 	var owner_id := owner.get_instance_id() if owner != null else 0
+	if _panel.visible and _owner_id == owner_id:
+		_reveal(owner_id, text, anchor, below)
+		return
+	if _pending_owner_id == owner_id:
+		return
+	_pending_owner_id = owner_id
+	if VisualSettings.tooltip_delay <= 0.0:
+		_reveal(owner_id, text, anchor, below)
+		return
+	_pending_token += 1
+	var token := _pending_token
+	get_tree().create_timer(VisualSettings.tooltip_delay).timeout.connect(func() -> void:
+		if token == _pending_token:
+			_reveal(owner_id, text, anchor, below))
+
+
+func _reveal(owner_id: int, text: String, anchor: Rect2, below: bool) -> void:
 	var was_visible := _panel.visible and _owner_id == owner_id
 	_owner_id = owner_id
+	_pending_owner_id = 0
 	_label.text = text
 	_panel.reset_size()
 	var tip_size := _panel.get_combined_minimum_size()
@@ -77,6 +99,9 @@ func _show(owner: Object, text: String, anchor: Rect2, below: bool) -> void:
 
 func _hide(owner: Object) -> void:
 	var owner_id := owner.get_instance_id() if owner != null else 0
+	if _pending_owner_id == owner_id:
+		_pending_owner_id = 0
+		_pending_token += 1
 	if owner_id != _owner_id or not _panel.visible:
 		return
 	if _tween != null and _tween.is_valid():

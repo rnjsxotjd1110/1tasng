@@ -448,6 +448,32 @@ def small_icons() -> None:
         ".ooooo.",
     ], {"o": "mist", "g": "gold_hl"})
     even.save(f"{ICONS}/icon_even.png")
+    # 금고(복귀 팝업: 딜러 루시 초상화가 아직 없을 때의 자리, 4단계)
+    vault = Canvas(16, 16)
+    bevel_box(vault, 0, 0, 16, 16, "wood_d", "ink", "stone", "void")
+    rivets(vault, 2)
+    vault.pattern(6, 6, [
+        "oyo",
+        "ygy",
+        "oyo",
+    ], {"o": "gold_d", "y": "gold_l", "g": "gold_hl"})
+    for x, y in [(8, 4), (8, 11), (4, 8), (11, 8)]:
+        vault.px(x, y, "gold")
+    vault.save(f"{ICONS}/icon_vault.png")
+    # 경고(저장 손상 복구 토스트, 4단계)
+    warn = Canvas(9, 9)
+    warn.pattern(0, 0, [
+        "....o....",
+        "...ooo...",
+        "..oaaao..",
+        ".oa.k.ao.",
+        ".oa.k.ao.",
+        ".oa.k.ao.",
+        ".oa...ao.",
+        ".oa.k.ao.",
+        "..ooooo..",
+    ], {"o": "red_d", "a": "amber", "k": "void"})
+    warn.save(f"{ICONS}/icon_warning.png")
 
 
 def marble_template() -> None:

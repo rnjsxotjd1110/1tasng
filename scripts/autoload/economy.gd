@@ -81,8 +81,12 @@ const PENALTY_SEIZE_MARBLES := 1
 const PENALTY_CLOVER_FEE_MULT := 0.5
 
 # ── 오프라인(4단계) ───────────────────────────────────────
-const OFFLINE_EFFICIENCY := 0.25
+const OFFLINE_EFFICIENCY := 0.3
 const OFFLINE_CAP_HOURS := 2.0
+## 오토 스핀이 아직 해금되지 않았을 때 주는 "팁 수익" 효율.
+const OFFLINE_TIP_EFFICIENCY := 0.05
+## 이보다 적게 경과했으면 오프라인 수익 자체를 계산하지 않는다(팝업도 없음).
+const OFFLINE_MIN_ELAPSED := 60.0
 
 # ── 엔딩 ──────────────────────────────────────────────────
 ## 1Dc. PH 에서 지불하면 하우스 인수.
@@ -146,3 +150,11 @@ static func loan_amount(min_bet_value: float, avg_income_per_second: float) -> f
 
 static func debt_repay_amount(loan: float, repay_factor: float = DEBT_REPAY_FACTOR) -> float:
 	return loan * repay_factor
+
+
+## 오프라인 수익 금액. 분기(팁/없음/전체) 판단은 OfflineIncome 이 맡고 efficiency 만 받아 계산한다.
+static func offline_income(income_per_second: float, elapsed_seconds: float, cap_hours: float, efficiency: float) -> float:
+	if income_per_second <= 0.0 or elapsed_seconds <= 0.0:
+		return 0.0
+	var capped := minf(elapsed_seconds, cap_hours * 3600.0)
+	return income_per_second * capped * efficiency

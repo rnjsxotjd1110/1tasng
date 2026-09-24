@@ -5,6 +5,7 @@ extends Node
 ## - 스탯 계산은 modifiers(StatModifiers)를 거친다.
 
 const STAT_TOTAL_SPINS := "total_spins"
+const STAT_TOTAL_WINS := "total_wins"
 const STAT_BIGGEST_WIN := "biggest_win"
 const STAT_BEST_STREAK := "best_streak"
 const STAT_PLAY_TIME := "play_time"
@@ -35,15 +36,26 @@ var chip_size_mode: int = Economy.ChipSize.MAX
 var debts: Array[Dictionary] = []
 ## 한 스핀에 1개 이상 당첨이 연속된 횟수.
 var win_streak: int = 0
-## 최근 결과(오래된 것 → 최신). 공이 여러 개면 모두 들어간다.
+## 최근 결과(오래된 것 → 최신). 공이 여러 개면 모두 들어간다. 표시용, HISTORY_SIZE 개만 유지.
 var result_history: Array[int] = []
+## 포켓 번호 → 지금까지 나온 횟수(전체 기록, 통계 "최다 출현 숫자"용).
+var number_frequency: Dictionary = {}
 var golden_pockets: Array[int] = []
 ## 지금까지 도달한 가장 큰 칩 단위(NumberFormat.suffix_index).
 var highest_milestone: int = 0
 var stats: Dictionary = {}
 ## SpinController 가 스핀 중에 true 로 둔다. 파산 판정에 쓴다.
 var spin_in_progress: bool = false
+## spin_in_progress 동안 SpinController 가 채워 두는 스냅샷(스핀 도중 저장 → 불러오기 즉시 정산용).
+var pending_spin_bets: Array[Bet] = []
+var pending_spin_results: Array[int] = []
+## 6단계 자동 스핀(스킬로 해금). 지금은 해금 수단이 없어 항상 false.
+var auto_spin_enabled: bool = false
+## 마지막 저장 시점의 초당 순수익(오프라인 수익 계산용 스냅샷).
+var last_income_per_second: float = 0.0
 var modifiers := StatModifiers.new()
+## 최근 5분(Economy.LOAN_INCOME_WINDOW) 초당 순수익 이동평균. 오프라인 수익·5단계 대출액 계산에 공용.
+var income_tracker := IncomeTracker.new(Economy.LOAN_INCOME_WINDOW)
 
 
 func _ready() -> void:
@@ -54,6 +66,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	stats[STAT_PLAY_TIME] = float(stats.get(STAT_PLAY_TIME, 0.0)) + delta
 	modifiers.tick(delta)
+
+
+## 6단계에서 스킬로 해금되면 true를 돌려주게 바꾼다. 그 전에는 오프라인 수익이 항상 "팁" 모드다.
+func auto_spin_unlocked() -> bool:
+	return false
 
 
 ## 새 게임 상태로 되돌린다.
@@ -71,11 +88,18 @@ func reset() -> void:
 	debts = []
 	win_streak = 0
 	result_history = []
+	number_frequency = {}
 	golden_pockets = []
 	highest_milestone = NumberFormat.suffix_index(chips)
 	spin_in_progress = false
+	pending_spin_bets = []
+	pending_spin_results = []
+	auto_spin_enabled = false
+	last_income_per_second = 0.0
+	income_tracker.reset()
 	stats = {
 		STAT_TOTAL_SPINS: 0,
+		STAT_TOTAL_WINS: 0,
 		STAT_BIGGEST_WIN: 0.0,
 		STAT_BEST_STREAK: 0,
 		STAT_PLAY_TIME: 0.0,
@@ -382,8 +406,21 @@ func set_chip_size_mode(mode: int) -> void:
 func push_results(results: Array[int]) -> void:
 	for result in results:
 		result_history.append(result)
+		number_frequency[result] = int(number_frequency.get(result, 0)) + 1
 	while result_history.size() > Economy.HISTORY_SIZE:
 		result_history.pop_front()
+
+
+## 지금까지 가장 많이 나온 포켓 번호. 아직 하나도 없으면 -1.
+func most_frequent_number() -> int:
+	var best_number := -1
+	var best_count := 0
+	for number: int in number_frequency.keys():
+		var count := int(number_frequency[number])
+		if count > best_count:
+			best_count = count
+			best_number = number
+	return best_number
 
 
 func get_stat_value(key: String) -> float:
@@ -396,3 +433,109 @@ func increment_stat(key: String, amount: float = 1.0) -> void:
 
 func max_stat(key: String, value: float) -> void:
 	stats[key] = maxf(float(stats.get(key, 0.0)), value)
+
+
+# ── 저장(4단계) ──────────────────────────────────────────
+
+## SaveManager 가 저장하는 GameState 전체(RngService 상태는 별도로 SaveManager 가 덧붙인다).
+func to_dict() -> Dictionary:
+	return {
+		"chips": chips,
+		"clovers": clovers,
+		"floor_index": floor_index,
+		"upgrade_levels": upgrade_levels.duplicate(),
+		"skill_levels": skill_levels.duplicate(),
+		"current_bets": _bets_to_array(current_bets),
+		"last_bets": _bets_to_array(last_bets),
+		"chip_size_mode": chip_size_mode,
+		"debts": debts.duplicate(true),
+		"win_streak": win_streak,
+		"result_history": result_history.duplicate(),
+		"number_frequency": number_frequency.duplicate(),
+		"golden_pockets": golden_pockets.duplicate(),
+		"highest_milestone": highest_milestone,
+		"spin_in_progress": spin_in_progress,
+		"pending_spin_bets": _bets_to_array(pending_spin_bets),
+		"pending_spin_results": pending_spin_results.duplicate(),
+		"auto_spin_enabled": auto_spin_enabled,
+		"stats": stats.duplicate(),
+		"buffs": _export_buffs(),
+		"income_per_second_at_save": income_tracker.per_second(get_stat_value(STAT_PLAY_TIME)),
+	}
+
+
+## data 로 상태를 되돌린다. 업그레이드·스킬 수정자는 다시 걸지 않으므로(rebuild_upgrade_modifiers 를 호출할 것),
+## 호출 뒤 GameState.rebuild_upgrade_modifiers() 를 반드시 부른다.
+func from_dict(data: Dictionary) -> void:
+	reset()
+	chips = float(data.get("chips", Economy.STARTING_CHIPS))
+	clovers = int(data.get("clovers", 0))
+	floor_index = int(data.get("floor_index", 0))
+	upgrade_levels = (data.get("upgrade_levels", {}) as Dictionary).duplicate()
+	skill_levels = (data.get("skill_levels", {}) as Dictionary).duplicate()
+	current_bets = _array_to_bets(data.get("current_bets", []))
+	last_bets = _array_to_bets(data.get("last_bets", []))
+	chip_size_mode = int(data.get("chip_size_mode", Economy.ChipSize.MAX))
+	debts = []
+	for entry in data.get("debts", []):
+		debts.append((entry as Dictionary).duplicate())
+	win_streak = int(data.get("win_streak", 0))
+	result_history = []
+	for value in data.get("result_history", []):
+		result_history.append(int(value))
+	number_frequency = {}
+	var loaded_frequency: Dictionary = data.get("number_frequency", {})
+	for key in loaded_frequency.keys():
+		number_frequency[int(key)] = int(loaded_frequency[key])
+	golden_pockets = []
+	for value in data.get("golden_pockets", []):
+		golden_pockets.append(int(value))
+	highest_milestone = int(data.get("highest_milestone", NumberFormat.suffix_index(chips)))
+	spin_in_progress = bool(data.get("spin_in_progress", false))
+	pending_spin_bets = _array_to_bets(data.get("pending_spin_bets", []))
+	pending_spin_results = []
+	for value in data.get("pending_spin_results", []):
+		pending_spin_results.append(int(value))
+	auto_spin_enabled = bool(data.get("auto_spin_enabled", false))
+	var loaded_stats: Dictionary = data.get("stats", {})
+	for key in stats.keys():
+		if loaded_stats.has(key):
+			stats[key] = loaded_stats[key]
+	_import_buffs(data.get("buffs", []))
+	last_income_per_second = float(data.get("income_per_second_at_save", 0.0))
+	EventBus.chips_changed.emit(chips, 0.0)
+	EventBus.clovers_changed.emit(clovers, 0)
+	EventBus.bets_changed.emit()
+
+
+func _bets_to_array(list: Array[Bet]) -> Array:
+	var out: Array = []
+	for bet in list:
+		out.append(bet.to_dict())
+	return out
+
+
+func _array_to_bets(list: Array) -> Array[Bet]:
+	var out: Array[Bet] = []
+	for entry in list:
+		out.append(Bet.from_dict(entry))
+	return out
+
+
+## 시간제(buff:) 수정자만 내보낸다. 영구 수정자는 upgrade_levels/skill_levels 에서 rebuild_upgrade_modifiers() 로 다시 만든다.
+func _export_buffs() -> Array:
+	var out: Array = []
+	for modifier in modifiers.get_modifiers():
+		if modifier.source_id.begins_with(BUFF_SOURCE_PREFIX):
+			out.append(modifier.to_dict())
+	return out
+
+
+func _import_buffs(list: Array) -> void:
+	for entry in list:
+		var d: Dictionary = entry
+		var remaining := float(d.get("remaining", 0.0))
+		if remaining <= 0.0:
+			continue
+		var op: StatModifiers.Op = int(d.get("op", StatModifiers.Op.ADD))
+		modifiers.add_modifier(String(d.get("source_id", "")), String(d.get("stat", "")), op, float(d.get("value", 0.0)), remaining)

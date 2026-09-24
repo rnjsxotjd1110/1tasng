@@ -112,6 +112,38 @@ func test_migration_skeleton_warns_on_newer_version() -> void:
 	check_eq(result, data, "더 새 버전이어도 데이터는 그대로 돌려줌(크래시 방지)")
 
 
+func test_timed_penalty_round_trips() -> void:
+	GameState.debts = [{"principal": 10.0, "remaining": 10.0}]
+	GameState.add_penalty_timed("watcher", StatModifiers.SPIN_DURATION_MULT, StatModifiers.Op.MULT, 1.0 / Economy.PENALTY_WATCHER_SPEED, 25.0)
+	check(SaveManager.save_game(), "저장")
+	GameState.reset()
+	check(SaveManager.load_game(), "불러오기")
+	check(GameState.modifiers.remaining_time("penalty:watcher") > 20.0, "패널티 남은 시간 보존")
+	check_near(GameState.spin_duration(), Economy.spin_duration(1.0) / Economy.PENALTY_WATCHER_SPEED, 1e-6, "효과도 재적용")
+
+
+func test_charge_based_penalty_round_trips() -> void:
+	GameState.debts = [{"principal": 10.0, "remaining": 10.0}]
+	GameState.set_upgrade_level("marble_count", 2)  # 구슬 3개
+	GameState.add_penalty_charge(GameState.PENALTY_ID_SEIZE_MARBLE, StatModifiers.LOCKED_MARBLES, StatModifiers.Op.ADD, 1.0, 1)
+	check_eq(GameState.marble_slots(), 2, "저장 전: 1개 사용 불가")
+	check(SaveManager.save_game(), "저장")
+	GameState.reset()
+	check(SaveManager.load_game(), "불러오기")
+	check_eq(GameState.marble_slots(), 2, "불러온 뒤에도 소모형 유지(marble_count 는 rebuild_upgrade_modifiers 로 복원)")
+	check(GameState.consume_penalty_charge(GameState.PENALTY_ID_SEIZE_MARBLE), "여전히 소모 가능(charges 보존)")
+	check_eq(GameState.marble_slots(), 3, "소모 후 해제")
+
+
+func test_pending_baron_event_round_trips() -> void:
+	GameState.pending_baron_event = {"type": "loan", "principal": 123.0, "repay": 246.0, "merged": false}
+	check(SaveManager.save_game(), "저장")
+	GameState.reset()
+	check(SaveManager.load_game(), "불러오기")
+	check_eq(GameState.pending_baron_event.get("type"), "loan", "컷신 종류 보존")
+	check_near(float(GameState.pending_baron_event.get("repay")), 246.0, 1e-9, "금액 보존")
+
+
 func test_pending_spin_settles_instantly_after_load() -> void:
 	GameState.add_bet(Bet.red())
 	var controller := SpinController.new()

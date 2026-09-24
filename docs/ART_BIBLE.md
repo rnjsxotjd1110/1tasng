@@ -423,6 +423,26 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 | `assets/sprites/ui/icon_vault.png` | 16×16 | 1 | 금고(복귀 팝업, 딜러 루시 초상화 나오기 전 자리) | tools/art/gen_ui.py | 4 |
 | `assets/sprites/ui/icon_warning.png` | 9×9 | 1 | 경고(저장 손상 복구 토스트) | tools/art/gen_ui.py | 4 |
 | `assets/shaders/dither_dim.gdshader` | — | — | 일시정지 오버레이(화면 전체 4×4 Bayer 디더, vignette.gdshader 와 같은 기법·반지름 감쇠 없음) | 손으로 작성 | 4 |
+| `assets/sprites/npc/baron_world.png` | 48×64 | 7행×최대6열(12장 참고) | 래칫 남작 월드 스프라이트(걷기·대기·말하기·인사·웃음·화남·돈세기) | tools/art/gen_baron.py | 5 |
+| `assets/sprites/npc/baron_portrait.png` | 64×64 | 7(12장 참고) | 래칫 남작 초상화(표정 5 + 입벙긋 2) | tools/art/gen_baron.py | 5 |
+| `assets/sprites/npc/underling_rat.png` | 32×40 | 6(lean2+walk4) | 부하 쥐(선글라스·검은 양복) | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_debt.png` | 13×13 | 1 | 빚 두루마리 아이콘(상단 바) | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_baron_mini.png` | 16×16 | 1 | 패널티 토스트용 남작 미니 초상 | tools/art/gen_baron.py | 5 |
+| `assets/sprites/fx/seizure_stamp.png` | 16×16 | 1 | 압류 패널티: 빨간 발바닥 도장(계약서 서명 도장과 공용) | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_penalty_watcher.png` | 12×12 | 1 | 패널티 토스트: 감시하는 부하 | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_penalty_pickpocket.png` | 12×12 | 1 | 패널티 토스트: 소매치기 | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_penalty_smoke.png` | 12×12 | 1 | 패널티 토스트: 시가 연기 | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_penalty_blur.png` | 12×12 | 1 | 패널티 토스트: 흐려진 구슬 | tools/art/gen_baron.py | 5 |
+| `assets/sprites/ui/icon_penalty_seize.png` | 12×12 | 1 | 패널티 토스트: 압류 | tools/art/gen_baron.py | 5 |
+| `assets/audio/sfx/dialogue_blip_baron.wav` | 0.05초 | — | 대사 타자기 목소리 '삑'(낮은 톤, 피치 랜덤) | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/baron_footstep.wav` | 0.18초 | — | 남작 발소리 | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/baron_cane_tap.wav` | 0.14초 | — | 지팡이 소리 | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/bass_drop.wav` | 0.9초 | — | 파산 시 저음 콘트라베이스 한 번 | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/contract_unroll.wav` | 0.6초 | — | 계약서 양피지 펼침 | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/quill_sign.wav` | 0.8초 | — | 깃펜 서명 | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/stamp_thud.wav` | 0.3초 | — | 도장 '쾅' | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/chip_bag_toss.wav` | 0.5초 | — | 칩 자루 토스 | tools/audio/gen_sfx.py | 5 |
+| `assets/audio/sfx/pickpocket_squeak.wav` | 0.3초 | — | 소매치기 "찍!" | tools/audio/gen_sfx.py | 5 |
 
 ---
 
@@ -446,3 +466,78 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 
 - 272×150 `PanelFelt`, 좌상단 32×32 초상화 자리(`icon_vault.png` ×2 정수 확대, 8단계에 루시 초상화가 생기면 자동 교체), 우측에 인사말·경과 시간·수익 카운트업(1.5초, `CountLabel.Style.SIGNED`)·[받기] 버튼.
 - 카운트업 동안 "chip_click" 효과음을 간격을 0.16초 → 0.03초로 줄여가며 재생(가속 느낌). [받기] 를 누르면 `GameState.add_chips()` 로 실제 지급.
+
+---
+
+## 11. 래칫 남작 · 부하 쥐 · 빚 UI (5단계)
+
+### 11-1. 래칫 남작 캐릭터 시트
+
+- `tools/art/gen_baron.py` 가 절차적으로 그린다(팔레트 36색, `pixlib.Canvas` + 타원/직선 도우미). 사람이 그린 그림으로 바꿀 때는
+  아래 프레임 규격·피벗만 유지하면 코드 수정이 필요 없다.
+- 팔레트 배정: 정장 `purple_d`(기본)/`night`(그림자)/`neon_purple`(하이라이트) + 핀스트라이프 `mist`, 회중시계 줄 `gold`/`gold_l`,
+  모자(중절모) `ink`/`night` + 금 밴드 `gold`, 외알 안경 `gold_d` 테 + `ivory` 반사 1px, 시가 `wood`/`wood_l` + 팁 `amber`(연기 `mist` 알파),
+  털 `stone`(기본)/`ink`(그림자)/`mist`(하이라이트), 꼬리 `neon_pink`, 지팡이 `wood_d` + `gold` 손잡이.
+- `assets/sprites/npc/baron_world.png`(48×64, 캐릭터는 오른쪽을 본다 — 왼쪽으로 걸어 들어올 때는 게임에서 좌우 반전해 쓴다):
+  행(위→아래) walk 6 / idle 4 / talk 4 / tip_hat 5 / laugh 4 / angry 3 / counting_money 4, 열은 각 행의 프레임 순서(왼→오),
+  행마다 남는 칸은 투명. 발바닥 기준선은 프레임 바닥에서 4px 위(y=60).
+- `assets/sprites/npc/baron_portrait.png`(64×64 × 7): 0 기본 · 1 웃음 · 2 교활한 미소(눈썹 올라감) · 3 놀람(입 벌어짐+눈 커짐) ·
+  4 만족(모자 벗음, 귀 노출) · 5·6 입벙긋(열림/닫힘 — `DialogueBox` 가 타자기 진행 중에만 5·6을 번갈아 보여주고, 멈추면 대사에 지정된 기본 표정으로 돌아간다).
+- `draw_baron()` 포즈 매개변수(교체용 그림이 아니라 이 스크립트를 계속 쓸 경우의 손잡이): `leg`(0~1 보행 위상), `arm`(팔 흔들림 위상),
+  `tail`(꼬리 흔들림 위상), `hat_lift`/`hat_tilt`(인사), `mouth`(closed/talk_open/laugh/angry/smile), `brow`(normal/up/angry/wide),
+  `bob`/`lean`(몸 상하·좌우), `hands`(cigar/swing/hat/money/fist/belly), `cane`(지팡이 유무).
+
+### 11-2. 부하 쥐
+
+- `assets/sprites/npc/underling_rat.png`(32×40 × 6, `draw_underling()`): lean 2(테이블에 기댐, 팔 아래로) + walk 4.
+- 팔레트: 양복 `night`(기본)/`void`(그림자)/`ink`(옷깃 줄), 털은 남작과 같은 3색, 선글라스는 `void` 통짜 렌즈 + `mist` 눈썹 줄 1px.
+
+### 11-3. 대화창 (DialogueBox, 재사용 가능)
+
+- 화면 하단, `(12, 268)` 616×84 `PanelFelt`. 왼쪽 64×64 초상화(`baron_portrait.png` 프레임, 말하는 동안 5·6 번갈아 겹쳐 그림),
+  오른쪽에 이름표(y+10, 화자 색 — 남작은 `gold_l`)와 본문(y+26, 520×50, `LabelBody`, 자동 줄바꿈).
+- 타자기: 초당 30자, 쉼표·마침표에서 0.12초/0.25초 정지. 글자 2자마다(공백 제외) `dialogue_blip_<화자>` 재생, 피치 `randf_range(0.85,1.15)`.
+- 완료되면 우하단에 튀는 `▼`(0.5초 주기, 2px 상하). 클릭·Space: 타이핑 중이면 즉시 완성, 완성 상태면 다음 줄(또는 선택지면 무시).
+- 선택지: 본문 아래 세로 버튼 목록(범용 기능 — 5단계 자체 대사는 분기가 없다, GDD 9장 "거절 없음").
+- 열기·닫기는 `PanelTransition`(아래에서 위로, offset (0,10)).
+- 대화창이 열리는 컷신(`BaronLoanSequence`/`BaronPayoffSequence`)에서 남작의 발 위치 `BARON_Y` 는 268 이 아니라 **258**(64px
+  스프라이트가 y=194~258 을 차지, DialogueBox 상단 y=268 과 10px 여유) — 340 처럼 DialogueBox 영역(268~352) 안으로 들어오면
+  스프라이트와 대화 텍스트가 겹쳐 보인다(캡처 검수로 발견해 수정).
+
+### 11-4. 계약서 팝업 (ContractPopup)
+
+- 260×180, 화면 중앙 `((640-260)/2, (360-180)/2)` = `(190, 90)`. 양피지는 별도 이미지 자산이 아니라
+  `ContractPopup._on_draw_parchment()` 가 `_draw()` 로 매 프레임 그린다(`ivory` 바탕 + `wood_l` 테두리 + `mist` 얼룩 점 몇 개) —
+  9-slice 로 늘어나는 텍스처가 필요 없을 만큼 단순한 모양이라 절차적으로 그리는 쪽을 택했다.
+- 펼침 연출(0.4초): 세로 스케일 대신 **위쪽에서부터 정수 픽셀 단위로 높이가 자라나며 아래 내용이 순서대로 드러나는** 마스크(`clip_contents` 를
+  높이만 애니메이션) 방식 — 소수 배율 스케일 금지 규칙을 지킨다.
+- 내용: 제목("대출 계약서") · 대출액/상환액/상환 방식(당첨금 25% 자동) 3줄(`format_full`) · 서명란 · [서명한다] 버튼(`ButtonGold`).
+- 서명: 깃펜이 서명란을 따라 지그재그로 0.5초간 그려짐(quill_sign 재생) → 빨간 발바닥 도장(`seizure_stamp.png` 와 별도, 서명용은 같은
+  16×16 모양을 `red_hl` 톤으로) 이 쾅 찍히며 1px 흔들림 2회(stamp_thud) → 칩 자루가 상단 바로 토스(`FlyingChips`, `top_bar.chip_target()`).
+
+### 11-5. 빚 UI
+
+- 상단 바 `debt_box`(이미 자리 있음, TopBar 오른쪽): `icon_debt.png` 13×13 + `Num14Red` 금액. 빚이 있을 때만 보이고
+  알파 0.7~1.0 로 은은히 맥동(주기 2.4초). 바로 아래 y=24 에 1px 상환 진행 바(전체 원금 대비 남은 비율, `red_d`→`red_hl`).
+- 클릭하면 `DebtPanel`(신규): `(420, 26)` 200×148 드롭다운(`PanelPlain`, `PanelTransition` offset (0,-6)). 빚 건별로
+  원금·잔액·진행률 바 한 줄씩, 오른쪽에 [전액][절반] 버튼(칩 부족하면 `ButtonStone` disabled).
+- 당첨 텍스트: 자동 상환이 있었던 스핀은 순이익 텍스트(`Num14Gold`, 기존 `TEXT_ANCHOR`) 아래 8px 에 작게 "−N 상환"(`Num7Red`) 을
+  추가로 띄운다. 상환분은 `FlyingChips` 2개가 별도 자산 없이 `TopBar.debt_target()`(살아있는 빚 아이콘·금액의 현재 위치)으로 날아간다
+  (칩이 도착할 무렵엔 위 상환으로 금액이 이미 줄어 있는 채라 두루마리 전용 스프라이트가 따로 필요 없었다).
+
+### 11-6. 패널티 토스트 (PenaltyToast)
+
+- 상단 바 아래 중앙(x=262 기준 가운데 정렬, y=28), 160×24 `PanelPlain`. 왼쪽 `icon_baron_mini.png` 16×16, 가운데 패널티 이름(`LabelSmall`),
+  아래 2px 진행바(남은 시간 비율 — 즉시·소모형 패널티는 고정 3초 표시), 오른쪽에 패널티 아이콘(효과별).
+- 구현 주의: 진행바(배경+전경 ColorRect 2장)는 패널(`PanelContainer`)의 자식으로 넣지 않는다 — Container 는 직계 자식을 전부 같은
+  콘텐츠 영역에 맞춰 늘리므로(1개 자식만 쓰는 게 정상 용법) 얇은 바가 패널 전체 크기로 늘어나 버린다. `PenaltyToast`(plain Control) 의
+  자식으로 두고 패널 위치를 따라가게 매 프레임 수동 배치한다(`TopBar._debt_bar` 가 `debt_box` 를 따라가는 것과 같은 방식).
+- `EventBus.penalty_triggered(id, duration)` 로 뜨고 `EventBus.buff_ended(id)` 로 즉시 닫힌다(시간제는 자연 만료, 압류·클로버
+  수수료는 소모 시). 여러 개가 겹치면 세로로 쌓인다(`ToastLayer` 와 같은 슬라이드 방식).
+- 압류 전용: 베팅창 트레이 마지막 칸에 `seizure_stamp.png` 가 0.2초 동안 1px 흔들리며 나타났다 사라진다("찰싹").
+- 흐려진 구슬 전용: 구슬 셰이더 `desaturate` 값이 0→1 로 즉시 올라가고(패널티 종료 시 0으로), 활성 중에는 `MarbleFx` 의
+  반짝임(glint/sparkle 등) 스폰을 건너뛴다.
+- 시가 연기 전용: `assets/sprites/bg/b1/smoke.png` 입자가 기록 패널(x4~103)과 휠 왼쪽 절반 위로 알파 0.35 안팎으로 흘러간다
+  (포켓 색이 비쳐 보여야 하므로 알파를 낮게 유지 — 결과 가독성 유지, GDD 9장). 이 텍스처 자체가 배경 장식용이라 알파가 이미
+  낮게(최대 약 0.27) 그려져 있어, `SmokeOverlay.MAX_ALPHA` 는 1.0 을 넘겨(1.3) 곱해야 화면에서 실제로 "0.35 안팎"으로 보인다
+  (그래도 텍스처 자체 알파가 상한이라 완전히 불투명해지진 않는다) — 배경용 텍스처를 패널티 연출에 재사용할 때 겪은 함정.

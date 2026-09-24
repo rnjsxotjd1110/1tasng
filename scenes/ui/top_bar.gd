@@ -7,6 +7,7 @@ extends Control
 ## 당첨 연출 중에는 hold_payout() 으로 칩 표시를 멈추고, 칩 아이콘이 날아올 때마다 add_payout_step() 으로 올린다.
 
 signal tab_pressed(tab_id: String)
+signal debt_clicked()
 
 const TAB_BET := "bet"
 const TAB_UPGRADE := "upgrade"
@@ -37,6 +38,9 @@ const SAVE_ICON_SPIN_SPEED := TAU * 3.0
 
 const CHIP_ICON := preload("res://assets/sprites/ui/icon_chip.png")
 const CLOVER_ICON := preload("res://assets/sprites/ui/icon_clover.png")
+const DEBT_ICON := preload("res://assets/sprites/ui/icon_debt.png")
+const DEBT_PULSE_SPEED := 2.6
+const DEBT_BAR_HEIGHT := 1.0
 const GEAR_ICON := preload("res://assets/sprites/ui/icon_gear.png")
 const NOTIFY_DOT := preload("res://assets/sprites/ui/notify_dot.png")
 ## 업그레이드 탭 빨간 점: 탭 오른쪽 위 모서리, 은은한 맥동(알파만).
@@ -67,6 +71,10 @@ var _dot_time: float = 0.0
 var _upgrade_open: bool = false
 var _save_icon: TextureRect
 var _save_icon_time: float = -1.0
+var _debt_label: Label
+var _debt_pulse_time: float = 0.0
+var _debt_bar_bg: ColorRect
+var _debt_bar: ColorRect
 
 
 func _ready() -> void:
@@ -109,13 +117,25 @@ func _ready() -> void:
 	_save_icon.visible = false
 	add_child(_save_icon)
 	_build_right()
+	_debt_bar_bg = ColorRect.new()
+	_debt_bar_bg.color = Palette.with_alpha(Palette.VOID, 0.6)
+	_debt_bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_debt_bar_bg.visible = false
+	add_child(_debt_bar_bg)
+	_debt_bar = ColorRect.new()
+	_debt_bar.color = Palette.SEM_WARNING
+	_debt_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_debt_bar.visible = false
+	add_child(_debt_bar)
 	chips_label.set_value(GameState.chips, 0.0)
 	clover_label.set_value(GameState.clovers, 0.0)
 	income_label.set_value(0.0, 0.0)
 	_refresh_floor()
+	_refresh_debt()
 	EventBus.chips_changed.connect(_on_chips_changed)
 	EventBus.clovers_changed.connect(_on_clovers_changed)
 	EventBus.spin_resolved.connect(_on_spin_resolved)
+	EventBus.debt_changed.connect(_refresh_debt)
 	EventBus.floor_changed.connect(func(_i: int) -> void:
 		_refresh_floor()
 		refresh_upgrade_dot())
@@ -147,13 +167,21 @@ func _build_right() -> void:
 	clover_label.custom_minimum_size = Vector2(0, RIGHT_BOX_HEIGHT)
 	clover_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	box.add_child(clover_label)
-	# 빚 표시 자리(5단계). 지금은 숨김.
+	# 빚 표시(5단계): 빨간 두루마리 아이콘 + 남은 금액, 빚이 있을 때만 보이고 은은히 맥동한다.
 	debt_box = HBoxContainer.new()
+	debt_box.add_theme_constant_override("separation", 2)
+	debt_box.mouse_filter = Control.MOUSE_FILTER_STOP
+	debt_box.custom_minimum_size = Vector2(0, RIGHT_BOX_HEIGHT)
+	debt_box.gui_input.connect(_on_debt_box_input)
 	debt_box.visible = false
-	var debt_label := Label.new()
-	debt_label.theme_type_variation = "Num7Red"
-	debt_label.text = "0"
-	debt_box.add_child(debt_label)
+	var debt_icon := TextureRect.new()
+	debt_icon.texture = DEBT_ICON
+	debt_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	debt_box.add_child(debt_icon)
+	_debt_label = Label.new()
+	_debt_label.theme_type_variation = "Num7Red"
+	_debt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	debt_box.add_child(_debt_label)
 	box.add_child(debt_box)
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(6, 0)
@@ -228,6 +256,23 @@ func clover_target() -> Vector2:
 	return clover_label.get_global_rect().get_center() - Vector2(12, 0)
 
 
+## 두루마리(빚) 아이콘 중심(전역). 상환분이 날아가는 목적지.
+func debt_target() -> Vector2:
+	return debt_box.get_global_rect().position + Vector2(6, RIGHT_BOX_HEIGHT * 0.5)
+
+
+func _refresh_debt() -> void:
+	var total := GameState.debt_total()
+	debt_box.visible = total > 0.0
+	if debt_box.visible:
+		_debt_label.text = NumberFormat.format(total)
+
+
+func _on_debt_box_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		debt_clicked.emit()
+
+
 ## 당첨 칩이 날아오는 동안 칩 증가를 표시하지 않는다.
 func hold_payout() -> void:
 	_holding = true
@@ -282,6 +327,24 @@ func _now() -> float:
 
 
 func _process(delta: float) -> void:
+	if debt_box.visible:
+		_debt_pulse_time += delta
+		debt_box.modulate.a = 0.75 + 0.25 * sin(_debt_pulse_time * DEBT_PULSE_SPEED)
+		# debt_box 는 box(HBoxContainer) 의 자식이라 get_rect() 는 box 기준 로컬 좌표라 그대로 쓰면
+		# self(TopBar) 기준으로 잘못된 위치에 그려진다 — 전역 좌표 차이로 self 로컬 좌표를 구한다
+		# (Control 은 Node2D 가 아니라 to_local() 이 없다 — 회전·스케일 없는 UI 이므로 뺄셈으로 충분하다).
+		var local_x := debt_box.get_global_rect().position.x - get_global_rect().position.x
+		var rect := Rect2(Vector2(local_x, 0.0), debt_box.get_rect().size)
+		var ratio := DebtService.progress_ratio(GameState.debts, GameState.get_stat(StatModifiers.DEBT_REPAY_MULT, Economy.DEBT_REPAY_FACTOR))
+		_debt_bar_bg.position = Vector2(rect.position.x, BAR_SIZE.y)
+		_debt_bar_bg.size = Vector2(rect.size.x, DEBT_BAR_HEIGHT)
+		_debt_bar_bg.visible = true
+		_debt_bar.position = _debt_bar_bg.position
+		_debt_bar.size = Vector2(roundf(rect.size.x * ratio), DEBT_BAR_HEIGHT)
+		_debt_bar.visible = true
+	else:
+		_debt_bar_bg.visible = false
+		_debt_bar.visible = false
 	if _save_icon_time >= 0.0:
 		_save_icon_time += delta
 		_save_icon.rotation += SAVE_ICON_SPIN_SPEED * delta

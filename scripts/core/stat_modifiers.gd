@@ -60,13 +60,18 @@ class Modifier:
 	## 전체 지속 시간. PERMANENT 면 영구.
 	var duration: float
 	var remaining: float
+	## 소모형(횟수제) 수정자의 남은 횟수. -1 이면 소모형이 아님(시간제·영구는 이 값과 무관).
+	var charges: int = -1
 
 	func is_timed() -> bool:
 		return duration >= 0.0
 
+	func is_charge_based() -> bool:
+		return charges >= 0
+
 	func to_dict() -> Dictionary:
 		return {"source_id": source_id, "stat": stat, "op": int(op), "value": value,
-			"duration": duration, "remaining": remaining}
+			"duration": duration, "remaining": remaining, "charges": charges}
 
 
 var _modifiers: Array[Modifier] = []
@@ -76,7 +81,8 @@ var _cache: Dictionary = {}
 
 ## 수정자를 추가한다. 같은 source_id + stat 이 이미 있으면 교체(갱신)한다.
 ## 업그레이드 레벨이 오르면 같은 source 로 다시 add 하면 된다.
-func add_modifier(source_id: String, stat: String, op: Op, value: float, duration: float = PERMANENT) -> Modifier:
+## charges: 소모형(횟수제)이면 남은 횟수(예: 1). -1 이면 소모형이 아니다(시간제·영구는 duration 으로만 관리).
+func add_modifier(source_id: String, stat: String, op: Op, value: float, duration: float = PERMANENT, charges: int = -1) -> Modifier:
 	if not ALL_STATS.has(stat):
 		push_warning("StatModifiers: 정의되지 않은 스탯 키 '%s'" % stat)
 	if is_nan(value) or is_inf(value):
@@ -90,6 +96,7 @@ func add_modifier(source_id: String, stat: String, op: Op, value: float, duratio
 	modifier.value = value
 	modifier.duration = duration
 	modifier.remaining = duration
+	modifier.charges = charges
 	_modifiers.append(modifier)
 	_invalidate(stat)
 	return modifier
@@ -98,6 +105,29 @@ func add_modifier(source_id: String, stat: String, op: Op, value: float, duratio
 ## source_id 의 수정자를 전부 제거하고 제거한 개수를 돌려준다.
 func remove_source(source_id: String) -> int:
 	return _remove_where(func(m: Modifier) -> bool: return m.source_id == source_id)
+
+
+## 소모형(횟수제) 수정자를 amount 만큼 소모한다(예: 압류 패널티가 스핀 1회에 소모).
+## charges 가 0 이하가 된 수정자는 즉시 제거된다. source_id 에 소모형 수정자가 없으면 아무 일도 하지 않고 false.
+## 소모로 source_id 의 수정자가 모두 사라지면 source_expired 를 발행한다(시간제 만료와 동일하게 처리).
+func consume_charges(source_id: String, amount: int = 1) -> bool:
+	var consumed := false
+	var to_remove: Array[Modifier] = []
+	for modifier in _modifiers:
+		if modifier.source_id != source_id or not modifier.is_charge_based():
+			continue
+		modifier.charges -= amount
+		consumed = true
+		_invalidate(modifier.stat)
+		if modifier.charges <= 0:
+			to_remove.append(modifier)
+	if not consumed:
+		return false
+	for modifier in to_remove:
+		_modifiers.erase(modifier)
+	if not to_remove.is_empty() and not has_source(source_id):
+		source_expired.emit(source_id)
+	return true
 
 
 func has_source(source_id: String) -> bool:

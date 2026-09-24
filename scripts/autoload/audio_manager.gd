@@ -51,6 +51,15 @@ const SFX: Dictionary = {
 	"promote_jingle_1": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
 	"promote_jingle_2": {"bus": "SFX", "volume_db": -1.0, "max": 1, "jitter": false},
 	"promote_jingle_3": {"bus": "SFX", "volume_db": 0.0, "max": 1, "jitter": false},
+	"dialogue_blip_baron": {"bus": "UI", "volume_db": -10.0, "max": 4, "jitter": false},
+	"baron_footstep": {"bus": "SFX", "volume_db": -6.0, "max": 2},
+	"baron_cane_tap": {"bus": "SFX", "volume_db": -5.0, "max": 2},
+	"bass_drop": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"contract_unroll": {"bus": "SFX", "volume_db": -4.0, "max": 1},
+	"quill_sign": {"bus": "SFX", "volume_db": -5.0, "max": 1},
+	"stamp_thud": {"bus": "SFX", "volume_db": -2.0, "max": 1, "jitter": false},
+	"chip_bag_toss": {"bus": "SFX", "volume_db": -3.0, "max": 1},
+	"pickpocket_squeak": {"bus": "SFX", "volume_db": -4.0, "max": 2},
 }
 
 ## 헤드리스(테스트·서버)에서는 소리를 내지 않는다(출력 장치가 없고, 종료 시 재생 객체가 남는다).

@@ -38,6 +38,10 @@ signal milestone_reached(suffix_index: int)
 signal buff_started(id: String, duration: float)
 @warning_ignore("unused_signal")
 signal buff_ended(id: String)
+## 패널티가 새로 발동했다(PenaltyManager, 5단계). duration 은 토스트에 보여줄 표시 시간
+## (시간제 패널티는 실제 지속시간, 즉시·소모형 패널티는 짧은 고정값). buff_started 도 함께 발행된다.
+@warning_ignore("unused_signal")
+signal penalty_triggered(id: String, duration: float)
 ## 화면 구석 알림. text 는 이미 tr() 된 문자열, icon 은 아이콘 id.
 @warning_ignore("unused_signal")
 signal toast_requested(text: String, icon: String)

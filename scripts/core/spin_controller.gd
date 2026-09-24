@@ -19,6 +19,8 @@ var active_bets: Array[Bet] = []
 var active_results: Array[int] = []
 var active_duration: float = 0.0
 var last_outcome: SpinOutcome = null
+## 이번 정산에서 자동 상환된 금액(빚이 없었으면 0). Main 이 당첨 텍스트 둘째 줄에 쓴다.
+var last_debt_repaid: float = 0.0
 
 
 func is_idle() -> bool:
@@ -71,6 +73,7 @@ func start_spin() -> SpinError:
 		GameState.spin_in_progress = false
 		active_bets = []
 		return SpinError.NOT_ENOUGH_CHIPS
+	GameState.consume_penalty_charge(GameState.PENALTY_ID_SEIZE_MARBLE)
 	active_results = []
 	for i in GameState.ball_count():
 		active_results.append(RngService.consume_next())
@@ -126,9 +129,10 @@ func settle_pending_spin() -> SpinOutcome:
 
 
 func _apply_outcome(outcome: SpinOutcome) -> void:
-	# 5단계: 빚이 있으면 여기서 당첨금의 DEBT_AUTO_REPAY_RATE 를 자동 상환한다.
+	last_debt_repaid = 0.0
 	if outcome.total_return > 0.0:
 		GameState.add_chips(outcome.total_return)
+		last_debt_repaid = GameState.auto_repay_debt(outcome.total_return)
 	GameState.push_results(outcome.results)
 	GameState.increment_stat(GameState.STAT_TOTAL_SPINS)
 	GameState.max_stat(GameState.STAT_BIGGEST_WIN, outcome.total_return)

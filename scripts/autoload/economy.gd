@@ -66,6 +66,9 @@ const DEBT_AUTO_REPAY_RATE := 0.25
 const MAX_LOANS := 3
 const PENALTY_INTERVAL_MIN := 60.0
 const PENALTY_INTERVAL_MAX := 120.0
+## 패널티 간격은 빚 건수가 늘수록 짧아진다(인덱스 = 빚 건수 - 1): 1건 60~120, 2건 45~90, 3건 30~60.
+const PENALTY_INTERVAL_MIN_BY_LOANS: Array[float] = [PENALTY_INTERVAL_MIN, 45.0, 30.0]
+const PENALTY_INTERVAL_MAX_BY_LOANS: Array[float] = [PENALTY_INTERVAL_MAX, 90.0, 60.0]
 const PENALTY_DURATION_MIN := 20.0
 const PENALTY_DURATION_MAX := 30.0
 ## 감시하는 부하: 휠 속도 −15% → 스핀 시간 ÷ 0.85

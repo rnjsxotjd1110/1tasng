@@ -17,6 +17,10 @@ const MILESTONE_ICON := "chip"
 const UPGRADE_MARBLE_TIER := "marble_tier"
 const UPGRADE_MARBLE_POLISH := "marble_polish"
 const BUFF_SOURCE_PREFIX := "buff:"
+const PENALTY_SOURCE_PREFIX := "penalty:"
+## 소모형(횟수제) 패널티 id. PenaltyManager 가 걸고, 여기(클로버 획득 시)와 SpinController(스핀 시작 시)가 소모한다.
+const PENALTY_ID_SEIZE_MARBLE := "seize_marble"
+const PENALTY_ID_CLOVER_FEE := "clover_fee"
 
 var chips: float = Economy.STARTING_CHIPS
 var clovers: int = 0
@@ -34,6 +38,10 @@ var last_bets: Array[Bet] = []
 var chip_size_mode: int = Economy.ChipSize.MAX
 ## 빚 목록(5단계). 각 항목 {"principal": float, "remaining": float}
 var debts: Array[Dictionary] = []
+## 아직 안 보여준 남작 컷신(대출·완납). 저장된 뒤 컷신이 끝나기 전에 불러오면 처음부터 다시 재생한다
+## (수치는 이미 즉시 반영돼 있고, 이 필드는 연출만 다시 보여주기 위한 것 — 4단계 "스핀 도중 저장" 과 같은 패턴).
+## {"type": "loan", "principal": float, "repay": float, "merged": bool} 또는 {"type": "debt_paid"}. 없으면 {}.
+var pending_baron_event: Dictionary = {}
 ## 한 스핀에 1개 이상 당첨이 연속된 횟수.
 var win_streak: int = 0
 ## 최근 결과(오래된 것 → 최신). 공이 여러 개면 모두 들어간다. 표시용, HISTORY_SIZE 개만 유지.
@@ -56,6 +64,8 @@ var last_income_per_second: float = 0.0
 var modifiers := StatModifiers.new()
 ## 최근 5분(Economy.LOAN_INCOME_WINDOW) 초당 순수익 이동평균. 오프라인 수익·5단계 대출액 계산에 공용.
 var income_tracker := IncomeTracker.new(Economy.LOAN_INCOME_WINDOW)
+## 빚이 있는 동안 랜덤 패널티를 거는 타이머(5단계). 연출 레이어가 penalty_manager.suppressed 를 켜고 끈다.
+var penalty_manager := PenaltyManager.new()
 
 
 func _ready() -> void:
@@ -66,6 +76,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	stats[STAT_PLAY_TIME] = float(stats.get(STAT_PLAY_TIME, 0.0)) + delta
 	modifiers.tick(delta)
+	penalty_manager.process(delta)
 
 
 ## 6단계에서 스킬로 해금되면 true를 돌려주게 바꾼다. 그 전에는 오프라인 수익이 항상 "팁" 모드다.
@@ -86,6 +97,7 @@ func reset() -> void:
 	last_bets = []
 	chip_size_mode = Economy.ChipSize.MAX
 	debts = []
+	pending_baron_event = {}
 	win_streak = 0
 	result_history = []
 	number_frequency = {}
@@ -97,6 +109,7 @@ func reset() -> void:
 	auto_spin_enabled = false
 	last_income_per_second = 0.0
 	income_tracker.reset()
+	penalty_manager.reset()
 	stats = {
 		STAT_TOTAL_SPINS: 0,
 		STAT_TOTAL_WINS: 0,
@@ -169,14 +182,19 @@ func _check_milestones() -> void:
 # ── 클로버 ───────────────────────────────────────────────
 
 ## 클로버 획득. clover_gain_mult 가 적용되고 내림한다. 실제로 얻은 개수를 돌려준다.
+## 배율이 0 보다 크면(예: 클로버 수수료 패널티 ×0.5) 원래 수량이 있었는데 내림으로 0 이 되는 일은 없다(최소 1).
 func add_clovers(amount: int) -> int:
 	if amount <= 0:
 		return 0
-	var gained := floori(amount * get_stat(StatModifiers.CLOVER_GAIN_MULT, StatModifiers.IDENTITY_MULT))
+	var mult := get_stat(StatModifiers.CLOVER_GAIN_MULT, StatModifiers.IDENTITY_MULT)
+	var gained := floori(amount * mult)
+	if gained <= 0 and mult > 0.0:
+		gained = 1
 	if gained <= 0:
 		return 0
 	clovers += gained
 	EventBus.clovers_changed.emit(clovers, gained)
+	consume_penalty_charge(PENALTY_ID_CLOVER_FEE)
 	return gained
 
 
@@ -266,12 +284,94 @@ func is_bankrupt() -> bool:
 	return Economy.is_bankrupt(chips, min_bet(), spin_in_progress)
 
 
-## 파산이면 bankrupt 를 발행하고 true.
+## 파산이면 즉시 대출을 받고(거절 없음) bankrupt 를 발행한 뒤 true.
+## 대출 수치는 이 함수 안에서 바로 반영된다 — bankrupt 를 받는 쪽(Main)은 이미 채워진 pending_baron_event 로
+## 남작 컷신에 쓸 정보(대출액·상환액·합산 여부)를 읽으면 된다.
 func check_bankruptcy() -> bool:
-	if is_bankrupt():
-		EventBus.bankrupt.emit()
-		return true
-	return false
+	if not is_bankrupt():
+		return false
+	_take_emergency_loan()
+	EventBus.bankrupt.emit()
+	return true
+
+
+func _take_emergency_loan() -> void:
+	var avg_income := income_tracker.per_second(get_stat_value(STAT_PLAY_TIME))
+	var repay_mult := get_stat(StatModifiers.DEBT_REPAY_MULT, Economy.DEBT_REPAY_FACTOR)
+	var result := DebtService.take_loan(debts, avg_income, min_bet(), repay_mult)
+	debts = result["debts"]
+	add_chips(float(result["principal"]), false)
+	increment_stat(STAT_LOANS_TAKEN)
+	pending_baron_event = {"type": "loan", "principal": result["principal"], "repay": result["repay"], "merged": result["merged"]}
+	EventBus.debt_changed.emit()
+
+
+# ── 빚(5단계) ────────────────────────────────────────────
+
+func debt_total() -> float:
+	return DebtService.total(debts)
+
+
+func has_debt() -> bool:
+	return not debts.is_empty()
+
+
+## 당첨금 중 Economy.DEBT_AUTO_REPAY_RATE 를 오래된 빚부터 자동 상환한다(SpinController 가 정산 직후 호출).
+## 총 빚이 이번에 0 이 되면 클로버 +2 와 완납 컷신을 예약한다. 실제 상환액을 돌려준다.
+func auto_repay_debt(payout: float) -> float:
+	if debts.is_empty() or payout <= 0.0:
+		return 0.0
+	var result := DebtService.apply_auto_repay(debts, payout)
+	var repaid := float(result["repaid"])
+	if repaid <= 0.0 or not spend_chips(repaid):
+		return 0.0
+	debts = result["debts"]
+	if debts.is_empty():
+		_on_debt_fully_paid()
+	EventBus.debt_changed.emit()
+	return repaid
+
+
+## index 번째 빚 전액을 상환한다(가용 칩이 모자라면 아무 일도 하지 않고 0.0). 실제 상환액을 돌려준다.
+func repay_all(index: int) -> float:
+	if index < 0 or index >= debts.size():
+		return 0.0
+	return _repay_debt(index, float(debts[index]["remaining"]))
+
+
+## index 번째 빚의 남은 금액 절반을 상환한다(가용 칩이 모자라면 아무 일도 하지 않고 0.0).
+func repay_half(index: int) -> float:
+	if index < 0 or index >= debts.size():
+		return 0.0
+	return _repay_debt(index, float(debts[index]["remaining"]) * 0.5)
+
+
+func _repay_debt(index: int, amount: float) -> float:
+	if amount <= 0.0 or not spend_chips(amount):
+		return 0.0
+	var result := DebtService.repay_at(debts, index, amount)
+	debts = result["debts"]
+	if debts.is_empty():
+		_on_debt_fully_paid()
+	EventBus.debt_changed.emit()
+	return float(result["repaid"])
+
+
+## 총 빚이 0이 됐을 때 공통으로 할 일: 완납 클로버, 남작 완납 컷신 예약, 모든 패널티 즉시 해제(GDD 9장 "빚이 있을 때만").
+func _on_debt_fully_paid() -> void:
+	add_clovers(Economy.CLOVER_PER_DEBT_PAID)
+	pending_baron_event = {"type": "debt_paid"}
+	_clear_all_penalties()
+
+
+func _clear_all_penalties() -> void:
+	var sources: Array[String] = []
+	for modifier in modifiers.get_modifiers():
+		if modifier.source_id.begins_with(PENALTY_SOURCE_PREFIX) and not sources.has(modifier.source_id):
+			sources.append(modifier.source_id)
+	for source_id in sources:
+		if modifiers.remove_source(source_id) > 0:
+			EventBus.buff_ended.emit(source_id.trim_prefix(PENALTY_SOURCE_PREFIX))
 
 
 # ── 업그레이드·버프 ─────────────────────────────────────
@@ -338,9 +438,34 @@ func remove_buff(id: String) -> void:
 		EventBus.buff_ended.emit(id)
 
 
+## 시간제 패널티(감시하는 부하·흐려진 구슬 등). buff_started/buff_ended 를 buff 와 함께 쓴다(GDD EventBus 표: "시간제
+## 버프·패널티"). PenaltyManager 가 건다.
+func add_penalty_timed(id: String, stat: String, op: StatModifiers.Op, value: float, duration: float) -> void:
+	modifiers.add_modifier(PENALTY_SOURCE_PREFIX + id, stat, op, value, duration)
+	EventBus.buff_started.emit(id, duration)
+
+
+## 소모형(횟수제) 패널티(압류·클로버 수수료). 시간이 아니라 consume_penalty_charge() 호출로 사라진다.
+func add_penalty_charge(id: String, stat: String, op: StatModifiers.Op, value: float, charges: int) -> void:
+	modifiers.add_modifier(PENALTY_SOURCE_PREFIX + id, stat, op, value, StatModifiers.PERMANENT, charges)
+	EventBus.buff_started.emit(id, 0.0)
+
+
+func remove_penalty(id: String) -> void:
+	if modifiers.remove_source(PENALTY_SOURCE_PREFIX + id) > 0:
+		EventBus.buff_ended.emit(id)
+
+
+## 소모형 패널티를 1회 소모한다(없으면 false). 다 소모되면 buff_ended 가 발행된다(_on_modifier_source_expired 경유).
+func consume_penalty_charge(id: String) -> bool:
+	return modifiers.consume_charges(PENALTY_SOURCE_PREFIX + id)
+
+
 func _on_modifier_source_expired(source_id: String) -> void:
 	if source_id.begins_with(BUFF_SOURCE_PREFIX):
 		EventBus.buff_ended.emit(source_id.trim_prefix(BUFF_SOURCE_PREFIX))
+	elif source_id.begins_with(PENALTY_SOURCE_PREFIX):
+		EventBus.buff_ended.emit(source_id.trim_prefix(PENALTY_SOURCE_PREFIX))
 
 
 # ── 베팅 ─────────────────────────────────────────────────
@@ -449,6 +574,7 @@ func to_dict() -> Dictionary:
 		"last_bets": _bets_to_array(last_bets),
 		"chip_size_mode": chip_size_mode,
 		"debts": debts.duplicate(true),
+		"pending_baron_event": pending_baron_event.duplicate(),
 		"win_streak": win_streak,
 		"result_history": result_history.duplicate(),
 		"number_frequency": number_frequency.duplicate(),
@@ -479,6 +605,7 @@ func from_dict(data: Dictionary) -> void:
 	debts = []
 	for entry in data.get("debts", []):
 		debts.append((entry as Dictionary).duplicate())
+	pending_baron_event = (data.get("pending_baron_event", {}) as Dictionary).duplicate()
 	win_streak = int(data.get("win_streak", 0))
 	result_history = []
 	for value in data.get("result_history", []):
@@ -522,20 +649,26 @@ func _array_to_bets(list: Array) -> Array[Bet]:
 	return out
 
 
-## 시간제(buff:) 수정자만 내보낸다. 영구 수정자는 upgrade_levels/skill_levels 에서 rebuild_upgrade_modifiers() 로 다시 만든다.
+## 시간제(buff:)·패널티(penalty:) 수정자만 내보낸다. 영구 수정자는 upgrade_levels/skill_levels 에서
+## rebuild_upgrade_modifiers() 로 다시 만든다.
 func _export_buffs() -> Array:
 	var out: Array = []
 	for modifier in modifiers.get_modifiers():
-		if modifier.source_id.begins_with(BUFF_SOURCE_PREFIX):
+		if modifier.source_id.begins_with(BUFF_SOURCE_PREFIX) or modifier.source_id.begins_with(PENALTY_SOURCE_PREFIX):
 			out.append(modifier.to_dict())
 	return out
 
 
+## 시간제는 remaining(남은 초)이 있을 때만, 소모형(charges ≥ 0)은 charges 가 남아있을 때만 되살린다.
 func _import_buffs(list: Array) -> void:
 	for entry in list:
 		var d: Dictionary = entry
 		var remaining := float(d.get("remaining", 0.0))
-		if remaining <= 0.0:
+		var charges := int(d.get("charges", -1))
+		if charges >= 0:
+			if charges <= 0:
+				continue
+		elif remaining <= 0.0:
 			continue
 		var op: StatModifiers.Op = int(d.get("op", StatModifiers.Op.ADD))
-		modifiers.add_modifier(String(d.get("source_id", "")), String(d.get("stat", "")), op, float(d.get("value", 0.0)), remaining)
+		modifiers.add_modifier(String(d.get("source_id", "")), String(d.get("stat", "")), op, float(d.get("value", 0.0)), remaining, charges)

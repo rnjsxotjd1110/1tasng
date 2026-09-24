@@ -149,6 +149,51 @@ func test_multi_ball_costs_once() -> void:
 	check_eq(GameState.result_history.size(), 2, "기록 2개")
 
 
+func test_winning_spin_auto_repays_debt() -> void:
+	GameState.debts = [{"principal": 500.0, "remaining": 1000.0}]
+	var target: int = RngService.peek_next(1)[0]
+	GameState.add_bet(Bet.straight(target))
+	var debt_changes := watch(EventBus.debt_changed)
+	controller.start_spin()
+	check(controller.last_outcome.total_return > 0.0, "전제: 적중")
+	var expected_repaid: float = controller.last_outcome.total_return * Economy.DEBT_AUTO_REPAY_RATE
+	check_near(controller.last_debt_repaid, expected_repaid, 1e-6, "자동 상환액 기록")
+	check_near(float(GameState.debts[0]["remaining"]), 1000.0 - expected_repaid, 1e-6, "빚 감소")
+	check_eq(debt_changes.size(), 1, "debt_changed 발행")
+
+
+func test_winning_spin_can_pay_off_debt_entirely() -> void:
+	GameState.debts = [{"principal": 10.0, "remaining": 40.0}]
+	var target: int = RngService.peek_next(1)[0]
+	GameState.add_bet(Bet.straight(target))
+	var before_clovers := GameState.clovers
+	controller.start_spin()
+	check(controller.last_outcome.total_return * Economy.DEBT_AUTO_REPAY_RATE >= 40.0, "전제: 25% 상환액이 빚보다 큼")
+	check_near(controller.last_debt_repaid, 40.0, 1e-6, "빚만큼만 상환(초과분은 안 빠짐)")
+	check(GameState.debts.is_empty(), "완납")
+	# 이 스핀은 개별숫자 적중이라 CLOVER_PER_STRAIGHT_HIT 도 함께 들어온다(기존 SpinController 로직).
+	check_eq(GameState.clovers - before_clovers, Economy.CLOVER_PER_STRAIGHT_HIT + Economy.CLOVER_PER_DEBT_PAID, "완납 클로버 + 적중 클로버")
+	check_eq(GameState.pending_baron_event.get("type"), "debt_paid", "완납 컷신 예약")
+
+
+func test_losing_spin_repays_nothing() -> void:
+	GameState.debts = [{"principal": 10.0, "remaining": 40.0}]
+	var predicted: int = RngService.peek_next(1)[0]
+	GameState.add_bet(Bet.straight((predicted + 1) % 37))
+	controller.start_spin()
+	check_eq(controller.last_debt_repaid, 0.0, "당첨 없으면 상환 없음")
+	check_near(float(GameState.debts[0]["remaining"]), 40.0, 1e-9, "빚 그대로")
+
+
+func test_seize_penalty_charge_is_consumed_by_next_spin_only() -> void:
+	GameState.set_upgrade_level("marble_count", 1)  # 구슬 2개
+	GameState.add_penalty_charge(GameState.PENALTY_ID_SEIZE_MARBLE, StatModifiers.LOCKED_MARBLES, StatModifiers.Op.ADD, 1.0, 1)
+	check_eq(GameState.marble_slots(), 1, "이번 스핀은 1개만 사용 가능")
+	GameState.add_bet(Bet.red())
+	controller.start_spin()
+	check_eq(GameState.marble_slots(), 2, "스핀 후에는 소모돼 정상")
+
+
 func test_payout_uses_modifiers() -> void:
 	GameState.set_upgrade_level("marble_tier", 1)  # 돌 ×1.5
 	GameState.modifiers.add_modifier("buff:x", StatModifiers.PAYOUT_MULT_ALL, StatModifiers.Op.MULT, 2.0)

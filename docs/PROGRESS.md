@@ -47,10 +47,10 @@
 - [x] 일시정지 메뉴(Esc, 디더 오버레이, 시간 흐름 옵션), 통계 화면(카운트업)
 - [x] 색약 보조(휠·베팅판 점 무늬, 프로시저럴)
 
-### 5단계 — 빚·래칫 남작
-- [ ] 파산 → 대출(공식), 2배 상환, 자동 상환 25%, 최대 3건
-- [ ] 패널티 6종(StatModifiers penalty:*), 래칫 남작 NPC·대사
-- [ ] debt_changed, 빚 완납 클로버 +2
+### 5단계 — 빚·래칫 남작 ✅
+- [x] 파산 → 대출(공식), 2배 상환, 자동 상환 25%, 최대 3건(4번째는 합산)
+- [x] 패널티 6종(StatModifiers penalty:*), 래칫 남작 NPC·대사, 대화 시스템(DialogueBox)
+- [x] debt_changed, 빚 완납 클로버 +2
 
 ### 6단계 — 스킬트리·클로버·자동화
 - [ ] 스킬 57개 데이터(총 269 클로버), 4갈래·고리 3개·궁극기
@@ -258,3 +258,98 @@
 - 빚 자동 상환이 생기면 `ReturnPopup.open(offline, debt_repaid)` 의 둘째 인자에 상환액을 넘기면 "오프라인 중 빚 상환" 문구가 자동으로 뜬다(이미 만들어 둠, 지금은 항상 0).
 - 패널티(시간제 StatModifiers 수정자)는 `GameState.add_buff()` 로 걸면 저장·불러오기가 이미 지원한다(`buff:` 소스만 시간제로 왕복). "횟수제"(압류 1스핀, 클로버 수수료 1회) 소모형은 여전히 없음 — 1단계부터 남은 이슈 그대로.
 - `debt_changed` 시그널이 발행되면 SaveManager 가 자동 저장한다(이미 연결돼 있음, 5단계는 그냥 발행만 하면 됨).
+
+### 5단계 (2026-09-24) — 빚·래칫 남작·대화 시스템·패널티
+
+**시작 전 정리**: 작업 브랜치(`claude/vibrant-brahmagupta-a6rzeq`)가 1단계 시점에서 분기돼 있어 2~4단계가 빠진 상태였다. GitHub 를 조사해
+다른 세션이 1→2→3→4단계를 순서대로 쌓은 `claude/beautiful-franklin-nc1a2i` 브랜치(커밋 `7374674`)를 찾았고, `merge-base
+--is-ancestor` 로 내 브랜치에 고유 커밋이 없음을 확인한 뒤 그 지점으로 안전하게 재설정(fast-forward 라 작업 손실 없음)했다.
+`bash tools/setup_godot.sh` 로 Godot 4.3 을 설치·재임포트해 **168 tests / 3413 checks, 0 failures** 로 4단계가 정상 종료 상태임을
+확인한 뒤 이 문서의 계획대로 5단계를 올렸다.
+
+**한 일**
+- **StatModifiers**: `Modifier` 에 `charges`(소모형, -1=무제한) 축 추가, `consume_charges(source_id, amount)`. 압류·클로버 수수료처럼
+  "횟수"로 끝나는 효과를 1단계부터 남아 있던 이슈 없이 표현.
+- **DebtService**(신규, 순수 로직): `take_loan`(공식 계산 + 3건이면 잔액 최대 빚에 합산), `apply_auto_repay`(오래된 순), `repay_at`,
+  `total`, `progress_ratio`.
+- **GameState**: `pending_baron_event`(컷신 재개용), `debt_total/has_debt/auto_repay_debt/repay_all/repay_half`, 패널티
+  API(`add_penalty_timed/charge`, `remove_penalty`, `consume_penalty_charge`), `penalty_manager` 소유·매 프레임 tick, `add_clovers()`
+  최소 1 보정, `check_bankruptcy()` → 즉시 대출 확정 + `pending_baron_event` 채움 → `debt_changed` → `bankrupt` 순서 고정.
+- **PenaltyManager**(신규): 6종(WATCHER/PICKPOCKET/SMOKE/BLUR/SEIZE/CLOVER_FEE), 대출 건수별 간격(60~120/45~90/30~60초),
+  연속 금지, 구슬 1개면 압류 제외, `EventBus.penalty_triggered` 발행. 소매치기만 `min_bet×3` 바닥 직접 방어(파산 유발 불가 검증).
+- **SpinController**: 압류 소모(`start_spin`), 자동 상환(`_apply_outcome` → `last_debt_repaid`).
+- **캐릭터 에셋**(`tools/art/gen_baron.py`, 신규): 래칫 남작 월드시트(48×64×7행), 초상화(64×64×7), 부하 쥐(32×40×6), 도장·아이콘
+  7종. 4배 미리보기로 4회 반복 수정(아래 검수 기록).
+- **대화 시스템**: `data/dialogue/baron.json` + `DialogueData`(로더·변형 랜덤) + `DialogueBox`(초상화·이름표·타자기 30자/초·피치
+  블립·즉시완성·▼·선택지 지원, 재사용 가능한 범용 컴포넌트).
+- **파산→대출 컷신**: `BaronRatchet`(걷기·인사 등 프레임 재생) + `ContractPopup`(양피지 펼침·서명·도장·칩 토스) +
+  `BaronLoanSequence`(오케스트레이터, 대출 횟수별 대사 분기) + `BaronPayoffSequence`(완납 컷신, 클로버 비행).
+  `pending_baron_event` 가 남아 있으면 로드 직후 처음부터 재생.
+- **패널티 시각효과**: `UnderlingRat` 등장/퇴장, `pickpocket_dash`(그림자 스침), `SmokeOverlay`(연기 오버레이), 구슬 셰이더
+  `desaturate`/`suppress_glint` uniform, `BetBoard.play_seizure_stamp()`, `PenaltyToast`(아이콘+이름+진행바+남작 미니 초상).
+- **빚 UI**: `TopBar` 두루마리 아이콘+금액(맥동)+상환 진행 바, `DebtPanel`(건별 원금/잔액/진행률 + 전액/절반 상환), 당첨 텍스트
+  2줄 분리("+N" 금색 / "−N 상환" 빨강) + 상환분 칩이 `TopBar.debt_target()` 로 비행.
+- 신규 효과음 9종(`tools/audio/gen_sfx.py`): 대사 블립, 발소리, 지팡이, 베이스 드롭, 계약서 펼침, 깃펜 서명, 도장, 칩 자루, 소매치기.
+- 테스트 86개 신규(핵심 로직 + 연출 컴포넌트 전부) / 전체 **254 tests, 3997 checks, 0 failures**.
+
+**검수 기록(캡처 → 검토 → 개선)** — `tools/capture/capture.gd` 에 5단계 시나리오 12개(남작 등장·대화·계약서·도장·패널티 6종·빚
+패널·완납) 추가 후 ko/en 3배 확대본을 직접 본 결과, 실제 버그 5개를 발견해 수정했다:
+1. `gen_baron.py` 반복 수정 4회: 모자가 머리 위에 붕 뜸(머리 기하와 무관한 좌표 → 머리 중심·반지름 기준으로 재계산) →
+   시가가 안 보임(팔을 머리보다 먼저 그려 입 주변이 덮임 → 머리 그린 뒤 팔을 그리도록 순서 교체) → 외알 안경 "사슬" 장식선이
+   지저분함(삭제) → 꼬리가 두 색이라 어깨 쪽이 끊어져 보임(단일 톤으로 통일) → 부하 쥐 선글라스가 시트 전체를 가로지르는 흰 줄로
+   보임(`hline` 인자 순서 실수 — 두 번째 인자가 x1 이 아니라 y 값이었음. 수정).
+2. 캡처 배치 실행 중 이전 세션이 남긴 `user://save.json` 을 `Main._ready()` 가 그대로 불러와, 파산 컷신 캡처에 오프라인 복귀
+   팝업이 겹쳐 뜨고 이전 시나리오의 `pending_baron_event` 가 잘못 재생됨 → `tests/lib/test_case.gd` 와 같은 저장 파일 삭제 로직을
+   `capture.gd._fresh()` 에도 추가.
+3. 남작 월드 스프라이트(`BARON_Y=340`, 64px)가 `DialogueBox`(y 268~352) 영역 안에 거의 다 들어가 스프라이트와 대사 텍스트가
+   겹쳐 보임 → `BARON_Y` 를 258 로 낮춰 대화창 위 10px 여유를 둠(`baron_loan_sequence.gd`/`baron_payoff_sequence.gd` 둘 다).
+4. `PenaltyToast` 의 남은시간 진행바가 토스트 전체를 덮는 거대한 단색 사각형으로 보임 → `bar_bg`/`bar`(ColorRect) 를
+   `PanelContainer` 의 자식으로 넣은 게 원인(Container 는 직계 자식을 전부 같은 콘텐츠 영역에 맞춰 늘린다 — 1개 자식만 쓰는 게
+   정상 용법). `self`(plain Control)의 자식으로 옮기고 패널 위치를 따라가게 수동 배치(`TopBar._debt_bar` 와 같은 방식)해 해결.
+5. "시가 연기" 패널티가 화면에서 거의 안 보임 → `smoke.png` 자체가 배경 장식용이라 알파가 이미 낮은데(최대 약 0.27)
+   `SmokeOverlay.MAX_ALPHA=0.3` 을 또 곱해 최종 알파가 약 0.08 까지 떨어졌던 것. `MAX_ALPHA` 를 1.3 으로 올려 ART_BIBLE 이 원래
+   의도한 "0.35 안팎"에 맞춤(텍스처 자체 알파가 상한이라 여전히 반투명).
+6. (이 과정에서 함께 발견) 빚 상환 진행 바가 상단 바 왼쪽(칩 카운터 아래)에 엉뚱하게 그려짐 → `TopBar._process()` 가
+   `debt_box.get_rect()`(부모 `box` 기준 로컬 좌표)를 `self` 기준으로 잘못 사용한 것. `Control` 은 `Node2D` 가 아니라
+   `to_local()` 이 없어, 전역 좌표 차이(`get_global_rect().position` 뺄셈)로 바꿔 해결.
+7. 위 5건을 고치고 254 tests / 3997 checks 로 회귀 없음을 재확인한 뒤 12개 시나리오를 ko/en 다시 캡처 — 계약서·도장·패널티
+   6종·빚 패널·완납 모두 텍스트 넘침/잘림 없이 정상, 부하 쥐·압류 도장·흐려진 구슬(그레이 필터)도 확대해 확인 완료.
+
+**파일**
+- 신규 core: `scripts/core/{debt_service,penalty_manager,dialogue_data}.gd`
+- 신규 scenes: `scenes/ui/{dialogue_box,contract_popup,debt_panel,penalty_toast}.gd`, `scenes/npc/{baron_ratchet,underling_rat}.gd`,
+  `scenes/fx/{baron_loan_sequence,baron_payoff_sequence,pickpocket_dash,smoke_overlay}.gd`
+- 신규 데이터·에셋: `data/dialogue/baron.json`, `tools/art/gen_baron.py`, `assets/sprites/npc/{baron_world,baron_portrait,
+  underling_rat}.png`, `assets/sprites/ui/icon_{debt,baron_mini,penalty_watcher,penalty_pickpocket,penalty_smoke,penalty_blur,
+  penalty_seize}.png`, `assets/sprites/fx/seizure_stamp.png`, 신규 sfx 9종(`assets/audio/sfx/*.wav`)
+- 수정: `scripts/core/{stat_modifiers,spin_controller}.gd`, `scripts/autoload/{game_state,economy,event_bus,audio_manager}.gd`,
+  `scripts/roulette/marble_sprite.gd`, `assets/shaders/marble.gdshader`, `scenes/ui/{bet_board,top_bar}.gd`, `scenes/main/main.gd`,
+  `tools/audio/gen_sfx.py`, `tools/capture/capture.gd`, `translations/strings.csv`
+- 신규 테스트: `tests/test_{debt_service,penalty_manager,dialogue_data,dialogue_box,baron_ratchet,contract_popup,
+  baron_loan_sequence,baron_payoff_sequence,penalty_toast,debt_panel}.gd`
+- 수정 테스트: `tests/test_{stat_modifiers,game_state,spin_controller,save_manager}.gd`
+- 문서: GDD 9장 확정 + 16장(신규), ART_BIBLE 11장(신규) + 에셋 목록(패널티 아이콘 5종 누락분 포함 정정), PROGRESS(이 항목)
+
+**남은 이슈**
+- BIG 이상 당첨 연출·오토스핀 중 패널티 억제는 넣지 않았다(대화창·계약서 팝업 동안만 `PenaltyManager.suppressed` 를 세움) —
+  발생 빈도가 낮아 이번 범위에서 제외(GDD 16장에 명시).
+- 남작 컷신 중 음악 볼륨 덕킹은 스킵했다 — 음악 시스템 자체가 아직 없음(8단계 예정). 대신 `bass_drop` 효과음으로 파산 순간을 표현.
+- `ContractPopup` 의 양피지는 별도 이미지 자산이 아니라 `_draw()` 로 그린다(ART_BIBLE 에 이미 정정 반영) — 너무 단순한 모양이라
+  9-slice 텍스처보다 절차적 드로잉이 더 간단했다.
+- 효과음·셰이더는 여전히 Mesa llvmpipe·더미 오디오 드라이버로만 확인했다(기존 이슈, 이번 단계도 동일 제약).
+
+**다음 단계(6단계)가 알아야 할 것**
+- 소모형(charges) 수정자가 이제 있다(`StatModifiers.add_modifier(..., charges=N)` / `consume_charges()`) — 스킬트리의 "1회성"
+  효과(있다면)에 바로 쓸 수 있다.
+- 패널티는 `penalty:` 접두어 시간제/소모형 수정자 + `buff_started`/`buff_ended`/`penalty_triggered` 조합으로 구현했다 — 스킬
+  버프도 같은 패턴(`buff:` 접두어)을 그대로 따르면 저장/복원·UI 토스트까지 자동으로 맞는다.
+- `GameState.penalty_manager`(RefCounted, `process(delta)` 소유) 처럼 매 프레임 로직이 필요한 새 시스템은 오토로드를 늘리지
+  않고 GameState 가 소유해 tick 하는 기존 패턴(income_tracker·modifiers 와 동일)을 계속 따르면 된다.
+- **Container 함정**: `PanelContainer`/`HBoxContainer` 등 Container 계열에 자식을 2개 이상 직접 넣으면 전부 같은 콘텐츠
+  영역에 맞춰 강제로 늘어난다(정상 용법은 자식 1개). 진행바처럼 수동으로 위치·크기를 제어해야 하는 요소는 Container 밖에
+  두거나 plain `Control` 로 한 번 감싸야 한다(이번 단계에서 `PenaltyToast` 가 이 함정에 걸렸다).
+- **`Control` 은 `to_local()`/`to_global()` 이 없다**(그건 `Node2D` 전용). Control 트리에서 어떤 자손의 위치를 다른 조상
+  기준 로컬 좌표로 바꾸려면 `get_global_rect().position` 끼리 빼면 된다(회전·스케일이 없는 UI 한정 — 이 프로젝트의 모든
+  UI 가 여기 해당).
+- `debt_target()`/`chip_target()` 처럼 "살아있는 UI 요소의 현재 위치"를 비행 목적지로 쓰는 패턴(`TopBar` 참고)은 별도
+  스프라이트 자산을 안 만들어도 되므로, 스킬트리의 클로버 비행 등에도 그대로 재사용할 수 있다.

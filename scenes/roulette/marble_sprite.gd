@@ -71,6 +71,12 @@ static func shared_tier() -> int:
 	return _shared_tier
 
 
+## 5단계 "흐려진 구슬" 패널티(전역 — 휠·트레이·베팅칸·카드 구슬이 공용 머티리얼을 쓰므로 한 번에 적용된다).
+static func set_desaturate(amount: float) -> void:
+	shared_material().set_shader_parameter("desaturate", clampf(amount, 0.0, 1.0))
+	shared_material().set_shader_parameter("suppress_glint", amount > 0.0)
+
+
 ## 특정 재질 고정 머티리얼(비교 시트·승급 연출의 이전 구슬 등).
 static func material_for(tier: int) -> ShaderMaterial:
 	if not _materials.has(tier):

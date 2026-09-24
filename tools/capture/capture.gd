@@ -11,6 +11,10 @@ extends SceneTree
 ##   3단계: upgrade_early, upgrade_mid, upgrade_late, upgrade_tooltip, upgrade_locked_tip, promote_charge, promote_flash,
 ##          promote_banner, promote_fly, golden_beam, golden_wheel, slot_open, trail_gold, trail_cosmic, trail_void,
 ##          numbers_1e3, numbers_1e15, numbers_1e33, numbers_1e60, debug_panel, tab_slide, tab_dot
+##   4단계: settings_audio, settings_display, settings_game, settings_accessibility, settings_data,
+##          pause_menu, stats_screen, return_popup, toast_recovered, colorblind
+##   5단계: baron_appear, dialogue_baron, contract, stamp, penalty_watcher, penalty_pickpocket, penalty_smoke,
+##          penalty_blur, penalty_seize, penalty_clover_fee, debt_panel, debt_paid
 ## 인자 tier=<n>: betting·spin_* 시나리오에서 구슬 재질을 강제로 바꾼다.
 
 const MAIN_SCENE := "res://scenes/main/Main.tscn"
@@ -26,6 +30,9 @@ const SCENARIOS: Array[String] = [
 	"debug_panel", "tab_slide", "tab_dot",
 	"settings_audio", "settings_display", "settings_game", "settings_accessibility", "settings_data",
 	"pause_menu", "stats_screen", "return_popup", "toast_recovered", "colorblind",
+	"baron_appear", "dialogue_baron", "contract", "stamp",
+	"penalty_watcher", "penalty_pickpocket", "penalty_smoke", "penalty_blur", "penalty_seize", "penalty_clover_fee",
+	"debt_panel", "debt_paid",
 ]
 const UPGRADE_SERVICE := "res://scripts/core/upgrade_service.gd"
 
@@ -96,6 +103,12 @@ func _fresh() -> void:
 		await process_frame
 	game_state.call("reset")
 	rng_service.call("set_seed", SEED)
+	# 컨테이너에 실제 save.json 이 남아있으면(이전 시나리오가 debt_changed 등으로 자동 저장했거나,
+	# 이 도구를 오래 전에 한 번 돌린 적이 있으면) Main._ready() 의 load_game() 이 그걸 그대로 불러와
+	# 복귀 팝업·미완료 남작 컷신이 엉뚱하게 겹쳐 보인다(tests/lib/test_case.gd 와 같은 이유로 방어).
+	for path in ["user://save.json", "user://save.tmp", "user://save.bak"]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path)
 	main = load(MAIN_SCENE).instantiate()
 	root.add_child(main)
 	await _wait_frames(3)
@@ -123,6 +136,18 @@ func _levels(levels: Dictionary) -> void:
 func _set_chips(value: float) -> void:
 	game_state.call("spend_chips", float(game_state.get("chips")))
 	game_state.call("add_chips", value, false)
+
+
+func _set_debts(entries: Array[Dictionary]) -> void:
+	game_state.set("debts", entries)
+	root.get_node("EventBus").emit_signal("debt_changed")
+
+
+func _advance_dialogue(seq: Object) -> void:
+	seq.call("advance_input")
+	await _wait_seconds(0.1)
+	seq.call("advance_input")
+	await _wait_seconds(0.1)
 
 
 func _set_floor(index: int) -> void:
@@ -432,6 +457,77 @@ func _capture(scenario: String, lang: String) -> void:
 			game_state.call("set_upgrade_level", "marble_count", 1)
 			_bets(["R", "S32"])
 			await _wait_seconds(0.6)
+		"baron_appear":
+			_set_chips(0.0)
+			game_state.call("check_bankruptcy")
+			await _wait_seconds(3.2)
+		"dialogue_baron":
+			_set_chips(0.0)
+			game_state.call("check_bankruptcy")
+			await _wait_seconds(3.8)
+		"contract":
+			_set_chips(0.0)
+			game_state.call("check_bankruptcy")
+			await _wait_seconds(3.2)
+			await _advance_dialogue(main.get("baron_loan_seq"))
+			await _wait_seconds(0.6)
+		"stamp":
+			_set_chips(0.0)
+			game_state.call("check_bankruptcy")
+			await _wait_seconds(3.2)
+			var stamp_seq: Object = main.get("baron_loan_seq")
+			await _advance_dialogue(stamp_seq)
+			await _wait_seconds(0.6)
+			stamp_seq.get("contract").call("_on_sign_pressed")
+			await _wait_seconds(0.55)
+		# 아래 6종은 PenaltyManager.Kind(0 watcher·1 pickpocket·2 smoke·3 blur·4 seize·5 clover_fee) 를
+		# 정수로 넘긴다(클래스 이름을 이 파일 안에서 직접 쓰면 -s 진입 스크립트 컴파일 시점에 autoload 가
+		# 아직 없어 "GameState 를 찾을 수 없음" 오류가 남는다 — .call() 리플렉션으로 우회).
+		"penalty_watcher":
+			_set_chips(1e6)
+			_set_debts([{"principal": 100.0, "remaining": 200.0}])
+			game_state.get("penalty_manager").call("_apply", 0, 25.0)
+			await _wait_seconds(3.0)
+		"penalty_pickpocket":
+			_set_chips(1e6)
+			_set_debts([{"principal": 100.0, "remaining": 200.0}])
+			game_state.get("penalty_manager").call("_apply", 1, 3.0)
+			await _wait_seconds(0.2)
+		"penalty_smoke":
+			_set_chips(1e6)
+			_set_debts([{"principal": 100.0, "remaining": 200.0}])
+			game_state.get("penalty_manager").call("_apply", 2, 25.0)
+			await _wait_seconds(1.0)
+		"penalty_blur":
+			_set_chips(1e6)
+			_levels({"marble_count": 3})
+			_bets(["S17", "R", "B"])
+			_set_debts([{"principal": 100.0, "remaining": 200.0}])
+			game_state.get("penalty_manager").call("_apply", 3, 25.0)
+			await _wait_seconds(0.6)
+		"penalty_seize":
+			_set_chips(1e6)
+			_levels({"marble_count": 3})
+			_bets(["R", "B"])
+			_set_debts([{"principal": 100.0, "remaining": 200.0}])
+			game_state.get("penalty_manager").call("_apply", 4, 0.0)
+			await _wait_seconds(0.3)
+		"penalty_clover_fee":
+			_set_chips(1e6)
+			_set_debts([{"principal": 100.0, "remaining": 200.0}])
+			game_state.get("penalty_manager").call("_apply", 5, 0.0)
+			await _wait_seconds(0.3)
+		"debt_panel":
+			_set_chips(50000.0)
+			_set_debts([{"principal": 1000.0, "remaining": 1500.0}, {"principal": 500.0, "remaining": 300.0}])
+			await _wait_seconds(0.3)
+			main.get("debt_panel").call("open")
+			await _wait_seconds(0.3)
+		"debt_paid":
+			_set_chips(1e6)
+			_set_debts([{"principal": 10.0, "remaining": 10.0}])
+			game_state.call("repay_all", 0)
+			await _wait_seconds(3.5)
 		_:
 			push_error("capture: 모르는 시나리오 %s" % scenario)
 	await _wait_frames(1)

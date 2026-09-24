@@ -184,3 +184,31 @@ RETURN_CLAIM,받기,Claim
 RETURN_CAP_APPLIED,(최대 %s시간 적용),(capped at %s hours)
 RETURN_DEBT_REPAID,오프라인 중 빚 %s 자동 상환,%s of debt auto-repaid while away
 TOAST_OFFLINE_CLAIMED,오프라인 수익을 받았어요,Offline earnings collected
+BARON_LOAN_1,"찍찍… 이런, 주머니가 가벼워 보이는구먼. 걱정 말게, 친구. 이 래칫이 도와주지.","Squeak-squeak... my, your pockets look awfully light. Don't worry, friend. Ol' Ratchet will help you out."
+BARON_LOAN_2,행운의 여신이 잠깐 한눈을 판 모양이군. 그동안 내가 자리를 채워주지. 물론… 공짜는 아니고.,Looks like Lady Luck blinked for a moment. I'll fill in for her meanwhile. Of course... not for free.
+BARON_LOAN_3,"쯧쯧, 빈털터리라니 볼썽사납군. 자, 이 래칫 남작이 손 좀 내밀어 볼까?","Tsk tsk, penniless is such a poor look. Come now, let Baron Ratchet lend a hand."
+BARON_LOAN_4,돈이 궁하다고? 마침 잘 됐어. 나만큼 후한 사람도 없거든… 이자만 빼면 말이지.,"Short on cash? Perfect timing. No one's more generous than me... interest aside, that is."
+BARON_LOAN_5,"허허, 신사분이 이런 꼴이라니. 여기 계약서 한 장이면 다 해결되네.","Ha ha, a gentleman brought this low. One little contract and it's all sorted."
+BARON_LOAN_REPEAT_2,또 만났군! 단골은 언제나 환영이야. 이자도 환영이고.,We meet again! Regulars are always welcome. So is the interest.
+BARON_LOAN_REPEAT_3,"자네, 내 딸 결혼 자금을 책임질 셈인가? 좋아, 좋아.","Planning to fund my daughter's wedding, are you? Good, good."
+BARON_LOAN_OVERFLOW,"장부가 꽉 찼는데… 뭐, 한 줄 더 쓰지.","My ledger's full... eh, I'll just add one more line."
+BARON_PAID_1,훌륭해! 자네 같은 손님만 있으면 내 장사도 망하겠군. 하하!,"Splendid! If all my customers were like you, I'd go out of business. Ha ha!"
+BARON_PAID_2,"말끔하군, 말끔해! 역시 믿음직한 손님이야.","Spotless, spotless! A trustworthy customer indeed."
+BARON_PAID_3,"이런, 빚이 없다니 섭섭한걸. 뭐, 또 필요하면 언제든 찾아오게.","Oh, no debt at all? How disappointing. Well, come find me anytime you need."
+CONTRACT_TITLE,대출 계약서,Loan Contract
+CONTRACT_PRINCIPAL,대출액 %s,Loan amount %s
+CONTRACT_REPAY,상환액 %s,Repayment %s
+CONTRACT_METHOD,상환 방식: 당첨금의 25% 자동 상환,Repayment: 25% of winnings auto-deducted
+CONTRACT_SIGN_BUTTON,서명한다,Sign
+DEBT_PANEL_TITLE,빚 내역,Debts
+DEBT_PRINCIPAL,원금 %s,Principal %s
+DEBT_REMAINING,잔액 %s,Remaining %s
+BUTTON_REPAY_ALL,전액 상환,Repay All
+BUTTON_REPAY_HALF,절반 상환,Repay Half
+LABEL_REPAID,상환,repaid
+PENALTY_WATCHER,감시하는 부하,Watchful Goon
+PENALTY_PICKPOCKET,소매치기,Pickpocket
+PENALTY_SMOKE,시가 연기,Cigar Smoke
+PENALTY_BLUR,흐려진 구슬,Blurred Marble
+PENALTY_SEIZE,압류,Seizure
+PENALTY_CLOVER_FEE,클로버 수수료,Clover Fee

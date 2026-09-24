@@ -10,6 +10,7 @@ extends Control
 const WHEEL_CENTER := Vector2(262, 192)
 const HISTORY_POS := Vector2(4, 28)
 const RIGHT_PANEL_POS := Vector2(420, 28)
+const DEBT_PANEL_POS := Vector2(420, 26)
 const RIGHT_PANEL_SIZE := Vector2(216, 328)
 const SPIN_AREA_POS := Vector2(104, 316)
 ## 스킬트리·설정·통계처럼 상단 바 아래 전체를 덮는 오버레이의 공통 위치(640×336).
@@ -68,6 +69,7 @@ var upgrade_panel: UpgradePanel
 var promotion: MarblePromotion
 var golden_badge: GoldenBadge
 var spin_controls: SpinControls
+var debt_panel: DebtPanel
 var result_badge: ResultBadge
 var float_layer: Control
 var flying_chips: FlyingChips
@@ -79,6 +81,12 @@ var settings_overlay: SettingsScreen
 var stats_screen: StatsScreen
 var pause_menu: PauseMenu
 var return_popup: ReturnPopup
+var baron_loan_seq: BaronLoanSequence
+var baron_payoff_seq: BaronPayoffSequence
+var penalty_toast: PenaltyToast
+var smoke_overlay: SmokeOverlay
+var _underling: UnderlingRat = null
+var _underling_leaving: bool = false
 var toasts: ToastLayer
 var tooltip_layer: TooltipLayer
 var shaker: ScreenShake
@@ -106,10 +114,16 @@ func _ready() -> void:
 	EventBus.milestone_reached.connect(_on_milestone)
 	EventBus.upgrade_purchased.connect(_on_upgrade_purchased)
 	EventBus.golden_pockets_added.connect(_on_golden_pockets_added)
+	EventBus.bankrupt.connect(_on_bankrupt)
+	EventBus.debt_changed.connect(_on_debt_changed)
+	EventBus.penalty_triggered.connect(_on_penalty_triggered)
+	EventBus.buff_started.connect(_on_penalty_buff_started)
+	EventBus.buff_ended.connect(_on_penalty_buff_ended)
 	wheel.spin_finished.connect(_on_wheel_finished)
 	_refresh_spin_state()
 	_attach_debug_panel()
 	_show_return_popup_if_needed()
+	_resume_baron_event_if_needed()
 
 
 ## 저장 불러오기(있으면). 스핀 도중 저장된 것이 있으면 연출 없이 즉시 정산한다. UI 를 만들기 전에 해서
@@ -125,6 +139,128 @@ func _show_return_popup_if_needed() -> void:
 		return
 	return_popup.position = ((Vector2(640, 360) - ReturnPopup.SIZE) * 0.5).round()
 	return_popup.open(offline)
+
+
+# ── 빚·래칫 남작(5단계) ───────────────────────────────────
+
+func _on_bankrupt() -> void:
+	GameState.auto_spin_enabled = false
+	_start_loan_sequence()
+
+
+func _start_loan_sequence() -> void:
+	GameState.penalty_manager.suppressed = true
+	spin_controls.set_spin_enabled(false)
+	baron_loan_seq.play(GameState.pending_baron_event)
+
+
+func _on_loan_signed(_principal: float, _repay: float) -> void:
+	var source := baron_loan_seq.contract.global_position + ContractPopup.SIZE * 0.5
+	flying_chips.launch([source], top_bar.chip_target(), 3)
+	AudioManager.play_sfx("chip_bag_toss")
+
+
+func _on_loan_sequence_finished() -> void:
+	GameState.penalty_manager.suppressed = false
+	GameState.pending_baron_event = {}
+	SaveManager.save_game()
+	_refresh_spin_state()
+
+
+## 완납은 debt_changed 로 감지한다(자동 상환·수동 상환 어느 쪽이든 총 빚이 0이 되면 GameState 가 예약해 둔다).
+func _on_debt_changed() -> void:
+	if String(GameState.pending_baron_event.get("type", "")) == "debt_paid" and not baron_payoff_seq.is_playing():
+		_start_payoff_sequence()
+
+
+func _start_payoff_sequence() -> void:
+	GameState.penalty_manager.suppressed = true
+	spin_controls.set_spin_enabled(false)
+	baron_payoff_seq.play()
+
+
+func _on_payoff_clover_moment() -> void:
+	flying_chips.launch([baron_payoff_seq.baron.global_position], top_bar.clover_target(), 2, FlyingChips.Icon.CLOVER)
+
+
+func _on_payoff_sequence_finished() -> void:
+	GameState.penalty_manager.suppressed = false
+	GameState.pending_baron_event = {}
+	SaveManager.save_game()
+	_refresh_spin_state()
+
+
+## 남작 컷신이 안 끝난 채로 저장됐다가 불러왔으면 처음부터 다시 보여준다(수치는 이미 반영돼 있다 — 연출만 재생).
+func _resume_baron_event_if_needed() -> void:
+	match String(GameState.pending_baron_event.get("type", "")):
+		"loan":
+			_start_loan_sequence()
+		"debt_paid":
+			_start_payoff_sequence()
+
+
+# ── 패널티 시각 효과(5단계, ART_BIBLE 11-6) ────────────────
+
+const UNDERLING_ENTER_X := 60.0
+const UNDERLING_STAND_X := 175.0
+const UNDERLING_Y := 300.0
+
+## 즉시·소모형 패널티(소매치기·압류·클로버 수수료)의 1회성 연출. 토스트는 PenaltyToast 가 스스로 처리한다.
+func _on_penalty_triggered(id: String, _duration: float) -> void:
+	match id:
+		"pickpocket":
+			PickpocketDash.spawn(_layer_root(fx_layer))
+		"seize_marble":
+			bet_panel.board.play_seizure_stamp()
+
+
+## 시간제 패널티(감시하는 부하·흐려진 구슬·시가 연기) 시작. buff_started 는 stage 6 버프와도 공유하므로 모르는 id 는 무시한다.
+func _on_penalty_buff_started(id: String, _duration: float) -> void:
+	match id:
+		"watcher":
+			_spawn_underling()
+		"blur":
+			MarbleSprite.set_desaturate(1.0)
+		"smoke":
+			smoke_overlay.start()
+
+
+func _on_penalty_buff_ended(id: String) -> void:
+	match id:
+		"watcher":
+			_dismiss_underling()
+		"blur":
+			MarbleSprite.set_desaturate(0.0)
+		"smoke":
+			smoke_overlay.stop()
+
+
+func _spawn_underling() -> void:
+	if _underling != null:
+		return
+	_underling = UnderlingRat.new()
+	_underling.position = Vector2(UNDERLING_ENTER_X, UNDERLING_Y)
+	_underling.arrived.connect(_on_underling_arrived)
+	world.add_child(_underling)
+	_underling_leaving = false
+	_underling.walk_to(UNDERLING_STAND_X)
+
+
+func _dismiss_underling() -> void:
+	if _underling == null:
+		return
+	_underling_leaving = true
+	_underling.walk_to(UNDERLING_ENTER_X)
+
+
+func _on_underling_arrived() -> void:
+	if _underling == null:
+		return
+	if _underling_leaving:
+		_underling.queue_free()
+		_underling = null
+	else:
+		_underling.lean()
 
 
 func _build_world() -> void:
@@ -167,6 +303,11 @@ func _build_ui() -> void:
 	spin_controls.position = SPIN_AREA_POS
 	root.add_child(spin_controls)
 	spin_controls.spin_pressed.connect(request_spin)
+	debt_panel = DebtPanel.new()
+	debt_panel.position = DEBT_PANEL_POS
+	debt_panel.visible = false
+	root.add_child(debt_panel)
+	top_bar.debt_clicked.connect(debt_panel.toggle)
 	result_badge = ResultBadgeScene.instantiate()
 	root.add_child(result_badge)
 	golden_badge = GoldenBadge.new()
@@ -220,6 +361,18 @@ func _build_fx() -> void:
 	return_popup.visible = false
 	return_popup.claimed.connect(func() -> void: EventBus.toast_requested.emit(tr("TOAST_OFFLINE_CLAIMED"), "chip"))
 	root.add_child(return_popup)
+	baron_loan_seq = BaronLoanSequence.new()
+	baron_loan_seq.signed.connect(_on_loan_signed)
+	baron_loan_seq.finished.connect(_on_loan_sequence_finished)
+	root.add_child(baron_loan_seq)
+	baron_payoff_seq = BaronPayoffSequence.new()
+	baron_payoff_seq.clover_moment.connect(_on_payoff_clover_moment)
+	baron_payoff_seq.finished.connect(_on_payoff_sequence_finished)
+	root.add_child(baron_payoff_seq)
+	penalty_toast = PenaltyToast.new()
+	root.add_child(penalty_toast)
+	smoke_overlay = SmokeOverlay.new()
+	root.add_child(smoke_overlay)
 	tooltip_layer = TooltipLayer.new()
 	root.add_child(tooltip_layer)
 	pause_menu = PauseMenu.new()
@@ -249,7 +402,7 @@ func _layer_root(layer: CanvasLayer) -> Control:
 
 ## SPIN 버튼·Space. 스핀 중이면 남은 연출을 감는다(스킵). 연출 중에도 다음 스핀을 바로 시작할 수 있다.
 func request_spin() -> void:
-	if jackpot.is_open:
+	if jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing():
 		return
 	if wheel.spinning:
 		wheel.skip()
@@ -289,7 +442,18 @@ func _on_spin_resolved(outcome: SpinOutcome) -> void:
 	result_badge.show_results(outcome.results)
 	var winners := bet_panel.board.show_outcome(outcome)
 	play_tier_effects(outcome, winners)
+	_show_debt_repay_if_any()
 	_refresh_spin_state()
+
+
+## 자동 상환이 있었던 스핀: 순이익 텍스트 아래 작게 "−N 상환" + 칩 2개가 빚 두루마리로 날아간다(GDD 9장).
+func _show_debt_repay_if_any() -> void:
+	var repaid := controller.last_debt_repaid
+	if repaid <= 0.0:
+		return
+	var text := "-%s %s" % [NumberFormat.format(repaid), tr("LABEL_REPAID")]
+	FloatingText.spawn(float_layer, text, "Num7Red", TEXT_ANCHOR + Vector2(0, 16))
+	flying_chips.launch([top_bar.chip_target()], top_bar.debt_target(), 2)
 
 
 ## 등급별 당첨 연출(ART_BIBLE 7장). full 이 false 면(오토 스핀 중 BIG 미만, 또는 "간략" 설정) 파티클·배너·
@@ -543,7 +707,11 @@ func _update_pause_freeze() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("spin"):
-		if promotion.is_playing():
+		if baron_loan_seq.is_playing():
+			baron_loan_seq.advance_input()
+		elif baron_payoff_seq.is_playing():
+			baron_payoff_seq.advance_input()
+		elif promotion.is_playing():
 			promotion.skip()
 		elif jackpot.is_open:
 			jackpot.close()

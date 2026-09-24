@@ -27,6 +27,11 @@ const TRAY_Y := 210.0
 const TRAY_H := 14.0
 const TRAY_LABEL_W := 40.0
 const TRAY_STEP := 14.0
+## 압류 패널티(5단계): 트레이 마지막 구슬에 빨간 도장이 찰싹 찍힌다.
+const SEIZE_STAMP := preload("res://assets/sprites/fx/seizure_stamp.png")
+const SEIZE_STAMP_TIME := 0.6
+const SEIZE_SHAKE_TIME := 0.2
+const SEIZE_SHAKE_PX := 1
 const HOLE_SIZE := 12
 const MARBLE := 10
 const TOKEN := 11
@@ -93,6 +98,8 @@ var _press_from_tray: bool = false
 var _drag: Dictionary = {}
 var _hint_time: float = -1.0
 var _clock: float = 0.0
+var _seize_stamp_time: float = -1.0
+var _seize_stamp_pos := Vector2.ZERO
 var _marble_texture: Texture2D
 var _small_font: Font
 var _marble_layer: Control
@@ -627,7 +634,18 @@ func _process(delta: float) -> void:
 			if float(item["alpha"]) >= 1.0:
 				centers.append(Vector2(item["pos"]) + Vector2(MARBLE, MARBLE) * 0.5)
 		_lens.set_centers(centers)
+	if _seize_stamp_time >= 0.0:
+		_seize_stamp_time += delta
+		if _seize_stamp_time > SEIZE_STAMP_TIME:
+			_seize_stamp_time = -1.0
 	_redraw_layers()
+
+
+## 압류 패널티(5단계): 트레이 마지막 구슬 자리에 도장이 찍힌다 → 잠깐 뒤 marble_slots() 감소로 실제 칸 수가 줄어든다.
+func play_seizure_stamp() -> void:
+	_seize_stamp_pos = _tray_hole_pos(maxi(tray_count() - 1, 0))
+	_seize_stamp_time = 0.0
+	AudioManager.play_sfx("stamp_thud", 1.3, -4.0)
 
 
 func _update_slot_anims(delta: float) -> void:
@@ -752,6 +770,12 @@ func _draw_front() -> void:
 			var visible_count := mini(count, STACK_VISIBLE)
 			var badge_pos := _marble_pos(key, visible_count - 1) + Vector2(MARBLE + 1, 8)
 			_front_layer.draw_string(BADGE_FONT, badge_pos, "x" + NumberFormat.format(count), HORIZONTAL_ALIGNMENT_LEFT, -1, BADGE_FONT_SIZE, Color.WHITE)
+	if _seize_stamp_time >= 0.0:
+		var shake := 0
+		if _seize_stamp_time < SEIZE_SHAKE_TIME:
+			shake = SEIZE_SHAKE_PX if int(_seize_stamp_time / 0.05) % 2 == 0 else -SEIZE_SHAKE_PX
+		var fade := 1.0 - clampf((_seize_stamp_time - (SEIZE_STAMP_TIME - 0.15)) / 0.15, 0.0, 1.0)
+		_front_layer.draw_texture(SEIZE_STAMP, (_seize_stamp_pos + Vector2(shake, 0) - Vector2(3, 3)).round(), Color(1, 1, 1, fade))
 
 
 ## 황금 포켓 칸: 금 테두리 + 안쪽 은은한 금빛(빛줄기가 휠에 닿은 뒤부터).

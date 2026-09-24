@@ -477,6 +477,105 @@ def promote_jingle(name: str, level: int) -> None:
     write(name, reverb(mix(*parts), 0.32, 0.8, 0.7), 0.88)
 
 
+# ── 5단계: 래칫 남작 ──────────────────────────────────────
+
+def dialogue_blip_baron() -> None:
+    """대사 타자기 목소리 '삑'. 낮고 찍찍거리는 톤(DialogueBox 가 호출마다 피치를 흔든다)."""
+    body = tone("square", 190, 150, 0.05, 0.002, 0.04) * 0.7
+    squeak = tone("tri", 420, 340, 0.05, 0.001, 0.025) * 0.3
+    x = lowpass(body + squeak, 3200)
+    write("dialogue_blip_baron", x, 0.5)
+
+
+def baron_footstep() -> None:
+    n = at(0.16)
+    thud = np.sin(phase_from_freq(np.geomspace(110, 60, n))) * exp_decay(n, 0.05)
+    knock = highpass(noise(n), 800) * exp_decay(n, 0.02) * 0.4
+    write("baron_footstep", lowpass(thud * 0.8 + knock, 2500), 0.55)
+
+
+def baron_cane_tap() -> None:
+    n = at(0.13)
+    click = highpass(noise(n), 2000) * exp_decay(n, 0.004)
+    knock = np.sin(phase_from_freq(np.geomspace(700, 420, n))) * exp_decay(n, 0.03) * 0.6
+    write("baron_cane_tap", reverb(click * 0.6 + knock, 0.18, 0.3, 0.1), 0.6)
+
+
+def bass_drop() -> None:
+    """파산 시 저음 콘트라베이스 한 번."""
+    n = at(0.9)
+    fund = np.sin(phase_from_freq(np.full(n, note(33)))) * env_adsr(n, 0.015, 0.75, 0.25, 0.35)
+    growl = osc("saw", np.full(n, note(33))) * env_adsr(n, 0.02, 0.6, 0.15, 0.3) * 0.35
+    x = lowpass(fund + growl, 380)
+    write("bass_drop", reverb(x, 0.3, 0.7, 0.5), 0.85)
+
+
+def contract_unroll() -> None:
+    """양피지가 펼쳐지는 '스르륵'."""
+    n = at(0.6)
+    x = noise(n)
+    y = np.zeros(n)
+    acc = 0.0
+    sweep = np.sin(np.linspace(0, np.pi, n))
+    for i in range(n):
+        cutoff = 1200 + 2600 * sweep[i]
+        alpha = 1 - math.exp(-2 * math.pi * cutoff / SR)
+        acc += alpha * (x[i] - acc)
+        y[i] = acc
+    y *= sweep ** 0.7
+    write("contract_unroll", reverb(y, 0.22, 0.4, 0.15), 0.4)
+
+
+def quill_sign() -> None:
+    """깃펜으로 서명하는 '사각사각'(짧은 잡음을 불규칙 간격으로)."""
+    rng = np.random.default_rng(42)
+    total = at(0.8)
+    x = np.zeros(total)
+    t = 0.0
+    while t < 0.65:
+        dur = rng.uniform(0.03, 0.09)
+        m = at(dur)
+        s = at(t)
+        scratch = highpass(noise(m), 3500) * exp_decay(m, dur * 0.4) * rng.uniform(0.5, 1.0)
+        end = min(total, s + m)
+        x[s:end] += scratch[:end - s]
+        t += dur + rng.uniform(0.01, 0.05)
+    write("quill_sign", lowpass(x, 8000), 0.4)
+
+
+def stamp_thud() -> None:
+    """빨간 도장이 쾅 찍히는 소리."""
+    n = at(0.3)
+    thump = np.sin(phase_from_freq(np.geomspace(140, 55, n))) * exp_decay(n, 0.09)
+    crack = highpass(noise(at(0.02)), 1500) * exp_decay(at(0.02), 0.006)
+    x = np.zeros(n)
+    x[:len(crack)] += crack * 0.8
+    x += thump * 0.9
+    write("stamp_thud", reverb(lowpass(x, 3000), 0.2, 0.4, 0.2), 0.85)
+
+
+def chip_bag_toss() -> None:
+    """칩 자루가 상단 바로 던져지는 '휙 + 짤랑'."""
+    swish_n = at(0.24)
+    swish = highpass(noise(swish_n), 1000) * np.sin(np.linspace(0, np.pi, swish_n)) * 0.5
+    parts: list[tuple[np.ndarray, int]] = [(swish, 0)]
+    rng = np.random.default_rng(7)
+    for k in range(8):
+        f = rng.uniform(2600, 4200)
+        m = at(0.05)
+        chime = (np.sin(phase_from_freq(np.full(m, f))) + 0.4 * np.sin(phase_from_freq(np.full(m, f * 1.5)))) * exp_decay(m, 0.03)
+        parts.append((chime * 0.35, at(0.2 + k * 0.025)))
+    write("chip_bag_toss", reverb(mix(*parts), 0.2, 0.35, 0.15), 0.55)
+
+
+def pickpocket_squeak() -> None:
+    """소매치기 "찍!" (높고 짧은 쥐 울음)."""
+    n = at(0.22)
+    squeak = osc("tri", np.geomspace(1800, 900, n)) * env_adsr(n, 0.005, 0.15, 0.0, 0.05)
+    x = lowpass(squeak, 5000)
+    write("pickpocket_squeak", x, 0.6)
+
+
 def main() -> None:
     ui_hover()
     ui_click()
@@ -508,6 +607,15 @@ def main() -> None:
     promote_jingle("promote_jingle_1", 1)
     promote_jingle("promote_jingle_2", 2)
     promote_jingle("promote_jingle_3", 3)
+    dialogue_blip_baron()
+    baron_footstep()
+    baron_cane_tap()
+    bass_drop()
+    contract_unroll()
+    quill_sign()
+    stamp_thud()
+    chip_bag_toss()
+    pickpocket_squeak()
     print("sfx ok:", sorted(os.listdir(OUT)))
 
 

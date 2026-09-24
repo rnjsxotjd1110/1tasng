@@ -237,7 +237,8 @@ B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하�
 - **상환액** = 대출액 × 2 (`debt_repay_mult` 스탯으로 조정 가능)
 - 당첨금의 25%가 자동 상환되고, 수동 상환도 가능. 완납 시 클로버 +2.
 - 동시 대출 최대 3건. 4번째는 가장 큰 빚에 합산.
-- 빚이 있는 동안 60~120초마다(`penalty_interval_mult`) 랜덤 패널티(20~30초 지속):
+- 빚이 있는 동안 랜덤 패널티(20~30초 지속, 직전과 같은 종류 연속 금지)가 걸린다. 간격은 대출 건수가 늘수록 짧아진다
+  (`penalty_interval_mult` 로 추가 조정): 1건 60~120초 / 2건 45~90초 / 3건 30~60초.
 
 | 패널티 | 효과 | 수정자 |
 |---|---|---|
@@ -292,7 +293,8 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `floor_changed(floor_index: int)` | 층 이동 (7단계) |
 | `milestone_reached(suffix_index: int)` | 새 칩 단위 첫 도달 |
 | `buff_started(id: String, duration: float)` | 시간제 버프·패널티 시작 |
-| `buff_ended(id: String)` | 시간제 버프·패널티 종료 |
+| `buff_ended(id: String)` | 시간제 버프·패널티 종료(소모형 패널티는 charges 가 0 이 될 때도 발행) |
+| `penalty_triggered(id: String, duration: float)` | 패널티 발동(5단계, 토스트 표시용 — `buff_started` 와 별개로 즉시·소모형 패널티도 받는다) |
 | `toast_requested(text: String, icon: String)` | 알림 요청 |
 | `save_started()` | 저장 시작(4단계). TopBar 가 구석에 칩 회전 아이콘을 0.8초 보여준다 |
 | `save_finished(ok: bool)` | 저장 끝(저장은 동기 처리라 save_started 와 거의 동시) |
@@ -306,10 +308,12 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 
 ### 11-4. StatModifiers
 
-- 수정자: `{source_id, stat, op(ADD/MULT), value, duration(PERMANENT=-1)}`
+- 수정자: `{source_id, stat, op(ADD/MULT), value, duration(PERMANENT=-1), charges(5단계, -1=무제한)}`
 - `get_stat(key, base) = (base + ADD 합) × MULT 곱`. 스탯별 캐시, 변경 시 무효화.
 - 같은 source_id + stat 으로 다시 추가하면 **교체**(업그레이드 레벨 갱신에 사용).
-- `tick(delta)`: 시간제 수정자 만료 → source 의 수정자가 모두 사라지면 `source_expired` → GameState 가 `buff:` 접두어면 `EventBus.buff_ended` 로 전달.
+- `tick(delta)`: 시간제 수정자 만료 → source 의 수정자가 모두 사라지면 `source_expired` → GameState 가 `buff:`/`penalty:` 접두어면 `EventBus.buff_ended` 로 전달.
+- `consume_charges(source_id, amount=1)`(5단계): 시간이 아니라 "횟수"로 소모되는 수정자(압류=스핀 1회, 클로버 수수료=클로버 획득 1회)를
+  줄이고, 0 이하가 되면 duration 과 마찬가지로 제거·`source_expired` 발행.
 - `remove_source(source_id)`: 일괄 제거.
 - 스탯 키(`StatModifiers.ALL_STATS`): payout_mult_all, payout_mult_color, payout_mult_parity, straight_payout_bonus, marble_mult, floor_mult, golden_pocket_count, golden_pocket_mult, max_bet_mult, marble_slots_bonus, locked_marbles, extra_balls, spin_duration_mult, spin_delay, upgrade_cost_mult, cashback_rate, offline_efficiency, offline_cap_hours, clover_gain_mult, debt_repay_mult, penalty_interval_mult
 
@@ -405,3 +409,20 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | 복귀 팝업 | 딜러 루시 초상화가 없으면(`assets/sprites/npc/lucy_portrait.png` 존재 여부로 자동 판단) `icon_vault.png`. [받기] 를 누르면 `GameState.add_chips(income, count_as_earned=false)` | 오프라인 수익은 "당첨 반환액"이 아니므로 `total_earned` 통계에는 넣지 않는다(GDD 11-3 정의 유지). 8단계에서 초상화 파일만 추가하면 자동으로 바뀐다 |
 | auto_spin 이동 | `Main.auto_spin`(항상 false 였던 6단계용 자리) 를 `GameState.auto_spin_enabled` 로 옮김 | 오프라인 수익·저장이 필요로 하는 값이라 GameState 소유가 맞음. `SpinControls.auto_locked` 는 여전히 true(6단계에서 스킬로 해금) |
 | 테스트 격리 | `tests/lib/test_case.gd` 의 공용 `before_each()` 가 `save.json/.tmp/.bak` 을 먼저 지운다 | `Main._ready()` 가 이제 `SaveManager.load_game()` 을 부르므로, 컨테이너에 실제로 남은 저장 파일이 있으면 Main 을 새로 만드는 모든 테스트가 그 값을 그대로 불러와 버린다(실제로 겪은 문제) |
+
+---
+
+## 16. 5단계에서 정한 세부 규칙 (빚·래칫 남작·대화·패널티)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 4번째 대출(합산) | 새 항목을 만들지 않고 **잔액이 가장 큰 기존 빚**에 원금·잔액을 그대로 더한다(`DebtService.take_loan`). 전용 대사(`loan_overflow`, "장부가 꽉 찼는데… 뭐, 한 줄 더 쓰지.") 로 표시 | "최대 3건" 규칙을 넘지 않으면서도 "빚이 하나 더 늘었다"는 사실 자체는 서사적으로 살려야 했다 |
+| 자동 상환 순서 | 여러 건일 때 **오래된 순**(배열 인덱스 순)으로 갚고, 한 건을 다 갚고 남은 초과분은 다음 빚으로 넘어간다(`DebtService.apply_auto_repay`) | 어느 빚부터 갚을지 원 설계에 명시가 없어 "먼저 진 빚부터"를 기본으로 정함 |
+| 완납 컷신 발동 조건 | 개별 대출이 0 이 되는 시점이 아니라 **총 빚(모든 대출 합)이 0** 이 되는 순간에만 발동(`GameState._repay_debt` 가 합계를 확인) | 여러 건 중 하나만 갚아도 매번 남작이 등장하면 과하다. "빚에서 완전히 벗어났다"는 순간만 컷신으로 축하 |
+| 수동 상환 버튼 의미 | `DebtPanel` 의 [전액 상환]=그 건의 **잔액 전부**, [절반 상환]=그 건의 **잔액의 50%**(원금 기준 아님, 매번 그 시점 잔액 기준) | 명세에 정확한 산식이 없어 "지금 남은 만큼"을 기준으로 통일. 둘 다 보유 칩으로 한도를 건다 |
+| 컷신 중단 후 재개 | 저장 시점에 아직 못 본 컷신은 `GameState.pending_baron_event` 에 남고, 다음 로드 때 **처음부터 다시 재생**한다(중간 지점 재현 아님) | 대출/완납으로 인한 실제 수치 변화(칩·debts 배열)는 파산·완납 감지 즉시 동기적으로 끝내고, 컷신은 그 결과를 보여주기만 하는 연출이다(스핀 도중 저장을 연출 없이 즉시 정산하는 4단계 패턴과 동일). 그래서 수치는 항상 정확하고 연출만 다시 보여주면 안전하다 |
+| 클로버 최소 1 | `GameState.add_clovers()`: 배율이 0 보다 크고 원래 수량도 0 보다 크면 결과가 최소 1 이 되도록 보정 | 클로버 수수료 패널티 전용 분기가 아니라 **일반 규칙**으로 넣었다 — 나중에 다른 배율 디버프가 추가돼도 "클로버 획득이 통째로 0" 이 되는 극단은 항상 막힌다 |
+| 소모형(charges) 수정자 | `StatModifiers.Modifier` 에 시간(`duration`)과 별개로 `charges` 축을 추가, `consume_charges()` 로 소모 | 압류(스핀 1회)·클로버 수수료(획득 1회)처럼 "시간"이 아니라 "횟수"로 끝나는 효과가 1단계부터 표현할 수단이 없었던 이슈를 최소 확장으로 해결 |
+| 패널티도 버프 체계 재사용 | 시간제 패널티(감시하는 부하·흐려진 구슬·시가 연기)는 `buff:` 가 아니라 `penalty:` 접두어만 다르고 나머지는 기존 시간제 수정자·`buff_started`/`buff_ended` 신호를 그대로 쓴다. 새 시그널은 토스트 표시에 필요한 `penalty_triggered(id, duration)` 1개뿐 | 이미 있는 시간제 만료·저장/복원 체계를 그대로 재사용해 중복 구현을 피함 |
+| 소매치기만 별도 방어 | `steal = min(chips × rate, max(0, chips − 최소베팅×3))` | 6종 중 유일하게 "즉시 차감"형이라 패널티 자체가 파산을 유발할 수 있는 경로였다. 나머지 5종은 배율·소모형 수정자라 애초에 칩을 직접 줄이지 않는다 |
+| 범위에서 뺀 것 | (1) BIG 이상 당첨 연출·오토스핀 중 패널티 억제는 `PenaltyManager.suppressed` 를 대화창·계약서 팝업 동안만 실제로 세운다(BIG+ 연출 중 억제는 발생 빈도가 낮아 이번 범위에서 제외). (2) 남작 컷신 중 음악 볼륨 덕킹은 음악 시스템 자체가 아직 없어(8단계 예정) 스킵 — 대신 `bass_drop` 효과음 한 번으로 파산 순간을 표현 | 명세의 핵심(대출·상환·패널티·컷신)에 집중하고, 아직 없는 시스템에 의존하는 디테일은 다음 단계로 미룸 |

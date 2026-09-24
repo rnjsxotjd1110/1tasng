@@ -22,6 +22,10 @@ uniform vec4 void_color = vec4(0.043, 0.039, 0.078, 1.0);
 uniform int style = 0;
 // 미리보기 회전 속도(rad/s, modulate.b 가 곱해진다)
 uniform float spin_rate = 1.6;
+// 5단계 "흐려진 구슬" 패널티: 0=평소, 1=완전 회색(MarbleSprite.set_desaturate 가 전역으로 켠다).
+uniform float desaturate : hint_range(0.0, 1.0) = 0.0;
+// 패널티 중에는 번쩍임(glint) 도 꺼서 "흐려진" 느낌을 강조한다.
+uniform bool suppress_glint = false;
 
 const vec3 T0 = vec3(59.0, 34.0, 24.0) / 255.0;
 const vec3 T1 = vec3(92.0, 53.0, 36.0) / 255.0;
@@ -306,7 +310,7 @@ void fragment() {
 	}
 
 	// 번쩍임(glint): 금속·금·보석은 주기적으로 대각선 빛이 스친다
-	if (style >= 2 && style <= 10 && idx >= 1) {
+	if (!suppress_glint && style >= 2 && style <= 10 && idx >= 1) {
 		float period = style == 5 ? 2.4 : 3.2;
 		float t = fract(TIME / period);
 		if (t < 0.4) {
@@ -320,6 +324,8 @@ void fragment() {
 		col = shade_color(s);
 	}
 	col.rgb = mix(void_color.rgb, col.rgb, clamp(inst.r, 0.0, 1.0));
+	float gray = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+	col.rgb = mix(col.rgb, vec3(gray), desaturate);
 	col.a = inst.a;
 	COLOR = col;
 }

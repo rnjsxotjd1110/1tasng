@@ -26,13 +26,16 @@ const ARROW_BOB_PX := 2
 const COMMA_CHARS := [",", "，"]
 const STOP_CHARS := [".", "!", "?", "…"]
 
-## 남작 초상화 프레임 순서(ART_BIBLE 11-1): 0 기본 1 웃음 2 교활한 미소 3 놀람 4 만족(모자 벗음) 5·6 입벙긋.
+## 초상화 프레임 순서(ART_BIBLE 11-1/11-3): 0 기본 1 웃음 2 교활한 미소/윙크 3 놀람 4 만족 5·6 입벙긋.
 const PORTRAIT_FRAME_INDEX := {"neutral": 0, "smile": 0, "laugh": 1, "sly": 2, "surprised": 3, "satisfied": 4}
+const LUCY_PORTRAIT_FRAME_INDEX := {"neutral": 0, "smile": 0, "laugh": 1, "wink": 2, "surprised": 3, "satisfied": 4}
 const TALK_FRAMES := [5, 6]
-const PORTRAIT_SHEET := preload("res://assets/sprites/npc/baron_portrait.png")
 const PORTRAIT_FRAME_SIZE := 64
-## 화자 번역 키 → 목소리 '삑' 효과음 id(8단계 이후 루시·벨벳 추가 시 여기에 등록).
-const VOICE_BY_SPEAKER := {"NPC_RATCHET": "dialogue_blip_baron"}
+## 화자 번역 키 → (초상화 시트, 프레임 순서, 목소리 '삑' 효과음 id). 새 화자를 추가할 때 여기에 등록한다.
+const SPEAKERS := {
+	"NPC_RATCHET": {"sheet": "res://assets/sprites/npc/baron_portrait.png", "frames": PORTRAIT_FRAME_INDEX, "voice": "dialogue_blip_baron"},
+	"NPC_LUCY": {"sheet": "res://assets/sprites/npc/lucy_portrait.png", "frames": LUCY_PORTRAIT_FRAME_INDEX, "voice": "dialogue_blip_lucy"},
+}
 
 var _panel: Panel
 var _portrait: TextureRect
@@ -53,6 +56,7 @@ var _char_accum: float = 0.0
 var _pause_left: float = 0.0
 var _talk_toggle: bool = false
 var _arrow_time: float = 0.0
+var _sheet_cache: Dictionary = {}
 
 
 func _ready() -> void:
@@ -66,7 +70,6 @@ func _ready() -> void:
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
 	_portrait_atlas = AtlasTexture.new()
-	_portrait_atlas.atlas = PORTRAIT_SHEET
 	_portrait = TextureRect.new()
 	_portrait.texture = _portrait_atlas
 	_portrait.position = PORTRAIT_POS
@@ -106,8 +109,10 @@ func say(entry: Dictionary) -> void:
 ## entry 의 대사가 끝난 뒤 choice_keys(번역 키)로 선택지를 보여준다. 고르면 choice_made(index) 후 finished().
 func ask(entry: Dictionary, choice_keys: Array[String]) -> void:
 	var speaker_key := String(entry.get("speaker", ""))
-	_portrait_frame = PORTRAIT_FRAME_INDEX.get(String(entry.get("portrait", "neutral")), 0)
-	_voice_id = String(VOICE_BY_SPEAKER.get(speaker_key, ""))
+	var info: Dictionary = SPEAKERS.get(speaker_key, SPEAKERS["NPC_RATCHET"])
+	_portrait_atlas.atlas = _load_sheet(String(info["sheet"]))
+	_portrait_frame = (info["frames"] as Dictionary).get(String(entry.get("portrait", "neutral")), 0)
+	_voice_id = String(info["voice"])
 	_lines = []
 	for key in entry.get("lines", []):
 		_lines.append(tr(String(key)))
@@ -134,6 +139,12 @@ func advance() -> void:
 
 func is_open() -> bool:
 	return visible
+
+
+func _load_sheet(path: String) -> Texture2D:
+	if not _sheet_cache.has(path):
+		_sheet_cache[path] = load(path)
+	return _sheet_cache[path]
 
 
 func _next_line() -> void:

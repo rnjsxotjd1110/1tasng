@@ -27,7 +27,10 @@ const COMBO_RESET := 0.9
 var mode: UpgradeService.BuyMode = UpgradeService.BuyMode.ONE
 var cards: Array[UpgradeCard] = []
 var mode_buttons: Dictionary = {}
+var auto_toggle: Button
+var auto_slider: HSlider
 
+var _title_label: Label
 var _view: Control
 var _content: Control
 var _scroll: float = 0.0
@@ -45,13 +48,14 @@ func _ready() -> void:
 	bg.size = PANEL_SIZE
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
-	var title := Label.new()
-	title.text = "UPGRADE_PANEL_TITLE"
-	title.theme_type_variation = "LabelTitle"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, TITLE_Y)
-	title.size = Vector2(PANEL_SIZE.x, 16)
-	add_child(title)
+	_title_label = Label.new()
+	_title_label.text = "UPGRADE_PANEL_TITLE"
+	_title_label.theme_type_variation = "LabelTitle"
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label.position = Vector2(0, TITLE_Y)
+	_title_label.size = Vector2(PANEL_SIZE.x, 16)
+	add_child(_title_label)
+	_build_auto_row()
 	_build_mode_row()
 	_view = Control.new()
 	_view.position = VIEW_RECT.position
@@ -76,7 +80,42 @@ func _ready() -> void:
 	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: refresh())
 	EventBus.upgrade_purchased.connect(func(_id: String, _l: int) -> void: refresh())
 	EventBus.floor_changed.connect(func(_i: int) -> void: refresh())
+	EventBus.skill_purchased.connect(func(_id: String, _l: int) -> void: refresh_auto_upgrade_unlock())
 	visibility_changed.connect(_on_visibility_changed)
+	refresh_auto_upgrade_unlock()
+
+
+## 오토 업그레이드(M7) 해금 여부에 따라 제목 대신 토글+예산 슬라이더를 보여준다.
+func _build_auto_row() -> void:
+	auto_toggle = Button.new()
+	auto_toggle.text = "BUTTON_AUTO"
+	auto_toggle.theme_type_variation = "ButtonDark"
+	auto_toggle.toggle_mode = true
+	auto_toggle.focus_mode = Control.FOCUS_NONE
+	auto_toggle.position = Vector2(CONTENT_X, TITLE_Y - 2)
+	auto_toggle.size = Vector2(40, 18)
+	auto_toggle.visible = false
+	auto_toggle.toggled.connect(func(on: bool) -> void: GameState.auto_upgrade_enabled = on)
+	add_child(auto_toggle)
+	auto_slider = HSlider.new()
+	auto_slider.min_value = 0.1
+	auto_slider.max_value = 1.0
+	auto_slider.step = 0.1
+	auto_slider.position = Vector2(CONTENT_X + 44, TITLE_Y + 2)
+	auto_slider.size = Vector2(PANEL_SIZE.x - CONTENT_X * 2 - 44, 12)
+	auto_slider.visible = false
+	auto_slider.value_changed.connect(func(v: float) -> void: GameState.auto_upgrade_ratio = v)
+	add_child(auto_slider)
+
+
+func refresh_auto_upgrade_unlock() -> void:
+	var unlocked := SkillService.has_feature("auto_upgrade")
+	auto_toggle.visible = unlocked
+	auto_slider.visible = unlocked
+	_title_label.visible = not unlocked
+	if unlocked:
+		auto_toggle.set_pressed_no_signal(GameState.auto_upgrade_enabled)
+		auto_slider.set_value_no_signal(GameState.auto_upgrade_ratio)
 	_select_mode(mode)
 
 

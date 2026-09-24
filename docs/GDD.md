@@ -325,7 +325,9 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `wheel_of_fortune_ready()` | 운명의 휠(Y14) 등장 시각. `GameState.wheel_of_fortune_consumed()` 로 다음 주기 시작 |
 | `golden_storm_triggered(spins: int)` | 황금 폭풍(Y12) 발동 |
 | `destiny_flip(from_number: int, to_number: int)` | 운명 뒤집기(Y8) 재판정 발생 |
-| `auto_spin_stopped(reason: String)` | 오토 스핀이 자동으로 꺼짐(칩 부족·베팅 없음) |
+| `auto_spin_stopped(reason: String)` | 오토 스핀이 자동으로 꺼짐(칩 부족·베팅 없음·대화 시작·파산) |
+| `streak_clover_earned(count: int)` | 5연승 클로버 지급(연출용, 클로버 자체는 `clovers_changed` 로도 옴) |
+| `first_clover_earned()` | 살면서 처음 클로버 획득 — 스킬트리 탭 자물쇠 해제 + 루시 대사 트리거 |
 
 ### 11-3. GameState
 

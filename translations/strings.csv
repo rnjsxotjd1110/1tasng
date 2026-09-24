@@ -73,9 +73,39 @@ HINT_PLACE_BET,칸을 눌러 구슬을 올리세요,Click a spot to place a marb
 TIP_STRAIGHT,스트레이트 %s,Straight %s
 TIP_BET,%s · %s:1 · 예상 당첨금 %s,%s · %s:1 · Win %s
 AUTO_LOCKED_TIP,스킬트리에서 해금,Unlock in the Skill Tree
+AUTO_STOP_NO_BETS,베팅이 없어 오토 스핀을 멈췄습니다,No bets -- Auto Spin stopped
+AUTO_STOP_NOT_ENOUGH_CHIPS,칩이 부족해 오토 스핀을 멈췄습니다,Not enough chips -- Auto Spin stopped
+AUTO_STOP_BANKRUPT,파산해서 오토 스핀을 멈췄습니다,Bankrupt -- Auto Spin stopped
+AUTO_STOP_DIALOGUE,대화가 시작돼 오토 스핀을 멈췄습니다,A conversation started -- Auto Spin stopped
+STRATEGY_KEEP,전략: 유지,Strategy: Keep
+STRATEGY_STABLE,전략: 안정,Strategy: Stable
+STRATEGY_AGGRESSIVE,전략: 공격적,Strategy: Aggressive
+STRATEGY_HOT_NUMBERS,전략: 핫 넘버,Strategy: Hot Numbers
+STRATEGY_MARTINGALE,전략: 마틴게일,Strategy: Martingale
+BUFF_FEVER_DESC,피버 타임: 모든 배당 상승 중,Fever Time: all payouts boosted
+BUFF_JACKPOT_CHAIN_DESC,잭팟 체인: 남은 스핀 동안 배당 상승,Jackpot Chain: payouts boosted for remaining spins
+BUFF_GOLDEN_STORM_DESC,황금 폭풍: 다음 스핀 모든 포켓이 황금,Golden Storm: every pocket golden next spin
+BUFF_MARBLE_BOOST_DESC,운명의 휠 보너스: 구슬 재질 임시 상승,Wheel of Fortune bonus: temporary marble upgrade
+PROPHECY_TOOLTIP,다음 스핀 색 예감(정확하지 않을 수 있음),A hunch about the next spin's color (may be wrong)
+FEVER_BANNER,FEVER!,FEVER!
+DESTINY_FLIP_TEXT,운명 역전!,Fate Reversed!
+PIGGY_BANK_TOOLTIP,황금 저금통: 순이익이 쌓이면 100스핀마다 깨진다,Golden Piggy Bank: breaks every 100 spins if profitable
+WHEEL_OF_FORTUNE_TITLE,운명의 휠,Wheel of Fortune
+WHEEL_OF_FORTUNE_HINT,클릭해서 돌리기,Click to spin
 COMING_SOON,준비 중입니다,Coming soon
 UPGRADE_PANEL_TITLE,업그레이드,Upgrades
 SKILLTREE_TITLE,스킬트리,Skill Tree
+SKILLTREE_INVESTED,투자 %s / %s,Invested %s / %s
+BUTTON_CENTER,중앙,Center
+BRANCH_CORE,코어,Core
+BRANCH_FORTUNE,포춘,Fortune
+BRANCH_MACHINE,머신,Machine
+BRANCH_ECONOMY,이코노미,Economy
+BRANCH_MYSTIC,미스틱,Mystic
+TIP_SKILL_COST,비용 클로버 %s,Cost %s clovers
+TIP_SKILL_LOCKED,필요: %s,Requires: %s
+PREREQ_OR,또는,or
+PREREQ_AND,그리고,and
 SETTINGS_TITLE,설정,Settings
 JACKPOT_CONTINUE,클릭해서 계속,Click to continue
 RESULT_ZERO,제로,Zero
@@ -195,6 +225,9 @@ BARON_LOAN_OVERFLOW,"장부가 꽉 찼는데… 뭐, 한 줄 더 쓰지.","My le
 BARON_PAID_1,훌륭해! 자네 같은 손님만 있으면 내 장사도 망하겠군. 하하!,"Splendid! If all my customers were like you, I'd go out of business. Ha ha!"
 BARON_PAID_2,"말끔하군, 말끔해! 역시 믿음직한 손님이야.","Spotless, spotless! A trustworthy customer indeed."
 BARON_PAID_3,"이런, 빚이 없다니 섭섭한걸. 뭐, 또 필요하면 언제든 찾아오게.","Oh, no debt at all? How disappointing. Well, come find me anytime you need."
+LUCY_SKILLTREE_UNLOCK_1,"어머, 클로버가 반짝이네요! 스킬트리 문이 열렸어요 — 이제부터가 진짜 재미랍니다.","Ooh, look at that clover shine! The skill tree door just opened -- now the real fun begins."
+LUCY_SKILLTREE_UNLOCK_2,"클로버 하나로 문을 여셨네요. 저 루시가 안내해 드릴게요, 후회 없을 거예요.","One clover, and you've already opened the door. I'm Lucy -- let me show you around."
+LUCY_SKILLTREE_UNLOCK_3,"축하해요! 첫 클로버예요. 스킬트리에서 절 훨씬 더 자주 보게 될 거예요!","Congratulations! Your first clover. You'll be seeing a lot more of me in the skill tree!"
 CONTRACT_TITLE,대출 계약서,Loan Contract
 CONTRACT_PRINCIPAL,대출액 %s,Loan amount %s
 CONTRACT_REPAY,상환액 %s,Repayment %s

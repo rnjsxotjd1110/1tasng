@@ -1,0 +1,7 @@
+{
+  "skilltree_unlock": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_SKILLTREE_UNLOCK_1"]},
+    {"speaker": "NPC_LUCY", "portrait": "wink", "lines": ["LUCY_SKILLTREE_UNLOCK_2"]},
+    {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_SKILLTREE_UNLOCK_3"]}
+  ]
+}

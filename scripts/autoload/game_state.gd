@@ -95,6 +95,8 @@ var investment_timer: float = 0.0
 var fever_spin_count: int = 0
 ## 운명의 휠(Y14) 등장까지 남은 시간(초). Y14 를 처음 사면 주기로 채워진다.
 var wheel_of_fortune_timer: float = -1.0
+## 살면서 클로버를 한 번이라도 얻었는지(스킬트리 버튼 자물쇠 해제는 최초 1회만 재생).
+var first_clover_seen: bool = false
 
 
 func _ready() -> void:
@@ -192,6 +194,7 @@ func reset() -> void:
 	investment_timer = 0.0
 	fever_spin_count = 0
 	wheel_of_fortune_timer = -1.0
+	first_clover_seen = false
 	emergency_fund_tracker.reset()
 	emergency_fund_cooldown = 0.0
 	stats = {
@@ -282,6 +285,9 @@ func add_clovers(amount: int) -> int:
 		gained += 1
 	clovers += gained
 	EventBus.clovers_changed.emit(clovers, gained)
+	if not first_clover_seen:
+		first_clover_seen = true
+		EventBus.first_clover_earned.emit()
 	consume_penalty_charge(PENALTY_ID_CLOVER_FEE)
 	return gained
 
@@ -815,6 +821,7 @@ func to_dict() -> Dictionary:
 		"fever_spin_count": fever_spin_count,
 		"wheel_of_fortune_timer": wheel_of_fortune_timer,
 		"emergency_fund_cooldown": emergency_fund_cooldown,
+		"first_clover_seen": first_clover_seen,
 	}
 
 
@@ -869,6 +876,7 @@ func from_dict(data: Dictionary) -> void:
 	fever_spin_count = int(data.get("fever_spin_count", 0))
 	wheel_of_fortune_timer = float(data.get("wheel_of_fortune_timer", -1.0))
 	emergency_fund_cooldown = float(data.get("emergency_fund_cooldown", 0.0))
+	first_clover_seen = bool(data.get("first_clover_seen", clovers > 0))
 	EventBus.chips_changed.emit(chips, 0.0)
 	EventBus.clovers_changed.emit(clovers, 0)
 	EventBus.bets_changed.emit()

@@ -42,7 +42,11 @@ const DEBT_ICON := preload("res://assets/sprites/ui/icon_debt.png")
 const DEBT_PULSE_SPEED := 2.6
 const DEBT_BAR_HEIGHT := 1.0
 const GEAR_ICON := preload("res://assets/sprites/ui/icon_gear.png")
+const LOCK_ICON := preload("res://assets/sprites/ui/icon_lock.png")
 const NOTIFY_DOT := preload("res://assets/sprites/ui/notify_dot.png")
+## 스킬트리 탭 자물쇠 해제 연출(6단계): 버튼이 금색으로 잠깐 밝아진다.
+const SKILL_LOCK_GLOW_TIME := 1.0
+const SKILL_LOCK_GLOW_COLOR := Color(1.6, 1.4, 0.6)
 ## 업그레이드 탭 빨간 점: 탭 오른쪽 위 모서리, 은은한 맥동(알파만).
 const DOT_OFFSET := Vector2(-6, 1)
 const DOT_PULSE_SPEED := 3.2
@@ -75,6 +79,9 @@ var _debt_label: Label
 var _debt_pulse_time: float = 0.0
 var _debt_bar_bg: ColorRect
 var _debt_bar: ColorRect
+var _skill_lock: TextureRect
+var _skill_lock_glow_time: float = -1.0
+var _wof_ring: Control
 
 
 func _ready() -> void:
@@ -141,7 +148,17 @@ func _ready() -> void:
 		refresh_upgrade_dot())
 	EventBus.upgrade_purchased.connect(func(_id: String, _l: int) -> void: refresh_upgrade_dot())
 	EventBus.save_started.connect(_on_save_started)
+	EventBus.first_clover_earned.connect(break_skill_lock)
 	refresh_upgrade_dot()
+
+
+## 첫 클로버 해금(6단계): 자물쇠가 사라지고 스킬트리 탭이 잠깐 금색으로 빛난다.
+func break_skill_lock() -> void:
+	if _skill_lock == null or not _skill_lock.visible:
+		return
+	_skill_lock.visible = false
+	_skill_lock_glow_time = 0.0
+	AudioManager.play_sfx("lock_break")
 
 
 func _on_save_started() -> void:
@@ -162,6 +179,11 @@ func _build_right() -> void:
 	clover_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	clover_icon.custom_minimum_size = Vector2(11, RIGHT_BOX_HEIGHT)
 	box.add_child(clover_icon)
+	_wof_ring = Control.new()
+	_wof_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_wof_ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_wof_ring.draw.connect(_draw_wof_ring)
+	clover_icon.add_child(_wof_ring)
 	clover_label = CountLabel.new()
 	clover_label.theme_type_variation = "Num14Clover"
 	clover_label.custom_minimum_size = Vector2(0, RIGHT_BOX_HEIGHT)
@@ -206,6 +228,12 @@ func _build_right() -> void:
 		button.pressed.connect(func() -> void: tab_pressed.emit(id))
 		box.add_child(button)
 		tab_buttons[id] = button
+		if id == TAB_SKILLS:
+			_skill_lock = TextureRect.new()
+			_skill_lock.texture = LOCK_ICON
+			_skill_lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_skill_lock.visible = not GameState.first_clover_seen
+			button.add_child(_skill_lock)
 	(tab_buttons[TAB_BET] as Button).set_pressed_no_signal(true)
 	_dot = TextureRect.new()
 	_dot.texture = NOTIFY_DOT
@@ -259,6 +287,15 @@ func clover_target() -> Vector2:
 ## 두루마리(빚) 아이콘 중심(전역). 상환분이 날아가는 목적지.
 func debt_target() -> Vector2:
 	return debt_box.get_global_rect().position + Vector2(6, RIGHT_BOX_HEIGHT * 0.5)
+
+
+## 운명의 휠(6단계, Y14) 등장까지 남은 시간: 클로버 아이콘 둘레에 얇은 링으로 채워진다.
+func _draw_wof_ring() -> void:
+	if not SkillService.has_feature("wheel_of_fortune"):
+		return
+	var progress := GameState.wheel_of_fortune_progress()
+	var center := (_wof_ring.size * 0.5).round()
+	_wof_ring.draw_arc(center, 6.0, -PI * 0.5, -PI * 0.5 + TAU * progress, 20, Palette.NEON_PURPLE, 1.0)
 
 
 func _refresh_debt() -> void:
@@ -356,6 +393,19 @@ func _process(delta: float) -> void:
 		var button := tab_buttons[TAB_UPGRADE] as Button
 		_dot.position = Vector2(button.size.x, 0) + DOT_OFFSET
 		_dot.modulate.a = lerpf(DOT_ALPHA_MIN, 1.0, 0.5 + 0.5 * sin(_dot_time * DOT_PULSE_SPEED))
+	if _skill_lock != null:
+		var skill_button := tab_buttons[TAB_SKILLS] as Button
+		_skill_lock.position = ((skill_button.size - _skill_lock.texture.get_size()) * 0.5).round()
+		if _skill_lock_glow_time >= 0.0:
+			_skill_lock_glow_time += delta
+			var t := _skill_lock_glow_time / SKILL_LOCK_GLOW_TIME
+			if t >= 1.0:
+				_skill_lock_glow_time = -1.0
+				skill_button.modulate = Color.WHITE
+			else:
+				skill_button.modulate = SKILL_LOCK_GLOW_COLOR.lerp(Color.WHITE, t)
+	if _wof_ring != null and SkillService.has_feature("wheel_of_fortune"):
+		_wof_ring.queue_redraw()
 	_income_timer += delta
 	if _income_timer >= INCOME_REFRESH:
 		_income_timer = 0.0

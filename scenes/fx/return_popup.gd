@@ -1,12 +1,14 @@
 class_name ReturnPopup
 extends Control
 ## 복귀 팝업(4단계). 오프라인 수익을 카운트업으로 보여주고 [받기]를 누르면 칩에 더한다.
-## 딜러 루시 초상화가 나오면(8단계, assets/sprites/npc/lucy_portrait.png) 자동으로 그걸 쓰고, 없으면 금고 아이콘.
+## 딜러 루시 초상화가 나오면(6단계, assets/sprites/npc/lucy_portrait.png, 64×64×7프레임 중 기본 표정)
+## 자동으로 그걸 쓰고, 없으면 금고 아이콘.
 
 signal claimed()
 
 const SIZE := Vector2(272, 150)
 const PORTRAIT_PATH := "res://assets/sprites/npc/lucy_portrait.png"
+const PORTRAIT_FRAME_SIZE := 64
 const VAULT_ICON := preload("res://assets/sprites/ui/icon_vault.png")
 const PORTRAIT_POS := Vector2(14, 14)
 const PORTRAIT_SIZE := Vector2(32, 32)
@@ -40,7 +42,13 @@ func _ready() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	var portrait := TextureRect.new()
-	portrait.texture = load(PORTRAIT_PATH) if ResourceLoader.exists(PORTRAIT_PATH) else VAULT_ICON
+	if ResourceLoader.exists(PORTRAIT_PATH):
+		var atlas := AtlasTexture.new()
+		atlas.atlas = load(PORTRAIT_PATH)
+		atlas.region = Rect2(0, 0, PORTRAIT_FRAME_SIZE, PORTRAIT_FRAME_SIZE)
+		portrait.texture = atlas
+	else:
+		portrait.texture = VAULT_ICON
 	portrait.position = PORTRAIT_POS
 	portrait.size = PORTRAIT_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_SCALE

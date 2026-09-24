@@ -28,6 +28,23 @@ var per_marble_label: CountLabel
 var total_label: CountLabel
 var clear_button: Button
 var rebet_button: Button
+var strategy_dropdown: OptionButton
+
+var _title_label: Label
+
+## 스마트 베팅(M6) 전략 목록과 각 항목의 표시 키. 드롭다운 순서 = 이 배열 순서.
+const STRATEGY_ORDER: Array[int] = [
+	GameState.SmartBettingStrategy.KEEP, GameState.SmartBettingStrategy.STABLE,
+	GameState.SmartBettingStrategy.AGGRESSIVE, GameState.SmartBettingStrategy.HOT_NUMBERS,
+	GameState.SmartBettingStrategy.MARTINGALE,
+]
+const STRATEGY_LABEL_KEY := {
+	GameState.SmartBettingStrategy.KEEP: "STRATEGY_KEEP",
+	GameState.SmartBettingStrategy.STABLE: "STRATEGY_STABLE",
+	GameState.SmartBettingStrategy.AGGRESSIVE: "STRATEGY_AGGRESSIVE",
+	GameState.SmartBettingStrategy.HOT_NUMBERS: "STRATEGY_HOT_NUMBERS",
+	GameState.SmartBettingStrategy.MARTINGALE: "STRATEGY_MARTINGALE",
+}
 
 
 func _ready() -> void:
@@ -36,13 +53,26 @@ func _ready() -> void:
 	bg.texture = FELT
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
-	var title := Label.new()
-	title.text = "BET_PANEL_TITLE"
-	title.theme_type_variation = "LabelTitle"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, TITLE_Y)
-	title.size = Vector2(PANEL_SIZE.x, 16)
-	add_child(title)
+	_title_label = Label.new()
+	_title_label.text = "BET_PANEL_TITLE"
+	_title_label.theme_type_variation = "LabelTitle"
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label.position = Vector2(0, TITLE_Y)
+	_title_label.size = Vector2(PANEL_SIZE.x, 16)
+	add_child(_title_label)
+	strategy_dropdown = OptionButton.new()
+	strategy_dropdown.theme_type_variation = "ButtonDark"
+	strategy_dropdown.position = Vector2(CONTENT_X, TITLE_Y - 2)
+	strategy_dropdown.size = Vector2(CONTENT_W, 18)
+	strategy_dropdown.focus_mode = Control.FOCUS_NONE
+	strategy_dropdown.visible = false
+	for strategy: int in STRATEGY_ORDER:
+		strategy_dropdown.add_item(tr(STRATEGY_LABEL_KEY[strategy]))
+	strategy_dropdown.item_selected.connect(_on_strategy_selected)
+	add_child(strategy_dropdown)
+	var piggy_bank := PiggyBankWidget.new()
+	piggy_bank.position = Vector2(PANEL_SIZE.x - 24.0, 6.0)
+	add_child(piggy_bank)
 	board = BetBoard.new()
 	board.position = BOARD_POS
 	add_child(board)
@@ -53,7 +83,22 @@ func _ready() -> void:
 	_build_buttons()
 	EventBus.bets_changed.connect(_refresh)
 	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh())
+	EventBus.skill_purchased.connect(func(_id: String, _l: int) -> void: refresh_smart_betting_unlock())
+	refresh_smart_betting_unlock()
 	_refresh()
+
+
+## 스마트 베팅(M6) 해금 여부에 따라 제목 대신 전략 드롭다운을 보여준다.
+func refresh_smart_betting_unlock() -> void:
+	var unlocked := SkillService.has_feature("smart_betting")
+	strategy_dropdown.visible = unlocked
+	_title_label.visible = not unlocked
+	if unlocked:
+		strategy_dropdown.select(STRATEGY_ORDER.find(GameState.smart_betting_strategy))
+
+
+func _on_strategy_selected(index: int) -> void:
+	GameState.smart_betting_strategy = STRATEGY_ORDER[index]
 
 
 func _build_chip_row() -> void:

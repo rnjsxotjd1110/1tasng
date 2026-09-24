@@ -68,3 +68,9 @@ signal destiny_flip(from_number: int, to_number: int)
 ## 오토 스핀이 자동으로 꺼졌다(칩 부족·베팅 없음 등). reason 은 토스트 문자열 키.
 @warning_ignore("unused_signal")
 signal auto_spin_stopped(reason: String)
+## 연승 보너스로 클로버를 얻었다(GDD 6-1 "5연승 +1"). count 는 이번에 얻은 개수.
+@warning_ignore("unused_signal")
+signal streak_clover_earned(count: int)
+## 살면서 처음으로 클로버를 얻었다. 스킬트리 버튼 자물쇠 해제 연출 + 루시 대사 트리거용.
+@warning_ignore("unused_signal")
+signal first_clover_earned()

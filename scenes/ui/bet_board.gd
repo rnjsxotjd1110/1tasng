@@ -29,6 +29,8 @@ const TRAY_LABEL_W := 40.0
 const TRAY_STEP := 14.0
 ## 압류 패널티(5단계): 트레이 마지막 구슬에 빨간 도장이 찰싹 찍힌다.
 const SEIZE_STAMP := preload("res://assets/sprites/fx/seizure_stamp.png")
+## 핫 넘버(6단계, F6): 최근 자주 나온 숫자 칸 위에 작은 불꽃이 흔들린다.
+const FLAME_ICON := preload("res://assets/sprites/ui/icon_flame.png")
 const SEIZE_STAMP_TIME := 0.6
 const SEIZE_SHAKE_TIME := 0.2
 const SEIZE_SHAKE_PX := 1
@@ -671,6 +673,7 @@ func _draw() -> void:
 	for key: String in _rects.keys():
 		_draw_cell(key)
 	_draw_golden_cells()
+	_draw_hot_number_flames()
 	_draw_tray_holes()
 	var tier := MarbleSprite.shared_tier()
 	for item in _marble_items():
@@ -788,6 +791,19 @@ func _draw_golden_cells() -> void:
 		draw_rect(Rect2(rect.position + Vector2(1, 1), rect.size - Vector2(3, 3)), Palette.with_alpha(Palette.GOLD_HL, 0.1 + 0.08 * pulse))
 		draw_rect(Rect2(rect.position, rect.size), Palette.GOLD_HL, false, -1.0)
 		draw_rect(Rect2(rect.position + Vector2(1, 1), rect.size - Vector2(2, 2)), Palette.with_alpha(Palette.GOLD_L, 0.5 + 0.3 * pulse), false, -1.0)
+
+
+## 핫 넘버 칸: 오른쪽 위 구석에서 불꽃이 좌우로 살짝 흔들린다(정수 픽셀).
+func _draw_hot_number_flames() -> void:
+	if not SkillService.has_feature("hot_numbers"):
+		return
+	for number in GameState.hot_numbers():
+		var key := _straight_key(number)
+		if not _rects.has(key):
+			continue
+		var rect: Rect2 = _rects[key]
+		var sway := roundf(sin(_clock * 5.0 + number))
+		draw_texture(FLAME_ICON, (rect.position + Vector2(rect.size.x - 8.0 + sway, 1.0)).round())
 
 
 func _draw_grid_frame() -> void:

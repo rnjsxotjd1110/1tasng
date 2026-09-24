@@ -76,7 +76,7 @@ var flying_chips: FlyingChips
 var big_win: BigWinBanner
 var flash: ScreenFlash
 var jackpot: JackpotOverlay
-var skill_overlay: PlaceholderScreen
+var skill_overlay: SkillTreeScreen
 var settings_overlay: SettingsScreen
 var stats_screen: StatsScreen
 var pause_menu: PauseMenu
@@ -90,6 +90,15 @@ var _underling_leaving: bool = false
 var toasts: ToastLayer
 var tooltip_layer: TooltipLayer
 var shaker: ScreenShake
+var lucy: LucyDealer = null
+var _lucy_dialogue: DialogueBox = null
+var buff_bar: BuffBar
+var prophecy_orb: ProphecyOrb
+var fever_gauge: FeverGauge
+var jackpot_chain_label: Label
+var wheel_of_fortune_popup: WheelOfFortunePopup
+
+const LUCY_POSITION := Vector2(110, 306)
 
 var current_tab: String = TopBar.TAB_BET
 var _payout_batch: int = -1
@@ -119,6 +128,12 @@ func _ready() -> void:
 	EventBus.penalty_triggered.connect(_on_penalty_triggered)
 	EventBus.buff_started.connect(_on_penalty_buff_started)
 	EventBus.buff_ended.connect(_on_penalty_buff_ended)
+	EventBus.skill_purchased.connect(func(_id: String, _level: int) -> void:
+		_refresh_lucy()
+		spin_controls.set_auto_locked(not SkillService.has_feature("auto_spin")))
+	EventBus.first_clover_earned.connect(_on_first_clover_earned)
+	EventBus.streak_clover_earned.connect(_on_streak_clover_earned)
+	EventBus.auto_spin_stopped.connect(_on_auto_spin_stopped)
 	wheel.spin_finished.connect(_on_wheel_finished)
 	_refresh_spin_state()
 	_attach_debug_panel()
@@ -144,7 +159,7 @@ func _show_return_popup_if_needed() -> void:
 # ── 빚·래칫 남작(5단계) ───────────────────────────────────
 
 func _on_bankrupt() -> void:
-	GameState.auto_spin_enabled = false
+	_stop_auto_spin("AUTO_STOP_BANKRUPT")
 	_start_loan_sequence()
 
 
@@ -223,6 +238,13 @@ func _on_penalty_buff_started(id: String, _duration: float) -> void:
 			MarbleSprite.set_desaturate(1.0)
 		"smoke":
 			smoke_overlay.start()
+		"fever":
+			wheel.set_rainbow_mode(true)
+			FloatingText.spawn(float_layer, tr("FEVER_BANNER"), "Num14Gold", TEXT_ANCHOR + Vector2(0, -40))
+			AudioManager.play_sfx("fever_start")
+		"jackpot_chain":
+			wheel.trigger_lightning()
+			_refresh_jackpot_chain_label()
 
 
 func _on_penalty_buff_ended(id: String) -> void:
@@ -233,6 +255,19 @@ func _on_penalty_buff_ended(id: String) -> void:
 			MarbleSprite.set_desaturate(0.0)
 		"smoke":
 			smoke_overlay.stop()
+		"fever":
+			wheel.set_rainbow_mode(false)
+			AudioManager.play_sfx("fever_end")
+		"jackpot_chain":
+			_refresh_jackpot_chain_label()
+
+
+## 잭팟 체인(6단계, F14) 남은 스핀 수를 휠 옆에 작게 보여준다.
+func _refresh_jackpot_chain_label() -> void:
+	var left := GameState.buff_charges_left("jackpot_chain")
+	jackpot_chain_label.visible = left > 0
+	if left > 0:
+		jackpot_chain_label.text = "×" + NumberFormat.format(left)
 
 
 func _spawn_underling() -> void:
@@ -272,6 +307,17 @@ func _build_world() -> void:
 	wheel = WheelScene.instantiate()
 	wheel.position = WHEEL_CENTER
 	world.add_child(wheel)
+	_refresh_lucy()
+
+
+## 딜러 루시(6단계, M14 "dealer_hired": 루시가 테이블을 운영한다)는 스킬로 해금되면
+## 휠 왼쪽에 나타나 매 스핀마다 공을 던진다.
+func _refresh_lucy() -> void:
+	if lucy != null or not SkillService.has_feature("dealer_hired"):
+		return
+	lucy = LucyDealer.new()
+	lucy.position = LUCY_POSITION
+	world.add_child(lucy)
 
 
 func _build_ui() -> void:
@@ -303,6 +349,10 @@ func _build_ui() -> void:
 	spin_controls.position = SPIN_AREA_POS
 	root.add_child(spin_controls)
 	spin_controls.spin_pressed.connect(request_spin)
+	spin_controls.auto_pressed.connect(_on_auto_pressed)
+	spin_controls.set_auto_locked(not SkillService.has_feature("auto_spin"), false)
+	spin_controls.set_auto_toggled(GameState.auto_spin_enabled)
+	wheel.set_auto_indicator(GameState.auto_spin_enabled)
 	debt_panel = DebtPanel.new()
 	debt_panel.position = DEBT_PANEL_POS
 	debt_panel.visible = false
@@ -313,6 +363,19 @@ func _build_ui() -> void:
 	golden_badge = GoldenBadge.new()
 	golden_badge.center = Vector2(WHEEL_CENTER.x, GOLDEN_BADGE_Y)
 	root.add_child(golden_badge)
+	jackpot_chain_label = Label.new()
+	jackpot_chain_label.theme_type_variation = "Num7Gold"
+	jackpot_chain_label.position = Vector2(WHEEL_CENTER.x + 96, WHEEL_CENTER.y - 6)
+	jackpot_chain_label.visible = false
+	jackpot_chain_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(jackpot_chain_label)
+	buff_bar = BuffBar.new()
+	root.add_child(buff_bar)
+	prophecy_orb = ProphecyOrb.new()
+	prophecy_orb.position = Vector2(WHEEL_CENTER.x - 8.0, 50.0)
+	root.add_child(prophecy_orb)
+	fever_gauge = FeverGauge.new()
+	root.add_child(fever_gauge)
 
 
 func _build_fx() -> void:
@@ -341,8 +404,7 @@ func _build_fx() -> void:
 	promotion.target_provider = _promotion_target
 	promotion.arrived.connect(_on_promotion_arrived)
 	root.add_child(promotion)
-	skill_overlay = PlaceholderScreen.new()
-	skill_overlay.setup(Vector2(640, 336), "SKILLTREE_TITLE", true, "PanelPlain")
+	skill_overlay = SkillTreeScreen.new()
 	skill_overlay.position = FULL_OVERLAY_POS
 	skill_overlay.visible = false
 	skill_overlay.close_requested.connect(func() -> void: _close_overlay(skill_overlay))
@@ -361,6 +423,11 @@ func _build_fx() -> void:
 	return_popup.visible = false
 	return_popup.claimed.connect(func() -> void: EventBus.toast_requested.emit(tr("TOAST_OFFLINE_CLAIMED"), "chip"))
 	root.add_child(return_popup)
+	wheel_of_fortune_popup = WheelOfFortunePopup.new()
+	wheel_of_fortune_popup.position = ((Vector2(640, 360) - WheelOfFortunePopup.SIZE) * 0.5).round()
+	wheel_of_fortune_popup.finished.connect(func() -> void: SaveManager.save_game())
+	root.add_child(wheel_of_fortune_popup)
+	EventBus.wheel_of_fortune_ready.connect(func() -> void: wheel_of_fortune_popup.open())
 	baron_loan_seq = BaronLoanSequence.new()
 	baron_loan_seq.signed.connect(_on_loan_signed)
 	baron_loan_seq.finished.connect(_on_loan_sequence_finished)
@@ -427,6 +494,8 @@ func _on_spin_started(results: Array[int], duration: float) -> void:
 	spin_controls.ready_to_spin = false
 	# "스핀 연출 속도" 설정은 연출(휠 애니메이션)만 빠르게 한다. GameState.spin_duration() 자체(경제 공식)는 그대로.
 	wheel.play_spin(results, duration * SettingsManager.spin_visual_speed_mult())
+	if lucy != null:
+		lucy.play_spin_launch()
 	_refresh_spin_state()
 
 
@@ -443,6 +512,13 @@ func _on_spin_resolved(outcome: SpinOutcome) -> void:
 	var winners := bet_panel.board.show_outcome(outcome)
 	play_tier_effects(outcome, winners)
 	_show_debt_repay_if_any()
+	if outcome.destiny_flip_from >= 0:
+		FloatingText.spawn(float_layer, tr("DESTINY_FLIP_TEXT"), "LabelGold", TEXT_ANCHOR + Vector2(0, -20))
+		AudioManager.play_sfx("destiny_flip")
+	_refresh_jackpot_chain_label()
+	prophecy_orb.refresh()
+	if GameState.smart_betting_strategy == GameState.SmartBettingStrategy.MARTINGALE:
+		GameState.set_chip_size_mode(SmartBettingService.next_chip_size(GameState.chip_size_mode, outcome.any_win()))
 	_refresh_spin_state()
 
 
@@ -500,6 +576,8 @@ func play_tier_effects(outcome: SpinOutcome, winners: Array[String]) -> void:
 
 
 func _big_effects(outcome: SpinOutcome, full: bool, banner: bool = true) -> void:
+	if lucy != null:
+		lucy.play_clap()
 	if full:
 		if banner:
 			big_win.play()
@@ -541,6 +619,112 @@ func _on_chips_finished(batch_id: int) -> void:
 func _on_milestone(suffix_index: int) -> void:
 	var suffix: String = NumberFormat.SUFFIXES[suffix_index] if suffix_index < NumberFormat.SUFFIXES.size() else "?"
 	EventBus.toast_requested.emit(tr("MILESTONE_REACHED") % suffix + "  " + tr("TOAST_CLOVERS") % NumberFormat.format(Economy.CLOVER_PER_MILESTONE), "clover")
+	flying_chips.launch([top_bar.chip_target()], top_bar.clover_target(), 1, FlyingChips.Icon.CLOVER)
+
+
+## 5연승 클로버(6단계, GDD 6-1): 결과 텍스트가 뜨는 자리에서 클로버 하나가 곡선을 그리며 날아간다.
+func _on_streak_clover_earned(_count: int) -> void:
+	flying_chips.launch([TEXT_ANCHOR], top_bar.clover_target(), 1, FlyingChips.Icon.CLOVER)
+
+
+## 살면서 처음 얻은 클로버(6단계): 스킬트리 탭 자물쇠가 깨지고(TopBar 가 스스로 처리) 루시가 한 마디 한다.
+func _on_first_clover_earned() -> void:
+	var entry := DialogueData.pick("skilltree_unlock")
+	if entry.is_empty() or (_lucy_dialogue != null and _lucy_dialogue.is_open()):
+		return
+	if _lucy_dialogue == null:
+		_lucy_dialogue = DialogueBox.new()
+		_layer_root(fx_layer).add_child(_lucy_dialogue)
+		_lucy_dialogue.finished.connect(func() -> void: _lucy_dialogue.visible = false)
+	_lucy_dialogue.say(entry)
+	_stop_auto_spin("AUTO_STOP_DIALOGUE")
+
+
+# ── 오토 스핀(6단계, M1) ────────────────────────────────
+
+## 오토 스핀 간 대기(스탯으로 단축 가능, M10 등)가 다 찼는지 세는 타이머.
+var _auto_spin_timer: float = 0.0
+
+
+func _on_auto_pressed() -> void:
+	GameState.auto_spin_enabled = not GameState.auto_spin_enabled
+	_auto_spin_timer = 0.0
+	spin_controls.set_auto_toggled(GameState.auto_spin_enabled)
+	wheel.set_auto_indicator(GameState.auto_spin_enabled)
+
+
+func _stop_auto_spin(reason_key: String) -> void:
+	if not GameState.auto_spin_enabled:
+		return
+	GameState.auto_spin_enabled = false
+	spin_controls.set_auto_toggled(false)
+	wheel.set_auto_indicator(false)
+	EventBus.auto_spin_stopped.emit(reason_key)
+
+
+func _on_auto_spin_stopped(reason_key: String) -> void:
+	EventBus.toast_requested.emit(tr(reason_key), "chip")
+
+
+## 오토 업그레이드(M7)가 다음으로 무엇을 살지 살펴보는 주기.
+const AUTO_UPGRADE_INTERVAL := 1.0
+var _auto_upgrade_timer: float = 0.0
+
+
+func _process(delta: float) -> void:
+	_process_auto_upgrade(delta)
+	if not GameState.auto_spin_enabled:
+		return
+	if not controller.is_idle() or wheel.spinning or jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or promotion.is_playing() or wheel_of_fortune_popup.visible:
+		return
+	if _lucy_dialogue != null and _lucy_dialogue.is_open():
+		return
+	_apply_smart_betting()
+	if GameState.current_bets.is_empty():
+		_stop_auto_spin("AUTO_STOP_NO_BETS")
+		return
+	if not bet_panel.is_affordable():
+		_stop_auto_spin("AUTO_STOP_NOT_ENOUGH_CHIPS")
+		return
+	var delay := GameState.get_stat(StatModifiers.SPIN_DELAY, Economy.AUTO_SPIN_DELAY)
+	_auto_spin_timer += delta
+	spin_controls.set_auto_progress(_auto_spin_timer / delay)
+	if _auto_spin_timer >= delay:
+		_auto_spin_timer = 0.0
+		request_spin()
+
+
+## 오토 업그레이드(M7): 예산(보유 칩 × 비율) 안에서 가장 싼 살 수 있는 업그레이드를 산다.
+## 실제 구매·플래시·소리는 UpgradePanel.buy() 를 그대로 재사용한다(수동 구매와 같은 반응).
+func _process_auto_upgrade(delta: float) -> void:
+	if not GameState.auto_upgrade_enabled:
+		return
+	_auto_upgrade_timer += delta
+	if _auto_upgrade_timer < AUTO_UPGRADE_INTERVAL:
+		return
+	_auto_upgrade_timer = 0.0
+	var budget := GameState.chips * GameState.auto_upgrade_ratio
+	var id := UpgradeService.cheapest_affordable_id(budget, GameState.auto_upgrade_include_marble)
+	if id == "":
+		return
+	var target := upgrade_panel.card(id)
+	if target == null:
+		return
+	var prev_mode := upgrade_panel.mode
+	upgrade_panel.mode = UpgradeService.BuyMode.ONE
+	upgrade_panel.buy(target)
+	upgrade_panel.mode = prev_mode
+
+
+## 스마트 베팅(M6): 전략이 KEEP 이 아니면 매 오토 스핀 전에 판을 다시 짠다(마블이 보드에 새로 놓이는 게 보인다).
+func _apply_smart_betting() -> void:
+	var strategy := GameState.smart_betting_strategy
+	if strategy == GameState.SmartBettingStrategy.KEEP:
+		return
+	var bets := SmartBettingService.compute_bets(strategy, GameState.marble_slots(), GameState.hot_numbers(), Bet.Type.RED)
+	GameState.clear_bets()
+	for bet in bets:
+		GameState.add_bet(bet)
 
 
 func _refresh_spin_state() -> void:
@@ -661,11 +845,18 @@ func _toggle_overlay(overlay: Control) -> void:
 		for other: Control in [skill_overlay, settings_overlay, stats_screen]:
 			if other != overlay and other.visible:
 				_close_overlay(other)
-		PanelTransition.open(overlay)
+		if overlay == skill_overlay:
+			skill_overlay.open()
+		else:
+			PanelTransition.open(overlay)
 
 
 func _close_overlay(overlay: Control) -> void:
-	if overlay.visible:
+	if not overlay.visible:
+		return
+	if overlay == skill_overlay:
+		skill_overlay.close()
+	else:
 		PanelTransition.close(overlay)
 
 
@@ -707,7 +898,9 @@ func _update_pause_freeze() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("spin"):
-		if baron_loan_seq.is_playing():
+		if _lucy_dialogue != null and _lucy_dialogue.is_open():
+			_lucy_dialogue.advance()
+		elif baron_loan_seq.is_playing():
 			baron_loan_seq.advance_input()
 		elif baron_payoff_seq.is_playing():
 			baron_payoff_seq.advance_input()

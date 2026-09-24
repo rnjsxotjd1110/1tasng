@@ -376,6 +376,8 @@ func _on_skill_purchased(_id: String, _level: int) -> void:
 # ── 그리기: 배경 ─────────────────────────────────────────
 
 func _draw_background() -> void:
+	# 밤/보라 벨벳 바탕(불투명). 이게 없으면 CanvasGroup 합성 결과에 뒤쪽 화면(휠·베팅창)이 비쳐 보인다.
+	_bg.draw_rect(Rect2(VIEW_SIZE * -0.5, VIEW_SIZE), Palette.NIGHT)
 	for star: Dictionary in _stardust:
 		var p: Vector2 = star["pos"]
 		var drift := Vector2(0, fmod(_clock * float(star["speed"]), 520.0) - 260.0)

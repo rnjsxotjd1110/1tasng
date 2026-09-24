@@ -154,6 +154,7 @@ func _apply_outcome(outcome: SpinOutcome) -> void:
 		GameState.max_stat(GameState.STAT_BEST_STREAK, GameState.win_streak)
 		if GameState.win_streak % Economy.STREAK_LENGTH == 0:
 			GameState.add_clovers(Economy.CLOVER_PER_STREAK)
+			EventBus.streak_clover_earned.emit(Economy.CLOVER_PER_STREAK)
 	else:
 		GameState.win_streak = 0
 	_apply_vip_comp()

@@ -49,6 +49,9 @@ const FLASH_BLINKS := 3
 const FLASH_PERIOD := 0.24
 const FLASH_RING_DURATION := 0.7
 const RESULT_GLOW_ALPHA := 0.35
+## 피버 타임(6단계) 무지개 전환·잭팟 체인 번개 지속시간.
+const FEVER_FADE_TIME := 0.5
+const LIGHTNING_TIME := 0.5
 const SPARK_COUNT_MIN := 2
 const SPARK_COUNT_MAX := 3
 const SPARK_LIFE := 0.28
@@ -108,6 +111,13 @@ var _flash_golden: bool = false
 var _glint_timer: float = GLINT_MIN
 var _glint_time: float = -1.0
 var _clock: float = 0.0
+## 오토 스핀 켜짐 표시(6단계): 휠 테두리에 은은히 맥동하는 초록 링.
+var _auto_indicator: bool = false
+## 피버 타임(6단계, Y5): 켜지면 포켓 색이 무지개로 순환한다. 꺼지면 FEVER_FADE_TIME 동안 원래 색으로 되돌아간다.
+var _rainbow_fever: bool = false
+var _rainbow_fade: float = 0.0
+## 잭팟 체인(6단계, F14) 발동 순간의 번개 효과.
+var _lightning_time: float = -1.0
 var _ball_texture: Texture2D
 var _shadow_texture: Texture2D
 var _halo_texture: Texture2D
@@ -260,6 +270,11 @@ func _process(delta: float) -> void:
 	if _flash_time >= 0.0:
 		_flash_time += delta
 	_update_glint(delta)
+	_rainbow_fade = clampf(_rainbow_fade + (delta / FEVER_FADE_TIME) * (1.0 if _rainbow_fever else -1.0), 0.0, 1.0)
+	if _lightning_time >= 0.0:
+		_lightning_time += delta
+		if _lightning_time >= LIGHTNING_TIME:
+			_lightning_time = -1.0
 	_redraw_all()
 
 
@@ -413,12 +428,20 @@ func _pocket_colors(number: int, golden: bool) -> PackedColorArray:
 
 
 func _base_pocket_colors(number: int) -> PackedColorArray:
+	var base: PackedColorArray
 	match RouletteRules.color_of(number):
 		RouletteRules.PocketColor.RED:
-			return PackedColorArray([Palette.RED, Palette.RED_L])
+			base = PackedColorArray([Palette.RED, Palette.RED_L])
 		RouletteRules.PocketColor.BLACK:
-			return PackedColorArray([Palette.POCKET_K, Palette.POCKET_K_L])
-	return PackedColorArray([Palette.FELT, Palette.FELT_L])
+			base = PackedColorArray([Palette.POCKET_K, Palette.POCKET_K_L])
+		_:
+			base = PackedColorArray([Palette.FELT, Palette.FELT_L])
+	if _rainbow_fade <= 0.0:
+		return base
+	var hue := fmod(number / float(RouletteRules.POCKET_COUNT) + _clock * 0.25, 1.0)
+	var rainbow := Color.from_hsv(hue, 0.75, 1.0)
+	var rainbow_l := Color.from_hsv(hue, 0.55, 1.0)
+	return PackedColorArray([base[0].lerp(rainbow, _rainbow_fade), base[1].lerp(rainbow_l, _rainbow_fade)])
 
 
 func _sector(from_deg: float, to_deg: float, r_in: float, r_out: float) -> PackedVector2Array:
@@ -625,7 +648,8 @@ func _update_trail(delta: float) -> void:
 		while _trail_accum >= 1.0:
 			_trail_accum -= 1.0
 			var jitter := Vector2(RngService.randf_range_misc(-2.0, 2.0), RngService.randf_range_misc(-2.0, 2.0))
-			var color: Color = colors[RngService.randi_range_misc(0, colors.size() - 1)] if not colors.is_empty() else Palette.IVORY
+			# 더블 볼(6단계, Y10): 두 번째 공부터는 재질과 무관하게 보라색 궤적으로 구분한다.
+			var color: Color = Palette.NEON_PURPLE if i > 0 else (colors[RngService.randi_range_misc(0, colors.size() - 1)] if not colors.is_empty() else Palette.IVORY)
 			var particle := {"pos": center + jitter, "vel": jitter * TRAIL_DRIFT * 0.5, "life": life, "max": life, "color": color, "kind": kind}
 			if kind == "suck":
 				var a := RngService.randf_range_misc(0.0, TAU)
@@ -703,3 +727,41 @@ func _draw_fx() -> void:
 				fx_layer.draw_arc(center, lerpf(4.0, 11.0, u), 0.0, TAU, 20, Palette.with_alpha(Palette.GOLD_HL, 0.5 * (1.0 - u)), -1.0)
 			# 결과 포켓 주변에 은은히 남는 빛
 			fx_layer.draw_arc(center, 8.0, 0.0, TAU, 20, Palette.with_alpha(Palette.GOLD_HL, RESULT_GLOW_ALPHA * (0.6 + 0.4 * sin(_clock * 4.0))), -1.0)
+	if _auto_indicator:
+		var pulse := 0.7 + 0.3 * sin(_clock * 3.0)
+		fx_layer.draw_arc(Vector2.ZERO, R_NUMBER_RING_OUT + 4.0, 0.0, TAU, 64, Palette.with_alpha(Palette.CLOVER, 0.55 * pulse), 2.0)
+	if _lightning_time >= 0.0:
+		_draw_lightning()
+
+
+## 잭팟 체인 발동 번개: 테두리에서 뻗어나가는 지그재그 선 여러 개가 빠르게 사라진다.
+func _draw_lightning() -> void:
+	var fade := 1.0 - _lightning_time / LIGHTNING_TIME
+	var bolt_count := 6
+	for b in bolt_count:
+		var base_angle := TAU * b / bolt_count + _lightning_time * 4.0
+		var points := PackedVector2Array()
+		var r := R_NUMBER_RING_OUT
+		points.append(Vector2(cos(base_angle), sin(base_angle)) * r)
+		for seg in 3:
+			r += 6.0
+			var jitter_angle := base_angle + RngService.randf_range_misc(-0.25, 0.25)
+			points.append(Vector2(cos(jitter_angle), sin(jitter_angle)) * r)
+		for i in points.size() - 1:
+			fx_layer.draw_line(points[i], points[i + 1], Palette.with_alpha(Palette.GOLD_HL, fade), 1.0)
+
+
+## 오토 스핀 온/오프(6단계): 켜지면 휠 테두리에 초록 링이 맥동한다.
+func set_auto_indicator(on: bool) -> void:
+	_auto_indicator = on
+
+
+## 피버 타임(6단계, Y5) 온/오프: 포켓이 무지개색으로 순환하다가 꺼지면 부드럽게 되돌아간다.
+func set_rainbow_mode(on: bool) -> void:
+	_rainbow_fever = on
+
+
+## 잭팟 체인(6단계, F14) 발동: 테두리에 번개가 한 번 친다.
+func trigger_lightning() -> void:
+	_lightning_time = 0.0
+	AudioManager.play_sfx("golden_beam", 1.4, -4.0)

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_x8088"]
+
+[resource]
+script = ExtResource("1_x8088")
+id = "y7"
+name_key = "SKILL_Y7"
+desc_key = "SKILL_Y7_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_y7.png"
+branch = 4
+ring = 2
+position = Vector2i(-105, 0)
+costs = Array[int]([3])
+prerequisites = Array[String](["y1"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 3.0,
+"stat": "zero_straight_mult"
+}])
+feature_id = "zero_blessing"
+is_ultimate = false

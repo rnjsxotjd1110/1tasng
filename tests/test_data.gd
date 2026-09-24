@@ -45,7 +45,7 @@ func test_upgrades() -> void:
 			if def.icon() != null:
 				check_eq(def.icon().get_size(), Vector2(16, 16), "%s 아이콘 크기" % ids[i])
 	check_eq(1 + GameData.upgrade("marble_count").max_level, Economy.MAX_MARBLES_FROM_UPGRADES, "구슬 업그레이드 상한 = 8개")
-	check_eq(GameData.upgrade("golden_pocket").max_level, Economy.GOLDEN_POCKET_MAX, "황금 포켓 5개")
+	check_eq(GameData.upgrade("golden_pocket").max_level, Economy.GOLDEN_POCKET_UPGRADE_MAX_LEVEL, "황금 포켓 업그레이드 5개(스킬 Y4 포함 전체 상한은 Economy.GOLDEN_POCKET_MAX=8)")
 
 
 func test_translation_keys() -> void:

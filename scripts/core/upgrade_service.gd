@@ -39,6 +39,11 @@ static func cost_mult() -> float:
 	return GameState.get_stat(StatModifiers.UPGRADE_COST_MULT, StatModifiers.IDENTITY_MULT)
 
 
+## 도매가(E12): 업그레이드 비용 증가율(growth) 자체에 곱해지는 배율.
+static func growth_of(def: UpgradeDef) -> float:
+	return def.growth * GameState.get_stat(StatModifiers.UPGRADE_GROWTH_MULT, StatModifiers.IDENTITY_MULT)
+
+
 ## 데이터상 최대 레벨(무제한이면 UpgradeDef.UNLIMITED). 재질은 구슬 수 - 1.
 static func max_level(def: UpgradeDef) -> int:
 	if def.kind == UpgradeDef.Kind.MARBLE_TIER:
@@ -68,22 +73,24 @@ static func cost_at(def: UpgradeDef, level: int) -> float:
 	match def.kind:
 		UpgradeDef.Kind.MARBLE_TIER:
 			var next := GameData.marble(level + 1) if level + 1 < GameData.marbles().size() else null
-			return next.cost * mult if next != null else INF
+			var marble_mult := GameState.get_stat(StatModifiers.MARBLE_COST_MULT, StatModifiers.IDENTITY_MULT)
+			return next.cost * mult * marble_mult if next != null else INF
 		UpgradeDef.Kind.MARBLE_POLISH:
-			return Economy.upgrade_cost(_polish_base(), def.growth, level, mult)
-	return Economy.upgrade_cost(def.base_cost, def.growth, level, mult)
+			return Economy.upgrade_cost(_polish_base(), growth_of(def), level, mult)
+	return Economy.upgrade_cost(def.base_cost, growth_of(def), level, mult)
 
 
 ## from_level 에서 count 레벨을 사는 총비용. 등비형은 닫힌 식 base·g^L·(g^n − 1)/(g − 1).
 static func cost_for(def: UpgradeDef, from_level: int, count: int) -> float:
 	if count <= 0:
 		return 0.0
-	if def.kind == UpgradeDef.Kind.MARBLE_TIER or is_equal_approx(def.growth, 1.0):
+	var g := growth_of(def)
+	if def.kind == UpgradeDef.Kind.MARBLE_TIER or is_equal_approx(g, 1.0):
 		var total := 0.0
 		for i in count:
 			total += cost_at(def, from_level + i)
 		return total
-	return cost_at(def, from_level) * (pow(def.growth, count) - 1.0) / (def.growth - 1.0)
+	return cost_at(def, from_level) * (pow(g, count) - 1.0) / (g - 1.0)
 
 
 ## budget 으로 from_level 부터 살 수 있는 최대 레벨 수(limit 이하). limit < 0 이면 무제한.
@@ -94,12 +101,12 @@ static func max_affordable(def: UpgradeDef, from_level: int, budget: float, limi
 	if not _fits(first, budget):
 		return 0
 	var n := 1
-	if def.kind == UpgradeDef.Kind.MARBLE_TIER or is_equal_approx(def.growth, 1.0):
+	var g := growth_of(def)
+	if def.kind == UpgradeDef.Kind.MARBLE_TIER or is_equal_approx(g, 1.0):
 		while (limit < 0 or n < limit) and _fits(cost_for(def, from_level, n + 1), budget):
 			n += 1
 		return n
 	# 닫힌 식의 역: n = floor(log_g(budget·(g−1)/first + 1)), 부동소수 오차는 ±1 로 맞춘다.
-	var g := def.growth
 	var estimate := floori(log(budget * (g - 1.0) / first + 1.0) / log(g))
 	n = maxi(estimate, 1)
 	if limit >= 0:
@@ -179,6 +186,26 @@ static func purchase(id: String, mode: BuyMode = BuyMode.ONE) -> int:
 		GameState.set_upgrade_level(GameState.UPGRADE_MARBLE_POLISH, 0)
 	EventBus.upgrade_purchased.emit(id, new_level)
 	return int(info["count"])
+
+
+## 오토 업그레이드(M7): budget(칩) 이내에서 살 수 있는 가장 싼 업그레이드 id. 없으면 "".
+## include_marble 가 false 면 구슬 재질(MARBLE_TIER)은 후보에서 뺀다.
+static func cheapest_affordable_id(budget: float, include_marble: bool) -> String:
+	var best_id := ""
+	var best_cost := INF
+	for def: UpgradeDef in sorted_defs():
+		if not include_marble and def.kind == UpgradeDef.Kind.MARBLE_TIER:
+			continue
+		var info := plan(def.id, BuyMode.ONE)
+		if not bool(info["affordable"]):
+			continue
+		var cost := float(info["cost"])
+		if cost > budget:
+			continue
+		if cost < best_cost:
+			best_cost = cost
+			best_id = def.id
+	return best_id
 
 
 ## 지금 1레벨이라도 살 수 있는 업그레이드가 있는가(탭의 빨간 점).

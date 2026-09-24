@@ -188,16 +188,39 @@
 
 ---
 
-## 6. 스킬트리 (구현·세부 정의는 6단계)
+## 6. 스킬트리 (6단계 구현)
 
-- 중앙 **"도박꾼의 심장"** 에서 4갈래로 뻗는다.
-  - 북 **FORTUNE** (배당): 색·홀짝·개별숫자 배당, 황금 포켓 배율
-  - 동 **MACHINE** (자동화): 자동 스핀, 스핀 간격, 휠 속도, 자동 베팅 패턴
-  - 남 **ECONOMY** (경제): 업그레이드 할인, 캐시백, 오프라인 수익, 빚 조건
-  - 서 **MYSTIC** (특수 기능): 예지(다음 결과 미리 보기, `RngService.peek_next`), 더블 볼(`extra_balls`), 딜러 고용(루시), 구슬 추가(`marble_slots_bonus`, 최대 +4)
-- **고리 3개 + 갈래별 궁극기, 노드 57개**, 총비용 269 클로버.
-- 데이터: `SkillNodeDef` (branch, ring, position, costs[], prerequisites[], effect_stat/op/per_level 또는 feature_id).
-- 효과는 `StatModifiers` 수정자(source `skill:<id>`)로 적용.
+- 중앙 **"도박꾼의 심장"**(`heart`, 처음부터 레벨 1 보유, 구매 불가)에서 4갈래로 뻗는다.
+  - 북 **FORTUNE**(-90°, 배당): 색·홀짝·개별숫자 배당, 황금 포켓 배율, 핫 넘버, 럭키 세븐, 잭팟 체인
+  - 동 **MACHINE**(0°, 자동화): 오토 스핀, 스마트 베팅, 오토 업그레이드, 오프라인·휴식 보상, 딜러 고용
+  - 남 **ECONOMY**(90°, 경제): 업그레이드 할인, 캐시백, 비상금, 투자 수익, 빚 조건, 황금 저금통, 복리
+  - 서 **MYSTIC**(180°, 특수 기능): 제로 가드, 예지·천리안, 미러, 피버 타임, 더블 볼, 황금 폭풍, 운명 뒤집기, 운명의 휠
+- **고리 3개(반지름 55/105/150) + 갈래별 궁극기(반지름 185), 노드 57개**(갈래당 1링 4·2링 5·3링 4·궁극기 1 = 14, ×4 + HEART = 57), **총비용 269 클로버**(`tools/data/generate_skill_data.gd` 가 생성 시 코드로 검증, `test_skill_service.gd::test_57_nodes_and_total_cost_269` 로 회귀 고정).
+- 노드 위치는 갈래 중심각 ±40° 안에서 고리별 개수만큼 균등 분포(같은 링 안에서 서로를 선행조건으로 삼는 경우도 있다 — 링은 "선행조건 단계"가 아니라 "시각적 반지름"이다).
+- 데이터: `SkillNodeDef`(branch, ring, position, costs[]=레벨별 클로버, prerequisites[]+prerequisite_mode(ALL/ANY), effects[]={stat,op,per_level} 배열(노드 하나가 여러 스탯에 동시에 영향 가능), feature_id, is_ultimate). 전체 노드 정의는 `data/skills/*.tres`(원본은 `tools/data/generate_skill_data.gd`).
+- 효과는 `StatModifiers` 수정자(source `skill:<id>`)로 적용(`GameState.set_skill_level`/`rebuild_skill_modifiers`, `UpgradeService`/`GameState.set_upgrade_level` 와 동형). 스탯이 아닌 기능 해금(오토 스핀 등)은 `feature_id` 로 표시하고 `SkillService.feature_level(id)`/`has_feature(id)` 로 조회한다.
+- 구매: `SkillService.purchase(id)`. 클로버 부족·잠김(선행조건 미충족)·최대 레벨이면 실패(-1). 재분배(리셋) 없음.
+
+### 6-1. 효과 수치 표기 규칙(6단계에서 정함)
+
+GDD 원문의 "+X%/Lv"·"×N/Lv"·"+N" 표기를 아래 규칙으로 기계적으로 변환했다(전부 초안, 9단계에서 재조정):
+
+| 원문 표기 | 변환 | 예 |
+|---|---|---|
+| "×N/Lv" 또는 "×N (곱)" | `MULT`, per_level=N(복리, `pow(N, level)`) | F12 ×1.5/Lv → `payout_mult_all` MULT 1.5 |
+| "+X%/Lv"·"−X%/Lv"·"X% 감면" | `MULT`, per_level=1±X/100(복리) | F1 +15%/Lv → `payout_mult_color` MULT 1.15 |
+| 베이스가 0인 스탯(캐시백·확률 등)의 "+X%/Lv" | `ADD`, per_level=X/100(0에 곱연산은 의미가 없어 예외) | E2 캐시백 5%/Lv → `cashback_rate` ADD 0.05 |
+| 베이스와 반대 방향(간격 vs 빈도)인 경우 | 역수로 변환(예외, 주석으로 표시) | E7 "빈도 −25%/Lv" → `penalty_interval_mult` MULT 4/3 |
+| 절대값 "+N"(단위 있음: 초·시간·개수 등) | `ADD`, per_level=N | M4 오프라인 +2시간/Lv → `offline_cap_hours` ADD 2.0 |
+| 배당 배수로 환산해야 하는 "+N"(개별숫자 배당) | `ADD`, per_level=N/36(35:1 을 (1+bonus) 곱셈 체계로 환산) | F3 +2/Lv → `straight_payout_bonus` ADD 2/36 |
+
+### 6-2. 새 스탯·조건부 효과 처리(`SpinContext`/`RouletteRules`/`SpinController`)
+
+- 결정론적(순수) 조건부 효과는 `SpinContext` 필드로 `RouletteRules.resolve()` 안에서 처리한다: `zero_guard`(Y1, 0이면 색·홀짝 반환), `cashback_rate`(E2), `hot_numbers`+`hot_number_straight_mult`(F6), `lucky_seven_mult`(F9), `zero_straight_mult`(Y7), `multi_hit_bonus`(F8).
+- RNG 가 필요한 재판정·확률형 효과는 `RouletteRules` 를 순수하게 유지하기 위해 `SpinController._resolve_with_specials()`(운명 뒤집기 Y8, RngService misc 스트림으로 재판정 뒤 유리할 때만 채택)와 `_apply_mirror()`(미러 Y3, 진 베팅마다 확률로 무승부)로 분리했다.
+- 스핀마다 반복되는 효과(VIP 컴프 E3, 보너스 칩 E9, 잭팟 체인 F14 충전·소모, 황금 폭풍 Y12, 피버 타임 Y5, 황금 저금통 E13)는 `SpinController._apply_outcome()` 뒤에 붙는 전용 `_apply_*()` 함수로 처리한다.
+- 연승 보너스(F5+F11)·복리의 마법(E14)처럼 "현재 상태(연승 수·칩 자릿수)에 비례"하는 효과는 `GameState.build_spin_context()` 에서 직접 계산해 `payout_mult_all` 에 곱해 넣는다(별도 StatModifiers 항목이 아니라 매 스핀 재계산).
+- 시간제(초) 버프는 전부 `GameState.add_buff()` 를 거치며, `skill:y13`(시간 왜곡)의 `buff_duration_mult` 스탯이 자동으로 곱해진다. 잭팟 체인·피버는 이 버프 체계를 그대로 써서 저장/복원과 `buff_started`/`buff_ended` 신호를 공짜로 얻는다.
 
 ---
 
@@ -298,6 +321,11 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `toast_requested(text: String, icon: String)` | 알림 요청 |
 | `save_started()` | 저장 시작(4단계). TopBar 가 구석에 칩 회전 아이콘을 0.8초 보여준다 |
 | `save_finished(ok: bool)` | 저장 끝(저장은 동기 처리라 save_started 와 거의 동시) |
+| `piggy_bank_broken(amount: float)` | 황금 저금통(E13)이 100스핀마다 깨지며 칩 지급(6단계) |
+| `wheel_of_fortune_ready()` | 운명의 휠(Y14) 등장 시각. `GameState.wheel_of_fortune_consumed()` 로 다음 주기 시작 |
+| `golden_storm_triggered(spins: int)` | 황금 폭풍(Y12) 발동 |
+| `destiny_flip(from_number: int, to_number: int)` | 운명 뒤집기(Y8) 재판정 발생 |
+| `auto_spin_stopped(reason: String)` | 오토 스핀이 자동으로 꺼짐(칩 부족·베팅 없음) |
 
 ### 11-3. GameState
 
@@ -315,7 +343,8 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 - `consume_charges(source_id, amount=1)`(5단계): 시간이 아니라 "횟수"로 소모되는 수정자(압류=스핀 1회, 클로버 수수료=클로버 획득 1회)를
   줄이고, 0 이하가 되면 duration 과 마찬가지로 제거·`source_expired` 발행.
 - `remove_source(source_id)`: 일괄 제거.
-- 스탯 키(`StatModifiers.ALL_STATS`): payout_mult_all, payout_mult_color, payout_mult_parity, straight_payout_bonus, marble_mult, floor_mult, golden_pocket_count, golden_pocket_mult, max_bet_mult, marble_slots_bonus, locked_marbles, extra_balls, spin_duration_mult, spin_delay, upgrade_cost_mult, cashback_rate, offline_efficiency, offline_cap_hours, clover_gain_mult, debt_repay_mult, penalty_interval_mult
+- 스탯 키(`StatModifiers.ALL_STATS`, 1~5단계): payout_mult_all, payout_mult_color, payout_mult_parity, straight_payout_bonus, marble_mult, floor_mult, golden_pocket_count, golden_pocket_mult, max_bet_mult, marble_slots_bonus, locked_marbles, extra_balls, spin_duration_mult, spin_delay, upgrade_cost_mult, cashback_rate, offline_efficiency, offline_cap_hours, clover_gain_mult, debt_repay_mult, penalty_interval_mult, debt_paid_clover_bonus
+- 6단계 추가 스탯: clover_bonus_chance(F4), streak_bonus_per_win/streak_bonus_cap(F5·F11), hot_number_straight_mult(F6), multi_hit_bonus(F8), lucky_seven_mult(F9), milestone_clover_bonus(F13), smart_betting_bonus(M12), min_spin_duration_stat(M10), vip_comp_rate(E3), investment_rate(E5), marble_cost_mult(E8), bonus_chip_per_hit(E9), upgrade_growth_mult(E12), piggy_bank_rate(E13), compound_interest_per_digit(E14), mirror_chance(Y3), zero_straight_mult(Y7), destiny_flip_chance(Y8), fever_period_reduction/fever_duration_bonus(Y11), golden_storm_chance(Y12), buff_duration_mult(Y13). 전체 정의는 `scripts/core/stat_modifiers.gd` 참고.
 
 ### 11-5. RngService
 

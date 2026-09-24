@@ -52,9 +52,16 @@
 - [x] 패널티 6종(StatModifiers penalty:*), 래칫 남작 NPC·대사, 대화 시스템(DialogueBox)
 - [x] debt_changed, 빚 완납 클로버 +2
 
-### 6단계 — 스킬트리·클로버·자동화
-- [ ] 스킬 57개 데이터(총 269 클로버), 4갈래·고리 3개·궁극기
-- [ ] 스킬트리 오버레이 UI(K), 자동 스핀(A), 예지, 더블 볼, 딜러 고용
+### 6단계 — 스킬트리·클로버·자동화 (진행 중 — 아래 "진행 상황" 참고)
+- [x] 로직 기반: StatModifiers 신규 스탯, SkillNodeDef 재설계(효과 배열+선행조건 ALL/ANY), SkillService
+- [x] RouletteRules/SpinContext/SpinController 확장(제로가드·미러·핫넘버·럭키세븐·이중적중·황금폭풍·잭팟체인·운명뒤집기·피버·저금통·비상금·투자수익)
+- [x] 스킬 57개 데이터 생성 + 총비용 269 코드 검증 + 회귀 테스트
+- [ ] 클로버 획득 연출(날아가는 클로버) + 첫 클로버 해금 연출(자물쇠 파괴+루시 대사)
+- [ ] 스킬트리 오버레이 UI(K, 아이리스 와이프, 노드맵, 팬/줌, 툴팁, 홀드 구매)
+- [ ] 자동화 3종 UI: 오토 스핀(A), 스마트 베팅 드롭다운, 오토 업그레이드 토글
+- [ ] 특수 기능 8종 UI/연출: 예지 수정구, 핫넘버 불꽃, 피버 배너·셰이더, 잭팟체인 번개, 운명뒤집기 애니메이션, 더블볼 보라 궤적, 황금저금통 돼지, 운명의 휠 팝업, 버프 표시줄
+- [ ] 딜러 루시 스프라이트·초상화·연출
+- [ ] 캡처 검수, 최종 커밋
 
 ### 7단계 — 층 진행·엔딩·업적
 - [ ] 층 이동(비용, 배율, 클로버 +10, 층별 배경), floor_changed
@@ -353,3 +360,73 @@
   UI 가 여기 해당).
 - `debt_target()`/`chip_target()` 처럼 "살아있는 UI 요소의 현재 위치"를 비행 목적지로 쓰는 패턴(`TopBar` 참고)은 별도
   스프라이트 자산을 안 만들어도 되므로, 스킬트리의 클로버 비행 등에도 그대로 재사용할 수 있다.
+
+### 6단계 진행 중 (2026-09-24) — 1/N: 로직 기반·스킬 데이터 57개
+
+**시작 전 정리**: 작업 브랜치(`claude/friendly-meitner-1ay0i9`)에는 1단계 커밋만 있었다. GitHub 를 조사해 다른 세션이
+1→2→3→4→5단계를 순서대로 쌓은 `claude/vibrant-brahmagupta-a6rzeq` 브랜치(커밋 `1a801a9`)를 찾았고, 고유 커밋이 없음을
+확인한 뒤 그 지점으로 안전하게 재설정했다. `bash tools/setup_godot.sh` 로 Godot 4.3 설치 후 **254 tests, 3997 checks,
+0 failures** 로 5단계가 정상 종료 상태임을 확인한 뒤 이 문서의 계획대로 6단계를 시작했다. 작업량이 매우 많아 하위
+작업 단위로 커밋을 나눈다(이 커밋은 1번째: 눈에 보이는 연출 없이 로직·데이터만).
+
+**한 일**
+- **StatModifiers**: 6단계 스탯 21종 추가(GDD 11-4 표 참고). 새 조회 함수 `charges_remaining(source_id)`.
+- **SkillNodeDef 재설계**: `effect_stat/op/per_level`(단일) → `effects: Array[Dictionary]`(노드 하나가 여러 스탯 동시
+  적용 가능, 예: M2 는 spin_delay ADD + spin_duration_mult MULT). `prerequisites`+`prerequisite_mode`(ALL/ANY) 로
+  "A|B"·"A&B" 표기를 표현. `is_heart()`(costs 비어있음=처음부터 보유), `cumulative_cost()`.
+- **SkillService**(신규, `UpgradeService` 와 동형): `level/is_owned/feature_level/has_feature`, `prerequisites_met`,
+  `lock_status`, `purchase`(클로버 차감 → `GameState.set_skill_level` → `skill_purchased` 발행), `invested_total/
+  grand_total`, `any_affordable`.
+- **GameState**: `set_skill_level`/`rebuild_skill_modifiers`(업그레이드와 동일 패턴, 저장/불러오기 후 SaveManager 가
+  호출), `auto_spin_unlocked()` 가 이제 `SkillService.has_feature("auto_spin")` 을 본다. `add_buff()` 에 `charges` 인자와
+  `Y13(buff_duration_mult)` 자동 반영 추가. `build_spin_context()` 확장: 제로 가드·핫넘버·럭키세븐·제로축복·이중적중·
+  캐시백·연승 보너스(F5+F11)·복리의 마법(E14, 현재 상태 비례라 매 스핀 재계산)·황금 폭풍(golden_pockets 를 37개로
+  덮어씀). `hot_numbers()`(최근 20스핀 최다 3개, 동률은 최근 것). 새 필드: 스마트 베팅 전략, 오토 업그레이드 설정,
+  채무 관리인 토글, 황금 폭풍/저금통/피버/비상금/운명의 휠 상태(전부 to_dict/from_dict 에 포함).
+- **RouletteRules**: `win_multiplier` 에 핫넘버·럭키세븐(7·17·27)·제로의 축복 곱연산 추가. `resolve()` 에 제로 가드·
+  캐시백(결정론적이라 순수 함수 안에서 처리) 과 이중 적중 보너스(승리 개수 확정 후 일괄 곱) 추가. `SpinOutcome.
+  BetResult.refunded/pushed()`(무승부 표시, 당첨은 아님).
+- **SpinController**: `_resolve_with_specials()`(운명 뒤집기 Y8 — 전패 시 misc RNG 로 재판정하되 "유리할 때만" 채택,
+  RouletteRules 는 순수하게 유지) → `_apply_mirror()`(미러 Y3, 확률적 무승부) 순서로 오케스트레이션. `_apply_outcome`
+  뒤에 잭팟 체인(F14, 소모는 보유 여부와 무관하게 버프가 있으면 항상 진행 — 운명의 휠도 같은 버프를 걸 수 있어서)·
+  VIP 컴프·피버 타임(스핀 카운터)·황금 폭풍 발동 판정·황금 저금통(100스핀 정산) 을 붙였다.
+- **UpgradeService**: `growth_of(def)`(도매가 E12 가 곱하는 성장률), 재질 비용에 `marble_cost_mult`(E8), 오토
+  업그레이드용 `cheapest_affordable_id(budget, include_marble)`.
+- **DebtService**: `forgive_ratio()`(운명의 휠 "빚 탕감" — 상환과 달리 칩을 안 쓴다), `apply_auto_repay` 에 `rate`
+  인자(채무 관리인 M13 의 25%/50% 선택).
+- **OfflineIncome**: 휴식 보상(M9) 클로버 계산(`clover_hours_per_unit`), `ReturnPopup` 에 클로버 줄 추가.
+- **신규 core 서비스**: `ProphecyService`(예지 Y2 색 힌트 정확도 60/67/75%, 천리안 Y9 후보 3개 — 전부 misc RNG,
+  통계 테스트 가능), `SmartBettingService`(M6 전략 4종의 베팅 구성 + 마틴게일 칩 크기 단계), `WheelOfFortuneService`
+  (Y14 8칸 굴리기·지급).
+- **데이터**: `tools/data/generate_skill_data.gd`(신규) 로 노드 57개 생성 — 위치는 갈래 중심각 ±40° 안에서 고리별
+  균등 분포로 계산(수동 좌표 없음). 스크립트 자체가 총비용 269 를 검증하고 어긋나면 `push_error`.
+- **번역**: `SKILL_*`(이름+설명 57×2), 운명의 휠 8칸, 비상금·휴식 보상 토스트 키 추가.
+- 테스트: `tests/test_skill_service.gd`(신규, 15개 — 데이터 무결성·선행조건 ALL/ANY·구매·효과 적용(복리 검증)·
+  feature_level·저장/불러오기 왕복). `test_data.gd` 의 황금 포켓 상한 검사를 `GOLDEN_POCKET_UPGRADE_MAX_LEVEL`(5, 스킬
+  Y4 포함 전체 상한은 `GOLDEN_POCKET_MAX`=8) 기준으로 수정.
+- 전체 **269 tests, 4565 checks, 0 failures**(기존 254개 전부 그대로 통과 + 신규 15개).
+
+**설계 결정(GDD 6장·6-1·6-2 에 반영)**
+- 효과 수치 표기(+%/×N/절대값) → ADD/MULT 변환 규칙을 표로 확정(GDD 6-1). 예외 1건(E7 패널티 빈도, 간격의
+  역수라서 MULT 로 환산)만 주석으로 표시.
+- 고리는 "선행조건 단계"가 아니라 "시각적 반지름"이다 — 갈래마다 1링4·2링5·3링4·궁극기1 로 고정하고, 같은 링 안의
+  노드가 서로 선행조건인 경우도 허용한다(예: Y13 은 같은 3링인 Y11 이 선행조건).
+- 잭팟 체인 버프는 F14 전용이 아니라 `buff:jackpot_chain` 공용 버프로 만들어 운명의 휠(Y14) 이 재사용한다(스킬
+  보유와 무관하게 버프가 있으면 소모된다).
+
+**남은 이슈**
+- 이번 커밋에는 화면 요소가 전혀 없다(GDD·테스트로만 검증). 다음 커밋부터 클로버 연출 → 스킬트리 화면 →
+  자동화 UI → 특수 기능 연출 → 딜러 루시 순서로 눈에 보이는 부분을 만든다.
+- 스마트 베팅·오토 업그레이드·비상금·운명의 휠 타이머는 로직만 있고 아직 아무도 호출하지 않는다(Main 이 다음
+  커밋에서 연결). 지금 스킬을 사도 화면에는 아무 변화가 없다(수정자는 정상 적용됨 — 테스트로 확인됨).
+- 구슬 재질 임시 상승(운명의 휠)은 수치(marble_mult 배율)만 구현했고, 휠·베팅판의 "보이는" 재질 색까지 5분간
+  바꾸는 것은 시각 자산 작업 때 추가로 검토한다(MarbleSprite 공유 머티리얼이 전역이라 임시 오버레이가 더 필요).
+
+**다음 작업이 알아야 할 것**
+- `SkillService.purchase(id)` 하나로 구매가 끝난다(클로버 차감+효과 적용+이벤트 발행까지). UI 는 `lock_status`/
+  `can_purchase`/`is_locked`/`is_maxed` 로 버튼 상태만 그리면 된다.
+- `GameData.skills()`/`GameData.skill(id)` 로 57개 노드에 접근(이미 `data/skills/*.tres` 로 저장돼 있음).
+- 스킬트리 화면은 `Main.skill_overlay`(현재 `PlaceholderScreen`)를 실제 화면으로 교체하면 된다. 여는 방식만
+  `PanelTransition` 대신 아이리스 와이프로 바꿔야 한다(`Main._toggle_overlay` 에서 skill_overlay 만 분기).
+- 오토 스핀은 `Main` 에 `_process` 가 없으므로 새로 추가해야 한다(`GameState.get_stat(SPIN_DELAY, ...)` 로 대기
+  시간을 재고, `controller.start_spin()` 을 직접 부른다 — `request_spin()` 의 스킵 로직은 오토에는 안 맞는다).

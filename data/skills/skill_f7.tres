@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_p3wj2"]
+
+[resource]
+script = ExtResource("1_p3wj2")
+id = "f7"
+name_key = "SKILL_F7"
+desc_key = "SKILL_F7_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_f7.png"
+branch = 1
+ring = 2
+position = Vector2i(0, -105)
+costs = Array[int]([2, 2, 2])
+prerequisites = Array[String](["f3"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 1.0,
+"stat": "golden_pocket_mult"
+}])
+feature_id = ""
+is_ultimate = false

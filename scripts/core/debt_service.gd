@@ -24,9 +24,10 @@ static func take_loan(debts: Array[Dictionary], avg_income_per_second: float, mi
 	return {"debts": result_debts, "principal": principal, "repay": repay, "merged": merged, "merged_index": merged_index}
 
 
-## 당첨금 중 Economy.DEBT_AUTO_REPAY_RATE 비율을 오래된 순으로 자동 상환한다.
-static func apply_auto_repay(debts: Array[Dictionary], payout: float) -> Dictionary:
-	return repay_oldest_first(debts, payout * Economy.DEBT_AUTO_REPAY_RATE)
+## 당첨금 중 rate 비율(기본 Economy.DEBT_AUTO_REPAY_RATE, 채무 관리인 스킬이 있으면 선택한 비율)을
+## 오래된 순으로 자동 상환한다.
+static func apply_auto_repay(debts: Array[Dictionary], payout: float, rate: float = Economy.DEBT_AUTO_REPAY_RATE) -> Dictionary:
+	return repay_oldest_first(debts, payout * rate)
 
 
 ## amount 를 오래된 순(배열 인덱스 순)으로 나눠 갚는다. 초과분은 다음 빚으로 넘어간다.
@@ -63,6 +64,24 @@ static func repay_at(debts: Array[Dictionary], index: int, amount: float) -> Dic
 	if entry["remaining"] <= 0.0:
 		result_debts.remove_at(index)
 	return {"debts": result_debts, "repaid": pay}
+
+
+## 상환(칩 소모) 없이 모든 빚의 잔액을 ratio 만큼 줄여준다(운명의 휠 "빚 탕감"). 반환: {"debts","forgiven"}
+static func forgive_ratio(debts: Array[Dictionary], ratio: float) -> Dictionary:
+	var result_debts := _duplicate(debts)
+	var forgiven := 0.0
+	var i := 0
+	while i < result_debts.size():
+		var entry: Dictionary = result_debts[i]
+		var remaining := float(entry["remaining"])
+		var cut := remaining * ratio
+		entry["remaining"] = remaining - cut
+		forgiven += cut
+		if entry["remaining"] <= 0.0:
+			result_debts.remove_at(i)
+		else:
+			i += 1
+	return {"debts": result_debts, "forgiven": forgiven}
 
 
 static func total(debts: Array[Dictionary]) -> float:

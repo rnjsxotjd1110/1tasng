@@ -212,3 +212,127 @@ PENALTY_SMOKE,시가 연기,Cigar Smoke
 PENALTY_BLUR,흐려진 구슬,Blurred Marble
 PENALTY_SEIZE,압류,Seizure
 PENALTY_CLOVER_FEE,클로버 수수료,Clover Fee
+RETURN_REST_BONUS,휴식 보상 클로버 +%s,Rest bonus +%s clovers
+TOAST_EMERGENCY_FUND,비상금 %s 지급!,Emergency fund: +%s!
+WHEEL_SLICE_CHIPS,칩 보너스,Chip Bonus
+WHEEL_SLICE_CLOVER_5,클로버 +5,Clover +5
+WHEEL_SLICE_MARBLE_UP,재질 임시 상승,Marble Boost
+WHEEL_SLICE_FEVER,즉시 피버!,Instant Fever!
+WHEEL_SLICE_GOLDEN_STORM,황금 폭풍,Golden Storm
+WHEEL_SLICE_DEBT_RELIEF,빚 탕감,Debt Relief
+WHEEL_SLICE_CLOVER_2,클로버 +2,Clover +2
+WHEEL_SLICE_JACKPOT_CHAIN,잭팟 체인 발동,Jackpot Chain
+SKILL_HEART,도박꾼의 심장,Gambler's Heart
+SKILL_HEART_DESC,스킬트리의 중심. 처음부터 보유하고 있다.,The heart of the skill tree. You start with it.
+SKILL_F1,색의 축복,Blessing of Color
+SKILL_F1_DESC,빨강·검정 배당이 레벨당 15% 오른다.,Red/Black payouts increase 15% per level.
+SKILL_F2,홀짝의 축복,Blessing of Parity
+SKILL_F2_DESC,홀·짝 배당이 레벨당 15% 오른다.,Odd/Even payouts increase 15% per level.
+SKILL_F3,숫자의 속삭임,Whisper of Numbers
+SKILL_F3_DESC,개별숫자 배당이 레벨당 +2 오른다.,Straight-up payout increases by +2 per level.
+SKILL_F4,클로버 감각,Clover Sense
+"SKILL_F4_DESC","클로버 획득 시 레벨당 20% 확률로 +1개 더 받는다.","20% chance per level to gain +1 extra clover."
+SKILL_F5,연승 보너스,Streak Bonus
+"SKILL_F5_DESC","연승 1회당 모든 배당이 레벨당 2% 오른다(최대 10연승).","+2%/level payout per win streak (up to 10 streak)."
+SKILL_F6,핫 넘버,Hot Numbers
+"SKILL_F6_DESC","최근 20스핀 최다 숫자 3개를 표시하고, 그 숫자의 스트레이트 배당이 ×2 된다.","Shows the 3 hottest numbers from the last 20 spins; their straight payout is ×2."
+SKILL_F7,황금 세공,Golden Craft
+"SKILL_F7_DESC","황금 포켓 배율이 ×3에서 레벨당 +1씩 오른다.","Golden pocket multiplier increases from ×3 by +1 per level."
+SKILL_F8,이중 적중,Double Hit
+"SKILL_F8_DESC","한 스핀에 2개 이상 적중하면 총 당첨이 레벨당 20% 오른다.","+20%/level total payout when 2+ bets win in one spin."
+SKILL_F9,럭키 세븐,Lucky Seven
+"SKILL_F9_DESC","결과가 7·17·27이면 모든 당첨이 ×7 된다.","All payouts ×7 when the result is 7, 17, or 27."
+SKILL_F10,고액 배당,High Payout
+SKILL_F10_DESC,개별숫자 배당이 레벨당 +5 오른다.,Straight-up payout increases by +5 per level.
+SKILL_F11,끝없는 연승,Endless Streak
+"SKILL_F11_DESC","연승 보너스 최대 반영 횟수가 10에서 레벨당 10씩 늘어난다.","Raises the win-streak bonus cap from 10 by +10 per level."
+SKILL_F12,행운의 흐름,Flow of Luck
+"SKILL_F12_DESC","모든 당첨이 레벨당 ×1.5(곱연산) 오른다.","All payouts multiply ×1.5 per level (multiplicative)."
+SKILL_F13,풍년,Bountiful Year
+"SKILL_F13_DESC","마일스톤 클로버가 +3에서 레벨당 +2씩 늘어난다.","Milestone clover reward increases from +3 by +2 per level."
+SKILL_F14,잭팟 체인,Jackpot Chain
+"SKILL_F14_DESC","개별숫자 적중 시 다음 3스핀 동안 모든 배당이 ×5 된다(갱신형).","Hitting a straight number multiplies all payouts ×5 for the next 3 spins (refreshes on repeat)."
+SKILL_M1,오토 스핀,Auto Spin
+"SKILL_M1_DESC","AUTO 버튼을 해금한다. 현재 베팅 구성으로 자동 스핀하며, 칩이 부족하면 멈춘다.","Unlocks the AUTO button: auto-spins with your current bets and stops if chips run out."
+SKILL_M2,빠른 손,Quick Hands
+"SKILL_M2_DESC","스핀 간 대기 시간이 레벨당 0.25초 줄고, 스핀 시간도 레벨당 5% 줄어든다.","-0.25s/level between spins and -5%/level spin duration."
+SKILL_M3,오프라인 금고,Offline Vault
+SKILL_M3_DESC,오프라인 수익 효율이 레벨당 15%p 오른다.,+15pp/level offline income efficiency.
+SKILL_M4,금고 확장,Vault Expansion
+SKILL_M4_DESC,오프라인 수익 최대 시간이 레벨당 2시간 늘어난다.,+2 hours/level offline income cap.
+SKILL_M5,오토 베팅,Auto Bet
+"SKILL_M5_DESC","칩 크기를 자동으로 MAX로 유지하고, 부족하면 낮춰서 스핀을 계속한다.","Keeps chip size at MAX automatically, lowering it to keep spinning if needed."
+SKILL_M6,스마트 베팅,Smart Betting
+"SKILL_M6_DESC","전략(안정/공격/핫넘버 추종/마틴게일/내 구성 유지)을 골라 베팅을 자동으로 구성한다.","Automatically arranges bets using a chosen strategy (stable/aggressive/hot numbers/martingale/keep mine)."
+SKILL_M7,오토 업그레이드,Auto Upgrade
+"SKILL_M7_DESC","가장 싼 업그레이드를 보유 칩의 일정 비율까지 자동으로 구매한다.","Automatically buys the cheapest upgrade, up to a set percentage of your chips."
+SKILL_M8,추가 트레이,Extra Tray
+SKILL_M8_DESC,구슬 최대 개수가 레벨당 +1 늘어난다.,+1 marble slot per level.
+SKILL_M9,휴식 보상,Rest Bonus
+"SKILL_M9_DESC","오프라인 시간마다 클로버를 지급한다(레벨당 지급 주기가 짧아짐, 최대 4개).","Grants clovers for offline time (shorter interval per level, up to 4)."
+SKILL_M10,터보 모드,Turbo Mode
+"SKILL_M10_DESC","최소 스핀 시간이 1.5초에서 0.8초로 줄고, 연출을 간소화하는 옵션이 열린다.","Minimum spin time drops from 1.5s to 0.8s; unlocks a simplified-effects option."
+SKILL_M11,야간 교대,Night Shift
+"SKILL_M11_DESC","오프라인 효율이 레벨당 10%p, 최대 시간이 레벨당 2시간 늘어난다.","+10pp/level offline efficiency and +2h/level offline cap."
+SKILL_M12,전략 연구,Strategy Research
+SKILL_M12_DESC,스마트 베팅 사용 중 모든 당첨이 레벨당 10% 오른다.,+10%/level payout while smart betting is active.
+SKILL_M13,채무 관리인,Debt Manager
+"SKILL_M13_DESC","자동 상환율을 25%/50% 중에서 고를 수 있고, 파산 직전에는 칩 크기를 자동으로 낮춘다.","Choose 25%/50% auto-repay rate; automatically lowers chip size near bankruptcy."
+SKILL_M14,딜러 고용,Hire the Dealer
+"SKILL_M14_DESC","루시가 테이블을 운영한다. 스핀 간 대기 시간이 0이 되고, 모든 수익이 ×2 된다.","Lucy runs the table: no wait between spins, and all income is ×2."
+SKILL_E1,흥정,Haggling
+SKILL_E1_DESC,업그레이드 비용이 레벨당 5% 줄어든다.,-5%/level upgrade cost.
+SKILL_E2,캐시백,Cashback
+SKILL_E2_DESC,진 베팅액의 레벨당 5%를 돌려받는다.,+5%/level cashback on lost bets.
+SKILL_E3,VIP 컴프,VIP Comp
+SKILL_E3_DESC,스핀마다 최대 베팅액의 레벨당 2%를 지급받는다.,+2%/level of max bet paid every spin.
+SKILL_E4,비상금,Emergency Fund
+"SKILL_E4_DESC","파산 직전 대출 대신 최근 1분 수익을 1회 받는다(쿨다운 10분/5분).","Grants your last minute's income once instead of a loan (cooldown 10/5 min)."
+SKILL_E5,투자 수익,Investment Income
+"SKILL_E5_DESC","10초마다 보유 칩의 레벨당 0.1% 이자를 받는다(상한 최대 베팅×10).","+0.1%/level chip interest every 10s (capped at 10x max bet)."
+SKILL_E6,남작과의 협상,Deal with the Baron
+SKILL_E6_DESC,상환 배율이 2.0에서 레벨당 0.25씩 줄어든다.,Repayment multiplier drops from 2.0 by 0.25 per level.
+SKILL_E7,뒷주머니,Back Pocket
+SKILL_E7_DESC,패널티 발생 빈도가 레벨당 25% 줄어든다.,-25%/level penalty frequency.
+SKILL_E8,할인 쿠폰,Discount Coupon
+SKILL_E8_DESC,구슬 재질 비용이 레벨당 8% 줄어든다.,-8%/level marble material cost.
+SKILL_E9,보너스 칩,Bonus Chips
+SKILL_E9_DESC,개별숫자 적중 시 최대 베팅액×10×레벨 만큼 추가로 받는다.,Straight hits grant an extra max-bet x10 x level in chips.
+SKILL_E10,하이롤러,High Roller
+SKILL_E10_DESC,최대 베팅액이 레벨당 ×2(곱연산) 늘어난다.,Max bet ×2 per level (multiplicative).
+SKILL_E11,빚 탕감,Debt Forgiveness
+"SKILL_E11_DESC","상환액이 20% 줄고, 빚을 완납하면 클로버 +2를 추가로 받는다.","-20% repayment amount, and +2 extra clover on full debt payoff."
+SKILL_E12,도매가,Wholesale Price
+SKILL_E12_DESC,모든 업그레이드의 비용 증가율이 레벨당 ×0.97 된다.,Upgrade cost growth rate ×0.97 per level.
+SKILL_E13,황금 저금통,Golden Piggy Bank
+"SKILL_E13_DESC","100스핀마다 누적 순이익의 레벨당 20%를 보너스로 받는다.","Every 100 spins, get +20%/level of accumulated net profit as a bonus."
+SKILL_E14,복리의 마법,Magic of Compound Interest
+SKILL_E14_DESC,보유 칩 자릿수(로그10)마다 모든 수익이 3% 오른다.,+3% income per digit (log10) of your chip count.
+SKILL_Y1,제로 가드,Zero Guard
+SKILL_Y1_DESC,0이 나오면 색·홀짝 베팅의 원금을 돌려받는다.,Refunds color/parity bets when the result is 0.
+SKILL_Y2,예지,Prophecy
+"SKILL_Y2_DESC","다음 결과의 색을 미리 알려준다(정확도는 레벨에 따라 60/67/75%).","Hints the next result's color (60/67/75% accurate by level)."
+SKILL_Y3,미러,Mirror
+SKILL_Y3_DESC,진 베팅마다 레벨당 5% 확률로 무승부(반환) 처리된다.,5%/level chance a losing bet becomes a push (refund).
+SKILL_Y4,행운 부적,Lucky Charm
+"SKILL_Y4_DESC","황금 포켓 개수가 레벨당 +1 늘어난다(업그레이드와 합쳐 최대 8개).","+1 golden pocket per level (up to 8 combined with the upgrade)."
+SKILL_Y5,피버 타임,Fever Time
+"SKILL_Y5_DESC","50스핀마다 10초 동안 모든 배당이 ×7 되는 피버 타임이 발동한다.","Every 50 spins, a 10-second Fever Time multiplies all payouts ×7."
+SKILL_Y6,영혼의 구슬,Soul Marble
+SKILL_Y6_DESC,구슬 재질 배율이 레벨당 ×1.3 오른다.,Marble material multiplier ×1.3 per level.
+SKILL_Y7,제로의 축복,Blessing of Zero
+SKILL_Y7_DESC,0 스트레이트 적중 시 배당이 ×3 되고 클로버 +2를 더 받는다.,Hitting straight-up 0 pays ×3 and grants +2 extra clover.
+SKILL_Y8,운명 뒤집기,Fate Reversal
+"SKILL_Y8_DESC","전패했을 때 레벨당 10% 확률로 공이 옆 포켓으로 튕겨 유리할 때만 재판정한다.","10%/level chance, on a total loss, the ball bounces to a neighboring pocket -- only when it helps."
+SKILL_Y9,천리안,Clairvoyance
+"SKILL_Y9_DESC","예지가 개별숫자 후보 3개도 보여준다(정답 포함 확률 50%).","Prophecy also shows 3 candidate numbers (50% chance the answer is among them)."
+SKILL_Y10,더블 볼,Double Ball
+SKILL_Y10_DESC,공 2개를 동시에 투입한다.,Spins with two balls at once.
+SKILL_Y11,피버 연장,Fever Extension
+"SKILL_Y11_DESC","피버 지속시간이 레벨당 +5초, 발동 주기가 레벨당 10스핀 짧아진다.","+5s/level Fever duration, -10 spins/level Fever interval."
+SKILL_Y12,황금 폭풍,Golden Storm
+"SKILL_Y12_DESC","황금 포켓 적중 시 레벨당 20% 확률로 다음 스핀의 모든 포켓이 황금이 된다.","20%/level chance a golden hit turns every pocket golden next spin."
+SKILL_Y13,시간 왜곡,Time Warp
+SKILL_Y13_DESC,모든 시간제 버프의 지속시간이 레벨당 25% 늘어난다.,+25%/level duration for all timed buffs.
+SKILL_Y14,운명의 휠,Wheel of Fortune
+SKILL_Y14_DESC,10분마다 8칸 보너스 휠이 등장한다.,A bonus wheel with 8 slices appears every 10 minutes.

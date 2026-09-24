@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_1q7jw"]
+
+[resource]
+script = ExtResource("1_1q7jw")
+id = "m14"
+name_key = "SKILL_M14"
+desc_key = "SKILL_M14_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m14.png"
+branch = 2
+ring = 4
+position = Vector2i(185, 0)
+costs = Array[int]([10])
+prerequisites = Array[String](["m10", "m12"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 2.0,
+"stat": "payout_mult_all"
+}, {
+"op": 1,
+"per_level": 0.0,
+"stat": "spin_delay"
+}])
+feature_id = "dealer_hired"
+is_ultimate = true

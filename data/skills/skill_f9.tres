@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_8112v"]
+
+[resource]
+script = ExtResource("1_8112v")
+id = "f9"
+name_key = "SKILL_F9"
+desc_key = "SKILL_F9_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_f9.png"
+branch = 1
+ring = 2
+position = Vector2i(67, -80)
+costs = Array[int]([4])
+prerequisites = Array[String](["f4"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 7.0,
+"stat": "lucky_seven_mult"
+}])
+feature_id = ""
+is_ultimate = false

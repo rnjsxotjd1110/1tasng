@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_lvwlw"]
+
+[resource]
+script = ExtResource("1_lvwlw")
+id = "e9"
+name_key = "SKILL_E9"
+desc_key = "SKILL_E9_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_e9.png"
+branch = 3
+ring = 2
+position = Vector2i(-67, 80)
+costs = Array[int]([2, 2])
+prerequisites = Array[String](["e2"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 10.0,
+"stat": "bonus_chip_per_hit"
+}])
+feature_id = ""
+is_ultimate = false

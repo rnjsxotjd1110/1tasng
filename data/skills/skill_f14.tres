@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_n3kc2"]
+
+[resource]
+script = ExtResource("1_n3kc2")
+id = "f14"
+name_key = "SKILL_F14"
+desc_key = "SKILL_F14_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_f14.png"
+branch = 1
+ring = 4
+position = Vector2i(0, -185)
+costs = Array[int]([10])
+prerequisites = Array[String](["f10", "f12"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = "jackpot_chain"
+is_ultimate = true

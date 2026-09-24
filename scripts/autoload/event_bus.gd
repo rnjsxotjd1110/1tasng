@@ -51,3 +51,20 @@ signal save_started()
 ## 저장 끝(성공 여부와 무관하게 바로 발행. 저장은 동기 처리라 시작과 거의 동시).
 @warning_ignore("unused_signal")
 signal save_finished(ok: bool)
+
+# ── 6단계: 스킬트리·자동화·특수 기능 ─────────────────────────
+## 황금 저금통(E13)이 100스핀마다 깨지며 칩을 지급했다.
+@warning_ignore("unused_signal")
+signal piggy_bank_broken(amount: float)
+## 운명의 휠(Y14)이 등장할 시각이 됐다(팝업을 띄울 차례). GameState.wheel_of_fortune_consumed() 로 다음 주기를 시작한다.
+@warning_ignore("unused_signal")
+signal wheel_of_fortune_ready()
+## 황금 폭풍(Y12) 발동: 다음 스핀(들) 동안 모든 포켓이 황금이 된다.
+@warning_ignore("unused_signal")
+signal golden_storm_triggered(spins: int)
+## 운명 뒤집기(Y8): 공이 from_number 에서 to_number 로 튕겨 재판정됐다.
+@warning_ignore("unused_signal")
+signal destiny_flip(from_number: int, to_number: int)
+## 오토 스핀이 자동으로 꺼졌다(칩 부족·베팅 없음 등). reason 은 토스트 문자열 키.
+@warning_ignore("unused_signal")
+signal auto_spin_stopped(reason: String)

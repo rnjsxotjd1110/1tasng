@@ -87,16 +87,21 @@ func load_game() -> bool:
 	var data := _migrate(payload.get("data", {}), int(payload.get("version", SAVE_VERSION)))
 	GameState.from_dict(data)
 	GameState.rebuild_upgrade_modifiers()
+	GameState.rebuild_skill_modifiers()
 	var rng_state: Variant = data.get("rng")
 	if typeof(rng_state) == TYPE_DICTIONARY:
 		RngService.set_state(rng_state)
 	var now := Time.get_unix_time_from_system()
+	var rest_bonus_level := SkillService.feature_level("offline_clover_bonus")
+	var clover_hours := 0.0
+	if rest_bonus_level > 0 and rest_bonus_level <= Economy.OFFLINE_CLOVER_HOURS_PER_LEVEL.size():
+		clover_hours = Economy.OFFLINE_CLOVER_HOURS_PER_LEVEL[rest_bonus_level - 1]
 	last_load_offline = OfflineIncome.compute(
 		GameState.last_income_per_second, saved_at, now,
 		GameState.auto_spin_unlocked(), GameState.auto_spin_enabled,
 		GameState.get_stat(StatModifiers.OFFLINE_CAP_HOURS, Economy.OFFLINE_CAP_HOURS),
 		GameState.get_stat(StatModifiers.OFFLINE_EFFICIENCY, Economy.OFFLINE_EFFICIENCY),
-		Economy.OFFLINE_TIP_EFFICIENCY)
+		Economy.OFFLINE_TIP_EFFICIENCY, clover_hours)
 	last_load_ok = true
 	return true
 

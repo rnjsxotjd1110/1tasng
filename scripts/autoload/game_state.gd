@@ -21,6 +21,9 @@ const PENALTY_SOURCE_PREFIX := "penalty:"
 ## 소모형(횟수제) 패널티 id. PenaltyManager 가 걸고, 여기(클로버 획득 시)와 SpinController(스핀 시작 시)가 소모한다.
 const PENALTY_ID_SEIZE_MARBLE := "seize_marble"
 const PENALTY_ID_CLOVER_FEE := "clover_fee"
+## 스킬트리 중앙 "도박꾼의 심장". 처음부터 보유(SkillService.level 이 항상 1을 돌려준다).
+const SKILL_HEART_ID := "heart"
+enum SmartBettingStrategy { KEEP, STABLE, AGGRESSIVE, HOT_NUMBERS, MARTINGALE }
 
 var chips: float = Economy.STARTING_CHIPS
 var clovers: int = 0
@@ -64,8 +67,34 @@ var last_income_per_second: float = 0.0
 var modifiers := StatModifiers.new()
 ## 최근 5분(Economy.LOAN_INCOME_WINDOW) 초당 순수익 이동평균. 오프라인 수익·5단계 대출액 계산에 공용.
 var income_tracker := IncomeTracker.new(Economy.LOAN_INCOME_WINDOW)
+## 비상금(E4) 계산 전용 최근 1분 순수익 이동평균.
+var emergency_fund_tracker := IncomeTracker.new(Economy.EMERGENCY_FUND_WINDOW)
+## 비상금을 다시 쓸 수 있을 때까지 남은 시간(초).
+var emergency_fund_cooldown: float = 0.0
 ## 빚이 있는 동안 랜덤 패널티를 거는 타이머(5단계). 연출 레이어가 penalty_manager.suppressed 를 켜고 끈다.
 var penalty_manager := PenaltyManager.new()
+
+# ── 6단계: 스킬트리·자동화·특수 기능 상태 ──────────────────
+## 스마트 베팅 전략(M6). KEEP 이면 스마트 베팅이 꺼진 것과 같다(내 구성 유지).
+var smart_betting_strategy: int = SmartBettingStrategy.KEEP
+var auto_upgrade_enabled: bool = false
+## 오토 업그레이드가 쓸 수 있는 예산(보유 칩 대비 비율).
+var auto_upgrade_ratio: float = 0.5
+## 오토 업그레이드가 구슬 재질도 자동 구매할지(M7 토글).
+var auto_upgrade_include_marble: bool = true
+## 채무 관리인(M13): true 면 자동 상환율 50%, false 면 기본 25%.
+var debt_auto_repay_boosted: bool = false
+## 황금 폭풍(Y12) 발동 시 이번 스핀을 포함해 남은 "모든 포켓이 황금" 스핀 수.
+var golden_storm_spins_left: int = 0
+## 황금 저금통(E13): 현재 창의 누적 순이익과 경과 스핀 수.
+var piggy_bank_net: float = 0.0
+var piggy_bank_spins: int = 0
+## 투자 수익(E5) 10초 타이머.
+var investment_timer: float = 0.0
+## 피버 타임(Y5) 발동까지 남은 스핀 수 카운터(0부터 누적, 주기에 닿으면 발동 후 리셋).
+var fever_spin_count: int = 0
+## 운명의 휠(Y14) 등장까지 남은 시간(초). Y14 를 처음 사면 주기로 채워진다.
+var wheel_of_fortune_timer: float = -1.0
 
 
 func _ready() -> void:
@@ -77,11 +106,53 @@ func _process(delta: float) -> void:
 	stats[STAT_PLAY_TIME] = float(stats.get(STAT_PLAY_TIME, 0.0)) + delta
 	modifiers.tick(delta)
 	penalty_manager.process(delta)
+	_tick_investment(delta)
+	_tick_wheel_of_fortune(delta)
+	emergency_fund_cooldown = maxf(0.0, emergency_fund_cooldown - delta)
 
 
-## 6단계에서 스킬로 해금되면 true를 돌려주게 바꾼다. 그 전에는 오프라인 수익이 항상 "팁" 모드다.
+## 투자 수익(E5): INVESTMENT_INTERVAL 초마다 보유 칩 대비 이자(상한 max_bet×INVESTMENT_CAP_BET_MULT).
+func _tick_investment(delta: float) -> void:
+	var rate := get_stat(StatModifiers.INVESTMENT_RATE, 0.0)
+	if rate <= 0.0:
+		investment_timer = 0.0
+		return
+	investment_timer += delta
+	while investment_timer >= Economy.INVESTMENT_INTERVAL:
+		investment_timer -= Economy.INVESTMENT_INTERVAL
+		var amount := minf(chips * rate, max_bet() * Economy.INVESTMENT_CAP_BET_MULT)
+		if amount > 0.0:
+			add_chips(amount)
+
+
+## 운명의 휠(Y14): 주기가 되면 wheel_of_fortune_ready 를 한 번만 발행하고 Main 이 소비할 때까지 기다린다.
+func _tick_wheel_of_fortune(delta: float) -> void:
+	if not SkillService.has_feature("wheel_of_fortune"):
+		return
+	if wheel_of_fortune_timer < 0.0:
+		wheel_of_fortune_timer = Economy.WHEEL_OF_FORTUNE_INTERVAL
+		return
+	if wheel_of_fortune_timer == 0.0:
+		return
+	wheel_of_fortune_timer = maxf(0.0, wheel_of_fortune_timer - delta)
+	if wheel_of_fortune_timer == 0.0:
+		EventBus.wheel_of_fortune_ready.emit()
+
+
+## Main 이 운명의 휠 팝업을 다 보여준 뒤 호출: 다음 주기를 다시 시작한다.
+func wheel_of_fortune_consumed() -> void:
+	wheel_of_fortune_timer = Economy.WHEEL_OF_FORTUNE_INTERVAL
+
+
+func wheel_of_fortune_progress() -> float:
+	if wheel_of_fortune_timer < 0.0:
+		return 0.0
+	return 1.0 - wheel_of_fortune_timer / Economy.WHEEL_OF_FORTUNE_INTERVAL
+
+
+## 오토 스핀 스킬(M1)을 보유했는가. 그 전에는 오프라인 수익이 항상 "팁" 모드다.
 func auto_spin_unlocked() -> bool:
-	return false
+	return SkillService.has_feature("auto_spin")
 
 
 ## 새 게임 상태로 되돌린다.
@@ -110,6 +181,19 @@ func reset() -> void:
 	last_income_per_second = 0.0
 	income_tracker.reset()
 	penalty_manager.reset()
+	smart_betting_strategy = SmartBettingStrategy.KEEP
+	auto_upgrade_enabled = false
+	auto_upgrade_ratio = 0.5
+	auto_upgrade_include_marble = true
+	debt_auto_repay_boosted = false
+	golden_storm_spins_left = 0
+	piggy_bank_net = 0.0
+	piggy_bank_spins = 0
+	investment_timer = 0.0
+	fever_spin_count = 0
+	wheel_of_fortune_timer = -1.0
+	emergency_fund_tracker.reset()
+	emergency_fund_cooldown = 0.0
 	stats = {
 		STAT_TOTAL_SPINS: 0,
 		STAT_TOTAL_WINS: 0,
@@ -173,10 +257,11 @@ func _is_valid_amount(amount: float, where: String) -> bool:
 
 func _check_milestones() -> void:
 	var index := NumberFormat.suffix_index(chips)
+	var bonus := int(get_stat(StatModifiers.MILESTONE_CLOVER_BONUS, 0.0))
 	while highest_milestone < index:
 		highest_milestone += 1
 		EventBus.milestone_reached.emit(highest_milestone)
-		add_clovers(Economy.CLOVER_PER_MILESTONE)
+		add_clovers(Economy.CLOVER_PER_MILESTONE + bonus)
 
 
 # ── 클로버 ───────────────────────────────────────────────
@@ -192,6 +277,9 @@ func add_clovers(amount: int) -> int:
 		gained = 1
 	if gained <= 0:
 		return 0
+	var bonus_chance := get_stat(StatModifiers.CLOVER_BONUS_CHANCE, 0.0)
+	if bonus_chance > 0.0 and RngService.randf_misc() < bonus_chance:
+		gained += 1
 	clovers += gained
 	EventBus.clovers_changed.emit(clovers, gained)
 	consume_penalty_charge(PENALTY_ID_CLOVER_FEE)
@@ -249,7 +337,8 @@ func ball_count() -> int:
 
 
 func spin_duration() -> float:
-	return Economy.spin_duration(get_stat(StatModifiers.SPIN_DURATION_MULT, StatModifiers.IDENTITY_MULT))
+	var min_duration := get_stat(StatModifiers.MIN_SPIN_DURATION, Economy.MIN_SPIN_DURATION)
+	return Economy.spin_duration(get_stat(StatModifiers.SPIN_DURATION_MULT, StatModifiers.IDENTITY_MULT), min_duration)
 
 
 ## 구슬 배율. 재질(upgrade:marble_tier) × 광택(upgrade:marble_polish) × 그 외 수정자.
@@ -270,14 +359,72 @@ func golden_pocket_count() -> int:
 func build_spin_context() -> SpinContext:
 	var context := SpinContext.new()
 	context.marble_mult = marble_mult()
+	var streak_bonus := _streak_payout_bonus()
 	context.floor_mult = floor_mult()
-	context.payout_mult_all = get_stat(StatModifiers.PAYOUT_MULT_ALL, StatModifiers.IDENTITY_MULT)
+	context.payout_mult_all = get_stat(StatModifiers.PAYOUT_MULT_ALL, StatModifiers.IDENTITY_MULT) * (1.0 + streak_bonus) * _compound_interest_bonus()
 	context.payout_mult_color = get_stat(StatModifiers.PAYOUT_MULT_COLOR, StatModifiers.IDENTITY_MULT)
 	context.payout_mult_parity = get_stat(StatModifiers.PAYOUT_MULT_PARITY, StatModifiers.IDENTITY_MULT)
 	context.straight_payout_bonus = get_stat(StatModifiers.STRAIGHT_PAYOUT_BONUS, StatModifiers.IDENTITY_ADD)
-	context.golden_pockets = golden_pockets.duplicate()
+	context.golden_pockets = golden_pockets.duplicate() if golden_storm_spins_left <= 0 else _all_pockets()
 	context.golden_pocket_mult = get_stat(StatModifiers.GOLDEN_POCKET_MULT, Economy.GOLDEN_POCKET_MULT)
+	context.zero_guard = SkillService.has_feature("zero_guard")
+	var hot_mult := get_stat(StatModifiers.HOT_NUMBER_STRAIGHT_MULT, StatModifiers.IDENTITY_MULT)
+	if hot_mult > StatModifiers.IDENTITY_MULT:
+		context.hot_numbers = hot_numbers()
+		context.hot_number_straight_mult = hot_mult
+	context.lucky_seven_mult = get_stat(StatModifiers.LUCKY_SEVEN_MULT, StatModifiers.IDENTITY_MULT)
+	context.zero_straight_mult = get_stat(StatModifiers.ZERO_STRAIGHT_MULT, StatModifiers.IDENTITY_MULT)
+	context.multi_hit_bonus = get_stat(StatModifiers.MULTI_HIT_BONUS, StatModifiers.IDENTITY_ADD)
+	context.cashback_rate = get_stat(StatModifiers.CASHBACK_RATE, StatModifiers.IDENTITY_ADD)
 	return context
+
+
+## 연승 보너스(F5): 연승 1회당 배당 +streak_bonus_per_win, F11(끝없는 연승)이 반영 상한을 늘린다.
+func _streak_payout_bonus() -> float:
+	var per_win := get_stat(StatModifiers.STREAK_BONUS_PER_WIN, 0.0)
+	if per_win <= 0.0:
+		return 0.0
+	var cap := get_stat(StatModifiers.STREAK_BONUS_CAP, Economy.STREAK_BONUS_CAP_BASE)
+	return mini(win_streak, int(cap)) * per_win
+
+
+## 복리의 마법(E14): 보유 칩 자릿수(log10)마다 배당 +compound_interest_per_digit.
+func _compound_interest_bonus() -> float:
+	var per_digit := get_stat(StatModifiers.COMPOUND_INTEREST_PER_DIGIT, 0.0)
+	if per_digit <= 0.0 or chips < 1.0:
+		return 1.0
+	var digits := floori(log(chips) / log(10.0))
+	return 1.0 + maxi(digits, 0) * per_digit
+
+
+func _all_pockets() -> Array[int]:
+	var out: Array[int] = []
+	for number in RouletteRules.POCKET_COUNT:
+		out.append(number)
+	return out
+
+
+## 핫 넘버(F6): 최근 20스핀에서 가장 많이 나온 숫자 3개(동률 → 최근 것 우선).
+func hot_numbers() -> Array[int]:
+	var window := Economy.HOT_NUMBER_WINDOW
+	var recent := result_history.slice(maxi(0, result_history.size() - window), result_history.size())
+	var counts: Dictionary = {}
+	var last_seen: Dictionary = {}
+	for i in recent.size():
+		var number: int = recent[i]
+		counts[number] = int(counts.get(number, 0)) + 1
+		last_seen[number] = i
+	var numbers: Array = counts.keys()
+	numbers.sort_custom(func(a: int, b: int) -> bool:
+		var ca: int = counts[a]
+		var cb: int = counts[b]
+		if ca != cb:
+			return ca > cb
+		return int(last_seen[a]) > int(last_seen[b]))
+	var out: Array[int] = []
+	for i in mini(Economy.HOT_NUMBER_COUNT, numbers.size()):
+		out.append(int(numbers[i]))
+	return out
 
 
 func is_bankrupt() -> bool:
@@ -290,9 +437,27 @@ func is_bankrupt() -> bool:
 func check_bankruptcy() -> bool:
 	if not is_bankrupt():
 		return false
+	_try_emergency_fund()
+	if not is_bankrupt():
+		return false
 	_take_emergency_loan()
 	EventBus.bankrupt.emit()
 	return true
+
+
+## 비상금(E4): 대출보다 먼저 시도한다. 쿨다운 중이거나 미보유면 아무 일도 하지 않는다.
+## 지급해도 여전히 파산 상태면(비상금이 최소 베팅보다 적으면) 이어서 대출로 넘어간다.
+func _try_emergency_fund() -> void:
+	var level := SkillService.feature_level("emergency_fund")
+	if level <= 0 or emergency_fund_cooldown > 0.0:
+		return
+	var amount := maxf(0.0, emergency_fund_tracker.per_second(get_stat_value(STAT_PLAY_TIME)) * Economy.EMERGENCY_FUND_WINDOW)
+	var index := clampi(level - 1, 0, Economy.EMERGENCY_FUND_COOLDOWN_BY_LEVEL.size() - 1)
+	emergency_fund_cooldown = Economy.EMERGENCY_FUND_COOLDOWN_BY_LEVEL[index]
+	if amount <= 0.0:
+		return
+	add_chips(amount, false)
+	EventBus.toast_requested.emit(tr("TOAST_EMERGENCY_FUND") % NumberFormat.format(amount), "chip")
 
 
 func _take_emergency_loan() -> void:
@@ -321,7 +486,10 @@ func has_debt() -> bool:
 func auto_repay_debt(payout: float) -> float:
 	if debts.is_empty() or payout <= 0.0:
 		return 0.0
-	var result := DebtService.apply_auto_repay(debts, payout)
+	var rate := Economy.DEBT_AUTO_REPAY_RATE
+	if debt_auto_repay_boosted and SkillService.has_feature("debt_manager"):
+		rate = Economy.DEBT_AUTO_REPAY_RATE_HIGH
+	var result := DebtService.apply_auto_repay(debts, payout, rate)
 	var repaid := float(result["repaid"])
 	if repaid <= 0.0 or not spend_chips(repaid):
 		return 0.0
@@ -346,6 +514,18 @@ func repay_half(index: int) -> float:
 	return _repay_debt(index, float(debts[index]["remaining"]) * 0.5)
 
 
+## 운명의 휠 "빚 탕감": 상환(칩 소모) 없이 모든 빚의 잔액을 ratio 만큼 줄인다. 총 탕감액을 돌려준다.
+func forgive_debt(ratio: float) -> float:
+	if debts.is_empty() or ratio <= 0.0:
+		return 0.0
+	var result := DebtService.forgive_ratio(debts, ratio)
+	debts = result["debts"]
+	if debts.is_empty():
+		_on_debt_fully_paid()
+	EventBus.debt_changed.emit()
+	return float(result["forgiven"])
+
+
 func _repay_debt(index: int, amount: float) -> float:
 	if amount <= 0.0 or not spend_chips(amount):
 		return 0.0
@@ -359,7 +539,8 @@ func _repay_debt(index: int, amount: float) -> float:
 
 ## 총 빚이 0이 됐을 때 공통으로 할 일: 완납 클로버, 남작 완납 컷신 예약, 모든 패널티 즉시 해제(GDD 9장 "빚이 있을 때만").
 func _on_debt_fully_paid() -> void:
-	add_clovers(Economy.CLOVER_PER_DEBT_PAID)
+	var bonus := int(get_stat(StatModifiers.DEBT_PAID_CLOVER_BONUS, 0.0))
+	add_clovers(Economy.CLOVER_PER_DEBT_PAID + bonus)
 	pending_baron_event = {"type": "debt_paid"}
 	_clear_all_penalties()
 
@@ -409,6 +590,32 @@ func rebuild_upgrade_modifiers() -> void:
 		set_upgrade_level(id, int(upgrade_levels[id]))
 
 
+## 스킬 레벨을 정하고 수정자를 다시 건다(구매 규칙은 SkillService). 한 노드가 여러 스탯을 가지면 전부 다시 건다.
+func set_skill_level(id: String, level: int) -> void:
+	var def := GameData.skill(id)
+	if def == null:
+		push_error("GameState.set_skill_level: 없는 스킬 '%s'" % id)
+		return
+	level = clampi(level, 0, def.max_level())
+	skill_levels[id] = level
+	modifiers.remove_source(def.source_id())
+	if level > 0:
+		for effect: Dictionary in def.effects:
+			var stat := String(effect.get("stat", ""))
+			if stat == "":
+				continue
+			var op: StatModifiers.Op = int(effect.get("op", StatModifiers.Op.ADD))
+			modifiers.add_modifier(def.source_id(), stat, op, def.effect_value(effect, level))
+			if stat == StatModifiers.GOLDEN_POCKET_COUNT:
+				refresh_golden_pockets()
+
+
+## 모든 스킬 수정자를 skill_levels 로부터 다시 만든다(불러오기 후 호출).
+func rebuild_skill_modifiers() -> void:
+	for id: String in skill_levels.keys():
+		set_skill_level(id, int(skill_levels[id]))
+
+
 ## 황금 포켓 개수를 스탯에 맞춘다. 늘면 아직 황금이 아닌 포켓 중 무작위로 추가(golden_pockets_added 발행), 줄면 뒤에서 제거.
 func refresh_golden_pockets() -> void:
 	var target := golden_pocket_count()
@@ -428,9 +635,19 @@ func refresh_golden_pockets() -> void:
 
 
 ## 시간제 버프(또는 패널티). buff_started 를 발행하고, 만료되면 buff_ended 가 발행된다.
-func add_buff(id: String, stat: String, op: StatModifiers.Op, value: float, duration: float) -> void:
-	modifiers.add_modifier(BUFF_SOURCE_PREFIX + id, stat, op, value, duration)
-	EventBus.buff_started.emit(id, duration)
+## charges 를 주면 시간과 별개로 "횟수"로도 소모된다(6단계 잭팟 체인처럼 "다음 N 스핀" 형 버프).
+## duration 에는 skill:BUFF_DURATION_MULT(Y13)가 곱해진다(0 이하·PERMANENT 는 그대로).
+func add_buff(id: String, stat: String, op: StatModifiers.Op, value: float, duration: float, charges: int = -1) -> void:
+	var scaled_duration := duration
+	if duration > 0.0:
+		scaled_duration = duration * get_stat(StatModifiers.BUFF_DURATION_MULT, StatModifiers.IDENTITY_MULT)
+	modifiers.add_modifier(BUFF_SOURCE_PREFIX + id, stat, op, value, scaled_duration, charges)
+	EventBus.buff_started.emit(id, scaled_duration)
+
+
+## id 버프의 소모형(charges) 남은 횟수. 없으면 -1.
+func buff_charges_left(id: String) -> int:
+	return modifiers.charges_remaining(BUFF_SOURCE_PREFIX + id)
 
 
 func remove_buff(id: String) -> void:
@@ -587,6 +804,17 @@ func to_dict() -> Dictionary:
 		"stats": stats.duplicate(),
 		"buffs": _export_buffs(),
 		"income_per_second_at_save": income_tracker.per_second(get_stat_value(STAT_PLAY_TIME)),
+		"smart_betting_strategy": smart_betting_strategy,
+		"auto_upgrade_enabled": auto_upgrade_enabled,
+		"auto_upgrade_ratio": auto_upgrade_ratio,
+		"auto_upgrade_include_marble": auto_upgrade_include_marble,
+		"debt_auto_repay_boosted": debt_auto_repay_boosted,
+		"golden_storm_spins_left": golden_storm_spins_left,
+		"piggy_bank_net": piggy_bank_net,
+		"piggy_bank_spins": piggy_bank_spins,
+		"fever_spin_count": fever_spin_count,
+		"wheel_of_fortune_timer": wheel_of_fortune_timer,
+		"emergency_fund_cooldown": emergency_fund_cooldown,
 	}
 
 
@@ -630,6 +858,17 @@ func from_dict(data: Dictionary) -> void:
 			stats[key] = loaded_stats[key]
 	_import_buffs(data.get("buffs", []))
 	last_income_per_second = float(data.get("income_per_second_at_save", 0.0))
+	smart_betting_strategy = int(data.get("smart_betting_strategy", SmartBettingStrategy.KEEP))
+	auto_upgrade_enabled = bool(data.get("auto_upgrade_enabled", false))
+	auto_upgrade_ratio = float(data.get("auto_upgrade_ratio", 0.5))
+	auto_upgrade_include_marble = bool(data.get("auto_upgrade_include_marble", true))
+	debt_auto_repay_boosted = bool(data.get("debt_auto_repay_boosted", false))
+	golden_storm_spins_left = int(data.get("golden_storm_spins_left", 0))
+	piggy_bank_net = float(data.get("piggy_bank_net", 0.0))
+	piggy_bank_spins = int(data.get("piggy_bank_spins", 0))
+	fever_spin_count = int(data.get("fever_spin_count", 0))
+	wheel_of_fortune_timer = float(data.get("wheel_of_fortune_timer", -1.0))
+	emergency_fund_cooldown = float(data.get("emergency_fund_cooldown", 0.0))
 	EventBus.chips_changed.emit(chips, 0.0)
 	EventBus.clovers_changed.emit(clovers, 0)
 	EventBus.bets_changed.emit()

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_notpc"]
+
+[resource]
+script = ExtResource("1_notpc")
+id = "m12"
+name_key = "SKILL_M12"
+desc_key = "SKILL_M12_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m12.png"
+branch = 2
+ring = 3
+position = Vector2i(146, 35)
+costs = Array[int]([3, 3])
+prerequisites = Array[String](["m6"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 0.1,
+"stat": "smart_betting_bonus"
+}])
+feature_id = ""
+is_ultimate = false

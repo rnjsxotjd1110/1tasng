@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_cap5l"]
+
+[resource]
+script = ExtResource("1_cap5l")
+id = "f12"
+name_key = "SKILL_F12"
+desc_key = "SKILL_F12_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_f12.png"
+branch = 1
+ring = 3
+position = Vector2i(35, -146)
+costs = Array[int]([3, 3, 3])
+prerequisites = Array[String](["f8"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 1.5,
+"stat": "payout_mult_all"
+}])
+feature_id = ""
+is_ultimate = false

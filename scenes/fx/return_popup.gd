@@ -18,12 +18,16 @@ var _income_label: CountLabel
 var _elapsed_label: Label
 var _debt_row: HBoxContainer
 var _debt_label: Label
+var _clover_row: HBoxContainer
+var _clover_label: Label
 var _claim_button: Button
 
 var _ticking: bool = false
 var _tick_elapsed: float = 0.0
 var _tick_next: float = 0.0
 var _pending_income: float = 0.0
+## 휴식 보상(M9): 이번 복귀에 함께 지급될 클로버.
+var _pending_clovers: int = 0
 
 
 func _ready() -> void:
@@ -77,6 +81,19 @@ func _ready() -> void:
 	_debt_label.theme_type_variation = "LabelSmallMuted"
 	_debt_label.auto_translate = false
 	_debt_row.add_child(_debt_label)
+	_clover_row = HBoxContainer.new()
+	_clover_row.position = Vector2(text_x, 108)
+	_clover_row.add_theme_constant_override("separation", 4)
+	_clover_row.visible = false
+	add_child(_clover_row)
+	var clover_icon := TextureRect.new()
+	clover_icon.texture = preload("res://assets/sprites/ui/icon_clover.png")
+	clover_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	_clover_row.add_child(clover_icon)
+	_clover_label = Label.new()
+	_clover_label.theme_type_variation = "LabelSmallMuted"
+	_clover_label.auto_translate = false
+	_clover_row.add_child(_clover_label)
 	_claim_button = Button.new()
 	_claim_button.theme_type_variation = "ButtonGold"
 	_claim_button.text = "RETURN_CLAIM"
@@ -90,6 +107,10 @@ func _ready() -> void:
 ## offline 는 OfflineIncome.compute() 의 결과(eligible 인 경우에만 호출할 것). debt_repaid > 0 이면 빚 자동상환 내역도 보여준다.
 func open(offline: OfflineIncome, debt_repaid: float = 0.0) -> void:
 	_pending_income = offline.income
+	_pending_clovers = offline.clover_bonus
+	_clover_row.visible = offline.clover_bonus > 0
+	if _clover_row.visible:
+		_clover_label.text = tr("RETURN_REST_BONUS") % NumberFormat.format(float(offline.clover_bonus))
 	# 머리글은 실제 경과 시간("3시간 12분"), 상한이 적용됐으면 뒤에 "(최대 N시간 적용)"만 덧붙인다(요청 명세 예시).
 	var hours := int(offline.elapsed_seconds) / 3600
 	var minutes := (int(offline.elapsed_seconds) / 60) % 60
@@ -125,6 +146,8 @@ func _on_claim_pressed() -> void:
 	_ticking = false
 	_income_label.set_value(_pending_income, 0.0)
 	GameState.add_chips(_pending_income, false)
+	if _pending_clovers > 0:
+		GameState.add_clovers(_pending_clovers)
 	AudioManager.play_sfx("buy_coin")
 	claimed.emit()
 	PanelTransition.close(self)

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_r3m04"]
+
+[resource]
+script = ExtResource("1_r3m04")
+id = "e12"
+name_key = "SKILL_E12"
+desc_key = "SKILL_E12_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_e12.png"
+branch = 3
+ring = 3
+position = Vector2i(-35, 146)
+costs = Array[int]([3, 3])
+prerequisites = Array[String](["e8"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 0.97,
+"stat": "upgrade_growth_mult"
+}])
+feature_id = ""
+is_ultimate = false

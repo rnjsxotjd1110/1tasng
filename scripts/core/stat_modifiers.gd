@@ -41,13 +41,48 @@ const CLOVER_GAIN_MULT := "clover_gain_mult"        ## 클로버 획득 배율 (
 # 빚
 const DEBT_REPAY_MULT := "debt_repay_mult"          ## 상환액 배율 (base Economy.DEBT_REPAY_FACTOR)
 const PENALTY_INTERVAL_MULT := "penalty_interval_mult"  ## 패널티 간격 배율 (base 1)
+const DEBT_PAID_CLOVER_BONUS := "debt_paid_clover_bonus"  ## 빚 완납 클로버 추가분 (base 0, E11)
+
+# ── 6단계: 스킬트리·클로버·자동화·특수 기능 ──────────────────
+# 배당(FORTUNE 조건부 효과 — 스탯값은 "레벨당 배율"이고 실제 적용은 조건이 맞을 때만 코드가 곱한다)
+const CLOVER_BONUS_CHANCE := "clover_bonus_chance"          ## F4: 클로버 획득 시 추가 +1 확률 (base 0)
+const STREAK_BONUS_PER_WIN := "streak_bonus_per_win"        ## F5: 연승 1회당 배당 보너스 (base 0)
+const STREAK_BONUS_CAP := "streak_bonus_cap"                ## F11: 연승 보너스 최대 반영 연승 수 (base Economy.STREAK_BONUS_CAP_BASE)
+const HOT_NUMBER_STRAIGHT_MULT := "hot_number_straight_mult"  ## F6: 핫 넘버 스트레이트 배당 배율 (base 1)
+const MULTI_HIT_BONUS := "multi_hit_bonus"                  ## F8: 한 스핀 2개 이상 적중 시 총 당첨 보너스 (base 0)
+const LUCKY_SEVEN_MULT := "lucky_seven_mult"                ## F9: 7·17·27 결과 전체 배당 배율 (base 1)
+const MILESTONE_CLOVER_BONUS := "milestone_clover_bonus"    ## F13: 마일스톤 클로버 추가분 (base 0)
+# 자동화(MACHINE)
+const SMART_BETTING_BONUS := "smart_betting_bonus"          ## M12: 스마트 베팅 사용 중 배당 보너스 (base 0)
+const MIN_SPIN_DURATION := "min_spin_duration_stat"         ## M10: 스핀 시간 최소값(초) 오버라이드 (base Economy.MIN_SPIN_DURATION)
+# 경제(ECONOMY)
+const VIP_COMP_RATE := "vip_comp_rate"                      ## E3: 스핀마다 최대 베팅액 대비 지급 비율 (base 0)
+const INVESTMENT_RATE := "investment_rate"                  ## E5: 10초마다 보유 칩 대비 이자율 (base 0)
+const MARBLE_COST_MULT := "marble_cost_mult"                ## E8: 구슬 재질 비용 배율 (base 1)
+const BONUS_CHIP_PER_HIT := "bonus_chip_per_hit"            ## E9: 개별숫자 적중 시 최대 베팅×N 추가 (base 0)
+const UPGRADE_GROWTH_MULT := "upgrade_growth_mult"          ## E12: 업그레이드 비용 증가율 배율 (base 1)
+const PIGGY_BANK_RATE := "piggy_bank_rate"                  ## E13: 100스핀마다 누적 순이익 대비 보너스 비율 (base 0)
+const COMPOUND_INTEREST_PER_DIGIT := "compound_interest_per_digit"  ## E14: 보유 칩 자릿수당 배당 보너스 (base 0)
+# 특수 기능(MYSTIC)
+const MIRROR_CHANCE := "mirror_chance"                      ## Y3: 진 베팅 무승부(반환) 확률 (base 0)
+const ZERO_STRAIGHT_MULT := "zero_straight_mult"            ## Y7: 0 스트레이트 적중 배율 (base 1)
+const DESTINY_FLIP_CHANCE := "destiny_flip_chance"          ## Y8: 전패 시 재판정 확률 (base 0)
+const FEVER_PERIOD_REDUCTION := "fever_period_reduction"    ## Y11: 피버 주기 감소(스핀 수) (base 0)
+const FEVER_DURATION_BONUS := "fever_duration_bonus"        ## Y11: 피버 지속시간 추가(초) (base 0)
+const GOLDEN_STORM_CHANCE := "golden_storm_chance"          ## Y12: 황금 포켓 적중 시 황금 폭풍 확률 (base 0)
+const BUFF_DURATION_MULT := "buff_duration_mult"            ## Y13: 시간제 버프 지속시간 배율 (base 1)
 
 const ALL_STATS: Array[String] = [
 	PAYOUT_MULT_ALL, PAYOUT_MULT_COLOR, PAYOUT_MULT_PARITY, STRAIGHT_PAYOUT_BONUS,
 	MARBLE_MULT, FLOOR_MULT, GOLDEN_POCKET_COUNT, GOLDEN_POCKET_MULT,
 	MAX_BET_MULT, MARBLE_SLOTS_BONUS, LOCKED_MARBLES, EXTRA_BALLS, SPIN_DURATION_MULT, SPIN_DELAY,
 	UPGRADE_COST_MULT, CASHBACK_RATE, OFFLINE_EFFICIENCY, OFFLINE_CAP_HOURS, CLOVER_GAIN_MULT,
-	DEBT_REPAY_MULT, PENALTY_INTERVAL_MULT,
+	DEBT_REPAY_MULT, PENALTY_INTERVAL_MULT, DEBT_PAID_CLOVER_BONUS,
+	CLOVER_BONUS_CHANCE, STREAK_BONUS_PER_WIN, STREAK_BONUS_CAP, HOT_NUMBER_STRAIGHT_MULT,
+	MULTI_HIT_BONUS, LUCKY_SEVEN_MULT, MILESTONE_CLOVER_BONUS, SMART_BETTING_BONUS, MIN_SPIN_DURATION,
+	VIP_COMP_RATE, INVESTMENT_RATE, MARBLE_COST_MULT, BONUS_CHIP_PER_HIT, UPGRADE_GROWTH_MULT,
+	PIGGY_BANK_RATE, COMPOUND_INTEREST_PER_DIGIT, MIRROR_CHANCE, ZERO_STRAIGHT_MULT, DESTINY_FLIP_CHANCE,
+	FEVER_PERIOD_REDUCTION, FEVER_DURATION_BONUS, GOLDEN_STORM_CHANCE, BUFF_DURATION_MULT,
 ]
 
 
@@ -128,6 +163,15 @@ func consume_charges(source_id: String, amount: int = 1) -> bool:
 	if not to_remove.is_empty() and not has_source(source_id):
 		source_expired.emit(source_id)
 	return true
+
+
+## source_id 의 소모형 수정자 중 남은 횟수(여러 개면 최댓값). 소모형이 없으면 -1.
+func charges_remaining(source_id: String) -> int:
+	var best := -1
+	for modifier in _modifiers:
+		if modifier.source_id == source_id and modifier.is_charge_based():
+			best = maxi(best, modifier.charges)
+	return best
 
 
 func has_source(source_id: String) -> bool:

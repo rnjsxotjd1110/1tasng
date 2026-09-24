@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_jawib"]
+
+[resource]
+script = ExtResource("1_jawib")
+id = "y9"
+name_key = "SKILL_Y9"
+desc_key = "SKILL_Y9_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_y9.png"
+branch = 4
+ring = 2
+position = Vector2i(-80, -67)
+costs = Array[int]([3])
+prerequisites = Array[String](["y2"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = "clairvoyance"
+is_ultimate = false

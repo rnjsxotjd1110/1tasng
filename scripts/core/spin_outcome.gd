@@ -24,9 +24,14 @@ class BetResult:
 	var payout: float = 0.0
 	## 개별숫자 베팅이 빗나갔지만 결과의 바로 옆 포켓이었다.
 	var near_miss: bool = false
+	## 제로 가드(Y1)·미러(Y3)로 무승부 처리되어 돌려받은 원금(당첨은 아님 — win_count 에 안 들어간다).
+	var refunded: float = 0.0
 
 	func won() -> bool:
 		return hit_count > 0
+
+	func pushed() -> bool:
+		return not won() and refunded > 0.0
 
 
 ## 공마다 하나씩. 더블 볼이면 2개.
@@ -40,6 +45,8 @@ var hit_straights: Array[int] = []
 var near_miss: bool = false
 var golden_hit: bool = false
 var tier: Tier = Tier.LOSS
+## 운명 뒤집기(Y8)로 공이 튕겨 온 원래 포켓(없으면 -1).
+var destiny_flip_from: int = -1
 
 
 func any_win() -> bool:

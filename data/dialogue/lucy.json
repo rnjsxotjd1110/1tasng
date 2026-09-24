@@ -3,5 +3,10 @@
     {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_SKILLTREE_UNLOCK_1"]},
     {"speaker": "NPC_LUCY", "portrait": "wink", "lines": ["LUCY_SKILLTREE_UNLOCK_2"]},
     {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_SKILLTREE_UNLOCK_3"]}
+  ],
+  "elevator_ready": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_ELEVATOR_READY_1"]},
+    {"speaker": "NPC_LUCY", "portrait": "wink", "lines": ["LUCY_ELEVATOR_READY_2"]},
+    {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_ELEVATOR_READY_3"]}
   ]
 }

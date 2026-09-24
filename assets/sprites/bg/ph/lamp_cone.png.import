@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://e6f8oi577hgo"
-path="res://.godot/imported/wheel_shadow.png-83d0d6d0ed0aeafca4472848533e6f20.ctex"
+uid="uid://rm1emtjro8do"
+path="res://.godot/imported/lamp_cone.png-413335b10df5c23fae8485723fc10c50.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/wheel/wheel_shadow.png"
-dest_files=["res://.godot/imported/wheel_shadow.png-83d0d6d0ed0aeafca4472848533e6f20.ctex"]
+source_file="res://assets/sprites/bg/ph/lamp_cone.png"
+dest_files=["res://.godot/imported/lamp_cone.png-413335b10df5c23fae8485723fc10c50.ctex"]
 
 [params]
 

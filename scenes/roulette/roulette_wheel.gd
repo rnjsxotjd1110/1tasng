@@ -12,6 +12,8 @@ signal spin_finished()
 signal ball_landed(index: int)
 
 # ── 반지름(ART_BIBLE 2장) ────────────────────────────────
+## 바깥 림 반지름(gen_wheel.py R_RIM_OUT 와 같은 값). 3F 네온 스윕이 이 반지름을 따라 돈다.
+const R_RIM_OUT := 118.0
 const R_NUMBER_RING_OUT := 90.0
 const R_NUMBER_RING_IN := 76.0
 const R_NUMBERS := 83.0
@@ -26,6 +28,8 @@ const COLORBLIND_DOT_RADIUS := 1.5
 const COLORBLIND_DOT_SPREAD := 5.0
 const R_TURRET_OUT := 25.0
 const R_KNOB := 27.0
+## 림의 볼트 8개 반지름(gen_wheel.py R_BOLT 와 같은 값). PH 보석 반짝임 위치에 재사용한다.
+const R_BOLT := 111.0
 const POCKET_SEGMENTS := 3
 const POCKET_INSET_PX := 1.3
 const IDLE_START_ANGLE := -90.0
@@ -80,9 +84,15 @@ const BEAM_TOP := -200.0
 
 const DIGITS_TEXTURE := preload("res://assets/sprites/ui/digits_3x5.png")
 const BEAM_TEXTURE := preload("res://assets/sprites/ui/golden_beam.png")
-const KNOB_TEXTURE := preload("res://assets/sprites/wheel/wheel_knob.png")
-const HUB_TEXTURE := preload("res://assets/sprites/wheel/wheel_hub.png")
 const SPARKLE_TEXTURE := preload("res://assets/sprites/ui/sparkle.png")
+const WHEEL_SKIN_DIR := "res://assets/sprites/wheel/"
+const DEFAULT_SKIN := "b1"
+## 3F 네온 청록 테두리 스윕(ART_BIBLE 12장): 한 바퀴 도는 시간(초).
+const NEON_SWEEP_PERIOD := 4.0
+const NEON_SWEEP_ARC_DEG := 50.0
+## PH 보석 8개 순차 반짝임: 한 바퀴 도는 시간(초), 보석 하나가 밝게 유지되는 비율.
+const GEM_CYCLE_PERIOD := 3.2
+const GEM_LIT_FRACTION := 0.6
 const DIGIT_W := 3
 const DIGIT_H := 5
 const SPARKLE_FRAMES := 4
@@ -133,11 +143,19 @@ var _tier: int = 0
 ## 빛줄기가 아직 닿지 않은 새 황금 포켓(그때까지는 원래 색).
 var _pending_golden: Array[int] = []
 var _beams: Array[Dictionary] = []
+## 층별 휠 스킨(ART_BIBLE 12장). set_floor_skin() 이 바꾼다.
+var _skin_id: String = DEFAULT_SKIN
+var _knob_texture: Texture2D
+var _hub_texture: Texture2D
 
 @onready var ring: Node2D = $Ring
 @onready var turret: Node2D = $Turret
 @onready var balls_layer: Node2D = $Balls
 @onready var fx_layer: Node2D = $Fx
+@onready var shadow_sprite: Sprite2D = $Shadow
+@onready var base_sprite: Sprite2D = $Base
+@onready var top_sprite: Sprite2D = $Top
+@onready var highlight_sprite: Sprite2D = $Highlight
 
 
 func _ready() -> void:
@@ -164,6 +182,8 @@ func _ready() -> void:
 	_glint_timer = RngService.randf_range_misc(GLINT_MIN, GLINT_MAX)
 	if idle_results.is_empty():
 		idle_results = [GameState.result_history[-1] if not GameState.result_history.is_empty() else RouletteRules.ZERO]
+	set_floor_skin(GameState.floor_index)
+	EventBus.floor_changed.connect(set_floor_skin)
 
 
 ## 구슬 재질이 바뀌면 호출. tier < 0 이면 GameState 현재 재질(승급 연출은 새 재질을 먼저 보여 줄 때 tier 를 넘긴다).
@@ -174,6 +194,31 @@ func refresh_marble(tier: int = -1) -> void:
 	_trail_config = MarbleFx.trail_config(_tier)
 	_lens.visible = _tier == MarbleFx.TIER_VOID
 	_redraw_all()
+
+
+## 층별 휠 스킨(ART_BIBLE 12장): 림·트랙·터렛 텍스처를 바꾼다. index 는 GameData.floor_def 인덱스.
+## 포켓 링·숫자는 층과 무관하게 그대로다("림·트랙·터렛만 교체").
+func set_floor_skin(index: int) -> void:
+	var floor_def := GameData.floor_def(index)
+	var skin_id := floor_def.id if floor_def != null else DEFAULT_SKIN
+	if skin_id == _skin_id and _hub_texture != null:
+		return
+	_skin_id = skin_id
+	var dir := WHEEL_SKIN_DIR.path_join(skin_id)
+	shadow_sprite.texture = _load_skin_texture(dir, "wheel_shadow.png")
+	base_sprite.texture = _load_skin_texture(dir, "wheel_base.png")
+	top_sprite.texture = _load_skin_texture(dir, "wheel_top.png")
+	highlight_sprite.texture = _load_skin_texture(dir, "wheel_highlight.png")
+	_hub_texture = _load_skin_texture(dir, "wheel_hub.png")
+	_knob_texture = _load_skin_texture(dir, "wheel_knob.png")
+	_redraw_all()
+
+
+func _load_skin_texture(dir: String, file_name: String) -> Texture2D:
+	var path := dir.path_join(file_name)
+	if not ResourceLoader.exists(path):
+		path = WHEEL_SKIN_DIR.path_join(DEFAULT_SKIN).path_join(file_name)
+	return load(path)
 
 
 ## 새 황금 포켓에 빛줄기를 떨어뜨린다. 닿는 순간 포켓이 금색으로 바뀐다.
@@ -506,12 +551,12 @@ func _draw_turret() -> void:
 		var lit_side := normal if normal.dot(LIGHT_DIR) > 0.0 else -normal
 		turret.draw_line(base + lit_side * 1.4, tip + lit_side * 0.6, Palette.GOLD_HL, -1.0)
 		var knob_pos := (dir * R_KNOB).round() - Vector2(2, 2)
-		turret.draw_texture(KNOB_TEXTURE, knob_pos)
+		turret.draw_texture(_knob_texture, knob_pos)
 		if _glint_time >= 0.0 and k == 2:
 			var frame := int(_glint_time / GLINT_DURATION * SPARKLE_FRAMES)
 			turret.draw_texture_rect_region(SPARKLE_TEXTURE, Rect2(knob_pos - Vector2(0, 0), Vector2(SPARKLE_SIZE, SPARKLE_SIZE)),
 				Rect2(clampi(frame, 0, SPARKLE_FRAMES - 1) * SPARKLE_SIZE, 0, SPARKLE_SIZE, SPARKLE_SIZE))
-	turret.draw_texture(HUB_TEXTURE, Vector2(-8, -8))
+	turret.draw_texture(_hub_texture, Vector2(-8, -8))
 	if _glint_time >= 0.0:
 		_draw_glint()
 
@@ -732,6 +777,11 @@ func _draw_fx() -> void:
 		fx_layer.draw_arc(Vector2.ZERO, R_NUMBER_RING_OUT + 4.0, 0.0, TAU, 64, Palette.with_alpha(Palette.CLOVER, 0.55 * pulse), 2.0)
 	if _lightning_time >= 0.0:
 		_draw_lightning()
+	match _skin_id:
+		"3f":
+			_draw_neon_sweep()
+		"ph":
+			_draw_gem_twinkle()
 
 
 ## 잭팟 체인 발동 번개: 테두리에서 뻗어나가는 지그재그 선 여러 개가 빠르게 사라진다.
@@ -749,6 +799,31 @@ func _draw_lightning() -> void:
 			points.append(Vector2(cos(jitter_angle), sin(jitter_angle)) * r)
 		for i in points.size() - 1:
 			fx_layer.draw_line(points[i], points[i + 1], Palette.with_alpha(Palette.GOLD_HL, fade), 1.0)
+
+
+## 3F 크롬 휠(ART_BIBLE 12장): 청록 빛이 테두리를 따라 계속 돈다(휠 회전·스핀과 무관, wheel_angle 을 안 씀).
+func _draw_neon_sweep() -> void:
+	var head := fposmod(_clock / NEON_SWEEP_PERIOD, 1.0) * TAU
+	var arc := deg_to_rad(NEON_SWEEP_ARC_DEG)
+	var trail_steps := 5
+	for i in trail_steps:
+		var u := float(i) / trail_steps
+		var a0 := head - arc * (1.0 - u)
+		var a1 := head - arc * (1.0 - u) + arc / trail_steps
+		fx_layer.draw_arc(Vector2.ZERO, R_RIM_OUT, a0, a1, 6, Palette.with_alpha(Palette.NEON_CYAN, 0.15 + 0.65 * u), 1.5)
+
+
+## PH 금+상아 휠(ART_BIBLE 12장): 보석 8개(볼트 자리)가 순서대로 밝아졌다 어두워진다.
+func _draw_gem_twinkle() -> void:
+	for i in 8:
+		var phase := fposmod(_clock / GEM_CYCLE_PERIOD - float(i) / 8.0, 1.0)
+		var lit := clampf(1.0 - phase / GEM_LIT_FRACTION, 0.0, 1.0) if phase < GEM_LIT_FRACTION else 0.0
+		if lit <= 0.0:
+			continue
+		var a := TAU * i / 8.0
+		var pos := (Vector2(cos(a), sin(a)) * R_BOLT).round()
+		var color := Palette.NEON_PURPLE.lerp(Palette.GOLD_SHINE, lit)
+		fx_layer.draw_circle(pos, 1.0 + lit, Palette.with_alpha(color, 0.5 + 0.5 * lit))
 
 
 ## 오토 스핀 온/오프(6단계): 켜지면 휠 테두리에 초록 링이 맥동한다.

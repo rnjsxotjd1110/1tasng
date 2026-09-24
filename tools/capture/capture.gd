@@ -15,6 +15,8 @@ extends SceneTree
 ##          pause_menu, stats_screen, return_popup, toast_recovered, colorblind
 ##   5단계: baron_appear, dialogue_baron, contract, stamp, penalty_watcher, penalty_pickpocket, penalty_smoke,
 ##          penalty_blur, penalty_seize, penalty_clover_fee, debt_panel, debt_paid
+##   7단계: floor_b1, floor_1f, floor_2f, floor_3f, floor_ph, elevator_ready, elevator_confirm,
+##          elevator_cutscene_close, elevator_cutscene_tick, elevator_cutscene_title
 ## 인자 tier=<n>: betting·spin_* 시나리오에서 구슬 재질을 강제로 바꾼다.
 
 const MAIN_SCENE := "res://scenes/main/Main.tscn"
@@ -33,6 +35,8 @@ const SCENARIOS: Array[String] = [
 	"baron_appear", "dialogue_baron", "contract", "stamp",
 	"penalty_watcher", "penalty_pickpocket", "penalty_smoke", "penalty_blur", "penalty_seize", "penalty_clover_fee",
 	"debt_panel", "debt_paid",
+	"floor_b1", "floor_1f", "floor_2f", "floor_3f", "floor_ph",
+	"elevator_ready", "elevator_confirm", "elevator_cutscene_close", "elevator_cutscene_tick", "elevator_cutscene_title",
 ]
 const UPGRADE_SERVICE := "res://scripts/core/upgrade_service.gd"
 
@@ -153,6 +157,11 @@ func _advance_dialogue(seq: Object) -> void:
 func _set_floor(index: int) -> void:
 	game_state.set("floor_index", index)
 	root.get_node("EventBus").emit_signal("floor_changed", index)
+
+
+func _start_elevator_cutscene() -> void:
+	var next_def: Object = (load("res://scripts/core/floor_service.gd") as GDScript).call("next_floor_def")
+	main.get("elevator_cutscene").call("play", game_state.call("current_floor").get("id"), next_def.get("id"), next_def.get("name_key"))
 
 
 func _buy(id: String) -> int:
@@ -528,6 +537,37 @@ func _capture(scenario: String, lang: String) -> void:
 			_set_debts([{"principal": 10.0, "remaining": 10.0}])
 			game_state.call("repay_all", 0)
 			await _wait_seconds(3.5)
+		"floor_b1":
+			await _wait_seconds(0.6)
+		"floor_1f":
+			_set_floor(1)
+			await _wait_seconds(0.6)
+		"floor_2f":
+			_set_floor(2)
+			await _wait_seconds(0.6)
+		"floor_3f":
+			_set_floor(3)
+			await _wait_seconds(0.6)
+		"floor_ph":
+			_set_floor(4)
+			await _wait_seconds(0.6)
+		"elevator_ready":
+			_set_chips(1e6)
+			await _wait_seconds(0.6)
+		"elevator_confirm":
+			_set_chips(1e6)
+			await _wait_frames(1)
+			main.get("floor_confirm_popup").call("open")
+			await _wait_seconds(0.3)
+		"elevator_cutscene_close":
+			_start_elevator_cutscene()
+			await _wait_seconds(0.3)
+		"elevator_cutscene_tick":
+			_start_elevator_cutscene()
+			await _wait_seconds(0.9)
+		"elevator_cutscene_title":
+			_start_elevator_cutscene()
+			await _wait_seconds(2.3)
 		_:
 			push_error("capture: 모르는 시나리오 %s" % scenario)
 	await _wait_frames(1)

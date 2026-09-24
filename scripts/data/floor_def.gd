@@ -18,3 +18,6 @@ extends Resource
 @export var marble_tier_cap: int = 0
 ## 목표 도달 시간(분). 밸런스 시뮬레이션(9단계) 기준값.
 @export var target_minutes: float = 0.0
+## 층별 BGM·앰비언스 트랙 id(7단계 슬롯, 음원 자체는 8단계). AudioManager.play_music(music_id) 가 받는다.
+@export var music_id: String = ""
+@export var ambience_id: String = ""

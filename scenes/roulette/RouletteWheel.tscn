@@ -1,10 +1,10 @@
 [gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/roulette/roulette_wheel.gd" id="1_wheel"]
-[ext_resource type="Texture2D" path="res://assets/sprites/wheel/wheel_shadow.png" id="2_shadow"]
-[ext_resource type="Texture2D" path="res://assets/sprites/wheel/wheel_base.png" id="3_base"]
-[ext_resource type="Texture2D" path="res://assets/sprites/wheel/wheel_top.png" id="4_top"]
-[ext_resource type="Texture2D" path="res://assets/sprites/wheel/wheel_highlight.png" id="5_hl"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wheel/b1/wheel_shadow.png" id="2_shadow"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wheel/b1/wheel_base.png" id="3_base"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wheel/b1/wheel_top.png" id="4_top"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wheel/b1/wheel_highlight.png" id="5_hl"]
 
 [node name="RouletteWheel" type="Node2D"]
 script = ExtResource("1_wheel")

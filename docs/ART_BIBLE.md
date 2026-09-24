@@ -443,6 +443,24 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 | `assets/audio/sfx/stamp_thud.wav` | 0.3초 | — | 도장 '쾅' | tools/audio/gen_sfx.py | 5 |
 | `assets/audio/sfx/chip_bag_toss.wav` | 0.5초 | — | 칩 자루 토스 | tools/audio/gen_sfx.py | 5 |
 | `assets/audio/sfx/pickpocket_squeak.wav` | 0.3초 | — | 소매치기 "찍!" | tools/audio/gen_sfx.py | 5 |
+| `assets/sprites/wheel/{b1,1f,2f,3f,ph}/wheel_shadow.png` | 240×240 | 1 | 휠 드롭 섀도(알파, 층 공용 형태) | tools/art/gen_wheel.py | 7 |
+| `assets/sprites/wheel/{b1,1f,2f,3f,ph}/wheel_base.png` | 240×240 | 1 | 휠 바깥 림·트랙·디플렉터·숫자 링 바탕(층별 재질 테마) | tools/art/gen_wheel.py | 7 |
+| `assets/sprites/wheel/{b1,1f,2f,3f,ph}/wheel_top.png` | 240×240 | 1 | 포켓 경계·중앙 콘(층별 재질 테마) | tools/art/gen_wheel.py | 7 |
+| `assets/sprites/wheel/{b1,1f,2f,3f,ph}/wheel_highlight.png` | 240×240 | 1 | 고정 곡선 반사광(1F 는 gloss 배율 ↑) | tools/art/gen_wheel.py | 7 |
+| `assets/sprites/wheel/{b1,1f,2f,3f,ph}/wheel_hub.png` | 16×16 | 1 | 터렛 허브(층별 금속 톤) | tools/art/gen_wheel.py | 7 |
+| `assets/sprites/wheel/{b1,1f,2f,3f,ph}/wheel_knob.png` | 5×5 | 1 | 터렛 손잡이 끝 구슬(층별 금속 톤) | tools/art/gen_wheel.py | 7 |
+| `assets/sprites/bg/1f/wall.png` | 640×360 | 1 | 1F 붉은 카펫 벽지·금 기둥 2개·슬롯머신 3대(불빛은 코드가 덧그림) | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/1f/chandelier.png` | 64×28 | 1 | 1F·PH 공용 크리스털 샹들리에 | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/1f/guest_silhouette.png` | 10×22 | 1 | 가끔 지나가는 손님 실루엣 | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/2f/wall.png` | 640×360 | 1 | 2F 나무 선실 벽판·둥근 창 2개(투명 구멍) | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/2f/river.png` | 360×60 | 1 | 창 뒤로 스크롤하는 달빛 강(region_rect 슬라이딩) | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/2f/lantern.png` | 12×18 | 1 | 흔들리는 선상 등불 | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/3f/wall.png` | 640×360 | 1 | 3F 밤 스카이라인(별·창 불빛 일부는 코드가 무작위 점멸) | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/3f/bar.png` | 58×34 | 1 | 칵테일 바 실루엣 | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/ph/wall.png` | 640×360 | 1 | PH 대리석 벽·금 기둥·벨벳 커튼·구름과 달 | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/ph/madame_silhouette.png` | 44×40 | 2(idle·와인잔) | 마담 벨벳 뒤태 실루엣(3/N 실제 캐릭터 전 복선) | tools/art/gen_bg.py | 7 |
+| `assets/sprites/bg/{1f,2f,3f,ph}/table.png` | 640×360 | 1 | B1 `table.png` 그대로 복사(게임 판은 층과 무관) | tools/art/gen_bg.py(복사) | 7 |
+| `assets/sprites/bg/{1f,2f,3f,ph}/lamp_cone.png` `light_pool.png` | 220×250 / 320×250 | 1 | 층별 색(gold_shine·amber·neon_cyan·neon_purple·ivory)으로 다시 구운 조명 웅덩이 | tools/art/gen_bg.py | 7 |
 
 ---
 
@@ -541,3 +559,98 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
   (포켓 색이 비쳐 보여야 하므로 알파를 낮게 유지 — 결과 가독성 유지, GDD 9장). 이 텍스처 자체가 배경 장식용이라 알파가 이미
   낮게(최대 약 0.27) 그려져 있어, `SmokeOverlay.MAX_ALPHA` 는 1.0 을 넘겨(1.3) 곱해야 화면에서 실제로 "0.35 안팎"으로 보인다
   (그래도 텍스처 자체 알파가 상한이라 완전히 불투명해지진 않는다) — 배경용 텍스처를 패널티 연출에 재사용할 때 겪은 함정.
+
+---
+
+## 12. 층 진행·엘리베이터·휠 스킨 (7단계)
+
+### 12-1. 층별 강조색
+
+| 층 | 강조색 1(주) | 강조색 2(보조) | 상수 |
+|---|---|---|---|
+| B1 | gold | wood_hl | `FloorTheme.ACCENTS["b1"]` |
+| 1F | red_hl | gold_hl | `FloorTheme.ACCENTS["1f"]` |
+| 2F | amber | wood_hl | `FloorTheme.ACCENTS["2f"]` |
+| 3F | neon_cyan | neon_purple | `FloorTheme.ACCENTS["3f"]` |
+| PH | gold_hl | neon_purple | `FloorTheme.ACCENTS["ph"]` |
+
+`scripts/core/floor_theme.gd`(순수 표시용, 로직에 영향 없음)이 표를 코드로 갖는다. 엘리베이터 확인 팝업의 썸네일(단색
+스와치, 48×48)에 쓴다 — 층 전체를 그린 축소 일러스트 대신 강조색만 보여주는 것으로 범위를 줄였다(아래 12-4 참고).
+
+### 12-2. 층별 배경
+
+- 레이어 구성은 B1(2단계)과 같다: 벽(wall, 640×360) → 게임 판(table, 640×360, **B1 것을 그대로 복사** — 판 자체는
+  층과 무관하게 항상 같아야 가독성이 유지된다) → 조명(가산 블렌딩) → [층별 특수 요소] → 비네트.
+- **1F 다운타운 카지노**: 붉은 바둑판 벽지 + 금 기둥 2개, 슬롯머신 3대(불빛 3개는 `Background1F._draw_lights()` 가
+  칸마다 0.33주기씩 어긋나게 순차 점멸), 크리스털 샹들리에(반짝임은 정적 텍스처, 애니메이션 생략), 가끔(13초 주기,
+  5초간) 위쪽 빈 띠(y 58)를 가로지르는 손님 실루엣.
+- **2F 리버보트 카지노**: 나무 판벽 + 둥근 창 2개(벽 텍스처에 뚫린 투명 구멍), 창 뒤에 `river.png`(360×60)를
+  `Sprite2D.region_rect.position.x` 를 매 프레임 슬라이딩해 스크롤(달빛 기둥 포함), 흔들리는 등불 2개(B1 램프와 같은
+  사인파 흔들림), **배경 루트 전체**(World 가 아니라 Background2F 안의 컨테이너만)가 5.5초 주기로 1px 좌우로 흔들린다.
+- **3F 스카이 라운지**: 스카이라인 실루엣(건물 높이 무작위, 일부 창은 텍스처에 이미 켜진 채로 구움) + `_draw_flicker()`
+  가 창 16개를 각자 다른 주기(2.5~7초)로 추가 점멸, 별, 비행기 점멸등(26초 주기 중 16초 동안 화면을 가로지르며
+  0.6초 간격으로 깜빡), 네온 시안·퍼플 웅덩이 2개(고정 조명 기구 없이 벽 자체가 은은히 빛나는 것으로 표현), 칵테일 바.
+- **PH 펜트하우스**: 대리석 벽(가는 곡선 결 5가닥 — 처음엔 2D 사인 필드로 시도했더니 체크무늬/물방울무늬처럼 보여
+  실패, 가늘게 휘는 줄 5개를 직접 그리는 방식으로 교체), 금 기둥 2개, 양옆 벨벳 커튼, 구름과 달(위쪽 띠에 고정),
+  1F 것을 재사용한 대형 샹들리에, `madame_silhouette.png`(44×40, 2프레임)가 뒤쪽 높은 의자에 앉아 9초 주기로 2.4초
+  동안 와인잔을 든 자세로 바뀐다(`region_rect` 프레임 전환 — 마담 벨벳의 실제 캐릭터는 7단계 3/N).
+- 배경 스왑은 `Main._background_for_floor(index)`(층 id → 클래스, B1 만 기존 `.tscn`) + `EventBus.floor_changed` 로
+  일어난다. 층별 배경 클래스는 `scenes/main/bg/background_{1f,2f,3f,ph}.gd`(B1 과 달리 `.tscn` 없이 전부 `_ready()`
+  에서 코드로 짓는다 — 스킬트리·일시정지 메뉴 등 6단계 화면들과 같은 패턴).
+
+### 12-3. 층별 휠 스킨
+
+- "림·트랙·터렛만 교체"(요청 명세) — **포켓 링(빨강/검정/초록)과 숫자는 층과 무관하게 고정**이다(결과 판독성을 위해
+  절대 안 바꾼다). `tools/art/gen_wheel.py` 가 5개 테마(`THEMES` 딕셔너리, "wood" 4색 램프 + "gold" 5색 램프 +
+  `cone_center` + `gloss`(반사 세기) + `grain_accent`(결 강조색) + `rivets`(리벳 점 유무))로 기존 기하(반지름·볼트·
+  디플렉터 배치)를 그대로 재사용해 `assets/sprites/wheel/<층 id>/` 에 6개 파일을 굽는다. B1 은 기존 하드코딩 색과
+  바이트 단위로 동일하게 나오는지 확인했다(`cmp` 로 검증 후 기존 루트 파일 삭제).
+  - B1 낡은 나무 + 금(기존).
+  - 1F 는 같은 나무 램프에 `grain_accent="red_d"`(마호가니 결 강조)와 `gloss=1.7`(광택 반사 세기)만 다르다 —
+    팔레트에 마호가니 갈색이 따로 없어 "광택"(밝기·반사)으로 차별화했다(GDD 17장과 같은 원칙: 팔레트 제약은
+    수치·강도로 우회).
+  - 2F 는 "wood" 슬롯에 금색 램프를, "gold" 슬롯에 나무색 램프를 넣어 황동 몸체 + 어두운 목재/리벳 트림으로 뒤집었다.
+    `_draw_rivets()` 가 림 안쪽을 따라 못대가리 점 48개를 찍는다.
+  - 3F 는 회색조(ink/stone/mist/ivory) 몸체 + 청록 반짝임(gold 슬롯의 4번째 자리를 neon_cyan 으로). 회전하지 않는
+    청록 빛이 림을 따라 도는 것은 `RouletteWheel._draw_neon_sweep()`(고정 반지름 118, 4초 주기, 50° 호 + 꼬리
+    5단계)이 매 프레임 그린다(정적 텍스처가 아니라 런타임 효과).
+  - PH 는 금→아이보리 몸체 + 보라·금 장식. "보석 8개 순차 반짝임"은 `RouletteWheel._draw_gem_twinkle()`(볼트와 같은
+    반지름 111, 8개 위치, 3.2초 주기로 한 번에 하나씩 보라→금색으로 밝아졌다 사라짐).
+- `RouletteWheel.set_floor_skin(index)`: Shadow/Base/Top/Highlight 스프라이트 텍스처와 허브·손잡이 텍스처(더 이상
+  `const` 프리로드가 아니라 `load()` 로 동적 로드)를 교체한다. `_ready()` 에서 한 번, `EventBus.floor_changed` 로
+  그때그때 호출된다. 없는 파일이면 B1 로 대체(`_load_skin_texture` 의 방어적 fallback).
+
+### 12-4. 층 이동 UI·엘리베이터 컷신
+
+- **진행률 바**: `TopBar` 층 이름 라벨 바로 아래(y=24, `FLOOR_BAR_HEIGHT`=1px) — 빚 상환 바(11-5)와 완전히 같은
+  수동 배치 패턴(Container 밖에 두고 매 프레임 위치·크기 갱신). 채움 비율은 `FloorService.progress()`. 90%
+  이상이면(`FLOOR_BAR_GLOW_THRESHOLD`) `Palette.SEM_CHIP` ↔ `GOLD_SHINE` 을 4Hz 로 오갠다. 최고층(PH)이면 숨김.
+- **엘리베이터 버튼**(`ElevatorButton`, 새 스프라이트 없이 `_draw()`): 휠 오른쪽 위 틈(`ELEVATOR_BUTTON_POS` =
+  (341, 41), 기록 패널·오른쪽 패널 사이의 열린 자리 — ART_BIBLE 2-2 참고), 28×28, 금 화살표 + 맥동하는 원(2.6초
+  주기). `FloorService.can_move()` 가 true 로 "막 바뀌는 순간"만(이전엔 false 였다가) 루시가 `elevator_ready` 대사
+  한 줄을 한다(`DialogueBox` 재사용, 6단계 "살면서 처음 클로버" 와 같은 컴포넌트).
+- **확인 팝업**(`FloorConfirmPopup`, 220×150 `PanelPlain`, 화면 중앙): 다음 층 이름 + 강조색 스와치(48×48, 12-1) +
+  비용(`format`) + 배율(`format_mult`) + 클로버 +10. [취소]/[이동]. **주의**: 숫자·문자가 섞인 줄은 `Num7*`(3×5
+  숫자 전용 비트맵 폰트)로 쓰면 한글이 렌더링되지 않는다(두부 모양 빈 칸) — `LabelGold`/`LabelSmall`/`LabelClover`
+  (일반 Galmuri 폰트 변형)를 써야 한다. 캡처로 실제로 두부가 뜨는 것을 보고서야 발견해 고쳤다.
+- **전환 컷신**(`ElevatorCutscene`, 3.4초, 스킵 가능): 문 닫힘(0.6초, `INK` 두 짝이 화면 가장자리에서 만나고
+  `GOLD_HL` 1px 이음매가 좁아지다 사라짐) → 층 표시등(0.8초, 딸깍 3회 — `chip_click` 재생, 마지막에 새 층 id 로
+  확정) → '띵'(`clover_get` 재사용) + 문 열림(0.6초, 반대로 슬라이드) → 타이틀 카드(0.6초, "1F 다운타운 카지노"가
+  **왼쪽부터 자기 폭만큼** 드러남 — 처음엔 화면 전체 폭(640px)을 기준으로 클립을 키웠더니 가운데 정렬된 글자가
+  중간부터 뜬금없이 나타나는 문제가 있어, 대사 텍스트의 실제 렌더 폭(`get_minimum_size().x`)을 재서 그 폭만큼만
+  클립을 화면 중앙에 두고 키우도록 고쳤다) → 클로버 +10 비행(`FlyingChips`, 휠 중심 → `TopBar.clover_target()`,
+  3개) → 0.7초 유지 → 종료.
+  - **수치와 연출의 분리**(5단계 남작 컷신과 같은 원칙): `FloorService.move_to_next()`(칩 소모·`floor_index`·클로버)는
+    "문이 다 닫힌 순간"(`doors_closed` 신호)에 실행된다 — 그래야 배경·휠 스킨이 바뀌는 순간이 문 뒤에 가려진다.
+    스킵(`skip()`)해도 아직 안 낸 `doors_closed`/`clover_moment` 신호를 순서대로 한 번에 내고 끝나므로, 아무리
+    빨리 스킵해도 층 이동 자체는 항상 적용된다.
+- 스핀 버튼은 컷신 재생 중 눌러도(마우스 필터가 `IGNORE`라 클릭 자체는 통과한다) `Main.request_spin()` 가드가
+  막는다(잭팟·남작 컷신과 같은 가드 목록에 추가). 오토 스핀도 같은 조건으로 멈춘다.
+
+### 12-5. AudioManager 층별 슬롯
+
+- `FloorDef.music_id`/`ambience_id`(문자열, 데이터에 이미 있음: `bgm_b1`~`bgm_ph`, `ambience_b1`~`ambience_ph`).
+  `Main._play_floor_music()` 가 `floor_changed` 마다 `AudioManager.play_music(music_id)` 를 부른다.
+  `play_music()` 자체는 8단계 전까지 `pass`(주석: "8단계에서 음악 크로스페이드 구현")라 지금은 아무 소리도 안
+  나지만, 8단계가 크로스페이드를 구현하면 이 호출만으로 층별 음악이 바뀐다. 앰비언스(외륜 소리 등)는 슬롯만 두고
+  아직 호출부가 없다(8단계에서 재생 방식이 정해지면 연결).

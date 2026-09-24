@@ -160,3 +160,57 @@ func test_result_badge_subtitle() -> void:
 	check_eq(ResultBadge.subtitle_for(0), "제로", "0")
 	TranslationServer.set_locale("en")
 	check_eq(ResultBadge.subtitle_for(32), "Red · Even", "32")
+
+
+# ── 층 이동·엘리베이터(7단계) ─────────────────────────────
+
+func _run_elevator_to(phase: ElevatorCutscene.Phase, max_seconds: float = 6.0) -> void:
+	var elapsed := 0.0
+	while main.elevator_cutscene._phase != phase and main.elevator_cutscene.is_playing() and elapsed < max_seconds:
+		main.elevator_cutscene._process(STEP)
+		elapsed += STEP
+
+
+func test_elevator_button_visible_only_when_affordable_and_not_max_floor() -> void:
+	check(not main.elevator_button.visible, "칩 부족이면 안 보임")
+	GameState.add_chips(1e6)
+	check(main.elevator_button.visible, "비용을 채우면 보임")
+	GameState.floor_index = 4
+	EventBus.floor_changed.emit(4)
+	check(not main.elevator_button.visible, "최고층이면 안 보임")
+
+
+func test_floor_confirm_popup_shows_next_floor_info() -> void:
+	GameState.add_chips(1e6)
+	main.floor_confirm_popup.open()
+	check(main.floor_confirm_popup.visible, "팝업 열림")
+	check(main.floor_confirm_popup._cost_label.text.contains(NumberFormat.format(1e6)), "비용 표시")
+	check(main.floor_confirm_popup._feature_label.text.contains("10"), "클로버 +10 표시")
+
+
+func test_elevator_cutscene_moves_floor_only_after_doors_closed() -> void:
+	GameState.add_chips(1e6)
+	main._on_floor_confirmed()
+	check(main.elevator_cutscene.is_playing(), "컷신 시작")
+	check_eq(GameState.floor_index, 0, "문이 닫히기 전에는 층이 안 바뀐다")
+	_run_elevator_to(ElevatorCutscene.Phase.TICK)
+	check_eq(GameState.floor_index, 1, "문이 닫힌 순간 1F 로 이동")
+
+
+func test_elevator_cutscene_skip_still_applies_state() -> void:
+	GameState.add_chips(1e6)
+	var before_clovers := GameState.clovers
+	main._on_floor_confirmed()
+	main.elevator_cutscene.skip()
+	check(not main.elevator_cutscene.is_playing(), "스킵하면 즉시 끝남")
+	check_eq(GameState.floor_index, 1, "스킵해도 층 이동은 적용됨")
+	check_eq(GameState.clovers, before_clovers + Economy.CLOVER_PER_FLOOR, "스킵해도 클로버 +10")
+
+
+func test_request_spin_blocked_during_elevator_cutscene() -> void:
+	main.bet_panel.board.place("R")
+	GameState.add_chips(1e6)
+	main._on_floor_confirmed()
+	main.request_spin()
+	check(not main.wheel.spinning, "컷신 중에는 스핀 시작 안 함")
+	main.elevator_cutscene.skip()

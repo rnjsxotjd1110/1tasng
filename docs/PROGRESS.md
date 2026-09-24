@@ -67,7 +67,7 @@
 - [x] 층 이동 로직(비용·배율·클로버 +10, `FloorService`), `floor_changed` 발행 지점 — 층별 배경은 2/N
 - [x] 엔딩 로직(1Dc → `EndingService`, `ending_reached`/`infinite_mode` 저장) — 최후의 스핀·크레딧·벨벳 연출은 3/N
 - [x] 업적 로직 30개(`AchievementManager`+`data/achievements.json`, 저장/불러오기) — 토스트·목록 화면은 3/N
-- [ ] 층별 배경 4종·휠 스킨 5종·엘리베이터 UI·컷신 (2/N)
+- [x] 층별 배경 4종·휠 스킨 5종·엘리베이터 UI·컷신 (2/N)
 - [ ] 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면 (3/N)
 
 ### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비
@@ -590,3 +590,76 @@
 - AudioManager 는 `play_music()` 가 8단계용 스텁(`pass`) 이라 실제 음원·크로스페이드는 없다 — 2/N 에서는 "층별 BGM
   id 슬롯"만 연결(예: `FloorDef` 에 `music_id` 필드 추가하고 `floor_changed` 때 `AudioManager.play_music(id)` 호출)
   하고, 실제로 들리는 재생은 8단계 몫이다.
+
+### 7단계 진행 중 (2026-09-24) — 2/N: 층별 배경·휠 스킨·엘리베이터 UI·컷신
+
+**한 일**
+- **휠 스킨 5종**: `tools/art/gen_wheel.py` 를 `THEMES` 딕셔너리(층 id → "wood" 4색 램프·"gold" 5색 램프·
+  `cone_center`·`gloss`·`grain_accent`·`rivets`)로 다시 짜서 기존 기하(반지름·볼트·디플렉터 위치)는 그대로 두고
+  색만 바꿔 5테마를 한 번에 굽는다. B1 출력이 기존 파일과 바이트 단위로 같은지 `cmp` 로 확인한 뒤에야 루트의
+  `assets/sprites/wheel/wheel_*.png` 를 지우고 `assets/sprites/wheel/<층 id>/` 로 옮겼다. 포켓 링·숫자는 손대지
+  않음("림·트랙·터렛만 교체" 요청 명세 그대로, 결과 판독성 유지). `RouletteWheel`: Shadow/Base/Top/Highlight 를
+  `@onready` 로 잡고 허브·손잡이를 `const` 프리로드에서 `set_floor_skin(index)` 의 동적 `load()` 로 바꿨다(없으면
+  B1 로 폴백). 3F 청록 테두리 스윕·PH 보석 8개 순차 반짝임은 정적 텍스처가 아니라 `_draw_fx()` 런타임 효과로
+  추가(`_draw_neon_sweep`/`_draw_gem_twinkle`).
+- **층별 배경 4종**(`tools/art/gen_bg.py` 확장 + `scenes/main/bg/background_{1f,2f,3f,ph}.gd` 신규, B1 과 달리
+  `.tscn` 없이 코드로 조립): 1F 붉은 바둑판 벽지·금 기둥·슬롯머신 3대(불빛 순차 점멸)·샹들리에·가끔 지나가는 손님
+  실루엣 / 2F 나무 판벽·둥근 창 뒤로 스크롤하는 달빛 강(`region_rect` 슬라이딩)·흔들리는 등불·배경 전체 1px 좌우
+  흔들림 / 3F 스카이라인(별·창 불빛 무작위 점멸·비행기 점멸등)·네온 시안·퍼플 웅덩이·칵테일 바 / PH 대리석·금
+  기둥·벨벳 커튼·구름과 달·대형 샹들리에·마담 벨벳 실루엣(9초 주기 와인잔 자세, 실제 캐릭터는 3/N). `table.png`
+  (게임 판)는 층마다 새로 안 그리고 B1 것을 그대로 복사 — 판독성 유지가 방(wall) 차별화보다 우선.
+- **UI 패널 테마**: 층별 대리석/황동/크롬/금 텍스처 풀세트 재생성 대신, `scripts/core/floor_theme.gd`(순수 표시용
+  강조색 표)를 만들어 엘리베이터 확인 팝업의 썸네일 스와치에만 적용했다(범위 축소, GDD 17장에 사유 기록 예정).
+- **층 이동 UI**: `TopBar` 에 층 진행률 바 추가(빚 상환 바와 같은 수동 배치 패턴, 90% 이상 금색 맥동). `ElevatorButton`
+  (신규, 새 스프라이트 없이 `_draw()`)이 `FloorService.can_move()` 일 때 휠 오른쪽 위 틈에 나타나고, 처음 나타나는
+  순간만 루시가 대사 한 줄(`elevator_ready`, `data/dialogue/lucy.json` 신규 키). `FloorConfirmPopup`(신규)이 다음
+  층 이름·강조색 스와치·비용·배율·클로버를 보여준다.
+- **전환 컷신**(`ElevatorCutscene`, 신규, 3.4초 스킵 가능): 문 닫힘 → 층 표시등 딸깍 3회 → '띵' + 문 열림 → 타이틀
+  카드 좌→우 → 클로버 비행. **수치 적용 시점**은 "문이 다 닫힌 순간"(`doors_closed` 신호)으로 맞춰 배경·휠 스킨
+  교체가 문 뒤에 가려지게 했다(5단계 남작 컷신과 같은 "연출은 결과만 보여준다" 원칙). 스킵해도 아직 안 낸 신호를
+  순서대로 한 번에 내므로 층 이동은 항상 적용된다.
+- `Main`: 층별 배경 스왑(`_background_for_floor`/`_on_floor_changed_background`), 엘리베이터 신호 배선(눌림→팝업
+  →컷신→`FloorService.move_to_next()`→클로버 비행), `request_spin()`·오토 스핀 가드에 컷신 재생 중 추가, `_show_lucy_line()`
+  으로 리팩터링(첫 클로버·엘리베이터 두 곳이 같은 패턴을 쓰던 것을 하나로 합침), 층별 BGM id 슬롯(`FloorDef.music_id`
+  /`ambience_id`, `AudioManager.play_music()` 는 8단계 스텁이라 아직 무음).
+
+**버그 두 건(캡처로 발견)**
+1. 확인 팝업 숫자·문구 라벨에 `Num7Gold`/`Num7Stone`/`Num7Clover`(3×5 숫자 전용 비트맵 폰트)를 썼더니 한글이 전부
+   두부(빈 네모)로 보임 — 이 폰트들은 숫자 10개+기호만 있어 한글을 못 그린다(ART_BIBLE 5장에 이미 "숫자 폰트"라
+   명시돼 있었는데 놓쳤다). `LabelGold`/`LabelSmall`/`LabelClover`(일반 Galmuri 변형)로 교체.
+2. 타이틀 카드가 화면 전체 폭(640px)을 기준으로 클립을 키웠더니, 가운데 정렬된 글자가 "왼쪽부터"가 아니라 "화면
+   가운데 어딘가부터" 나타나는 것처럼 보임(글자 시작 위치와 클립의 왼쪽 기준이 안 맞음) — 대사 텍스트의 실제 렌더
+   폭(`Label.get_minimum_size().x`)을 재서 그 폭만큼만 클립을 화면 중앙에 두고 키우도록 고쳐 진짜 "글자 자신의
+   왼쪽부터" 드러나게 만들었다. 캡처로 직접 보지 않았다면 못 잡았을 문제.
+- 그 외: `Background3F` 의 `POOL_CYAN`/`POOL_PURPLE` 상수가 실제로는 서로 반대 파일을 가리키고 있던 사소한 이름
+  버그(동작에는 영향 없음, 코드 읽을 때 헷갈려서 발견 즉시 수정).
+- 테스트 신규: `tests/test_main_scene.gd` 에 엘리베이터 통합 테스트 5개(버튼 가시성·팝업 정보·문 닫힌 뒤에만 층
+  이동·스킵해도 상태 적용·컷신 중 스핀 차단). 전체 **320 tests, 8444 checks, 0 failures**.
+- 캡처: `tools/capture/capture.gd` 에 시나리오 10개 추가(`floor_b1/1f/2f/3f/ph`, `elevator_ready`, `elevator_confirm`,
+  `elevator_cutscene_close/tick/title`) — 5개 층 대기 화면과 컷신 3시점을 직접 보고 검수했다(위 버그 2건 발견).
+
+**남은 이슈**
+- UI 패널 프레임 테마는 "5색 텍스처 세트"가 아니라 강조색 표(`FloorTheme`)로 범위를 줄였다 — 오른쪽 패널(베팅·
+  업그레이드창)의 큰 펠트 텍스처(216×328)는 여전히 B1 톤 그대로다. 층 구분은 배경·휠이 이미 강하게 해 주므로
+  이번 단계에서는 필수로 보지 않았지만, 8단계 폴리시 패스에서 원하면 `FloorTheme` 표를 그대로 재사용해 4장 더
+  구울 수 있다.
+- 2F 앰비언스(외륜 소리) 는 슬롯(`ambience_id`)만 있고 호출부가 없다(음원 자체가 8단계 몫).
+- 1F 슬롯머신 불빛·3F 창 불빛 점멸은 정적으로 구운 텍스처 위에 코드가 덧그리는 방식이라, 두 레이어의 좌표가
+  살짝 어긋나도(현재는 맞춰뒀다) 눈에 잘 안 띈다 — 다음에 이 패턴을 또 쓰면 좌표 상수를 배경 스크립트 쪽에 한
+  곳으로 모아두는 게 더 안전하다(지금은 `tools/art/gen_bg.py` 와 `background_1f.gd` 양쪽에 같은 좌표를 따로 적음).
+
+**다음 작업(3/N)이 알아야 할 것**
+- `background_ph.gd` 의 `MADAME` 실루엣은 진짜 캐릭터가 아니다 — 3/N 에서 마담 벨벳 초상화·전신을 만들면 이 실루엣
+  대신(또는 앞에 겹쳐) 실제 대화 가능한 NPC 를 배치하면 된다. 대사창은 기존 `DialogueBox`(`NPC_LUCY`/`NPC_RATCHET`
+  과 같은 `SPEAKERS` 맵에 `NPC_VELVET` 추가)를 그대로 재사용할 수 있다.
+- `AchievementManager.mark_dialogue_seen(key, index)` 훅이 1/N 에 이미 있다 — 벨벳 대사를 재생하는 곳에서 이 함수만
+  불러주면 숨김 업적 "벨벳의 모든 말"이 자동으로 작동한다.
+- `EndingService.trigger()`/`enter_infinite_mode()` 도 1/N 에 로직만 있다 — PH 화면에 "하우스 인수" 버튼을 추가하고
+  `EndingService.can_trigger()` 로 표시 여부를 정한 뒤, 눌리면 벨벳 대화 → 최후의 스핀 연출 → `trigger()` 호출
+  순서로 엮으면 된다(엘리베이터 컷신처럼 "수치는 적절한 시점에, 연출은 그 결과만" 원칙을 유지할 것).
+- 업적 토스트·목록 화면은 `StatsScreen`(`scenes/ui/stats_screen.gd`)과 거의 같은 틀(640×336 `PanelPlain`, 일시정지
+  메뉴에서 연다)을 재사용할 수 있다. `EventBus.achievement_unlocked(id)` 를 구독해 우측 하단 토스트(0.3초 슬라이드
+  인, 4초 유지)를 띄우고, `AchievementData.all()` 로 30개 목록(미획득 실루엣, 숨김은 "???")을 그리면 된다.
+- 엔딩 크레딧 화면은 새로운 화면이라 기존 오버레이 패턴(스킬트리 아이리스 와이프처럼)을 그대로 따를 필요는 없다 —
+  대신 엘리베이터 컷신처럼 전체 화면을 덮는 `Control` + phase enum 상태 기계 패턴을 재사용하는 편이 이번 2/N 의
+  `ElevatorCutscene` 과 톤이 맞을 것이다.

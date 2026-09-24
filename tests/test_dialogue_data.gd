@@ -46,7 +46,7 @@ func test_all_referenced_translation_keys_exist() -> void:
 			continue
 		known[line.split(",")[0]] = true
 	csv.close()
-	for key in ["loan_intro", "loan_repeat_2nd", "loan_repeat_3rd", "loan_overflow", "debt_paid", "skilltree_unlock"]:
+	for key in ["loan_intro", "loan_repeat_2nd", "loan_repeat_3rd", "loan_overflow", "debt_paid", "skilltree_unlock", "elevator_ready"]:
 		for variant: Dictionary in (DialogueData._sets[key] as Array):
 			check(known.has(String(variant.get("speaker", ""))), "화자 키 등록됨: %s" % variant.get("speaker"))
 			for line_key in variant.get("lines", []):

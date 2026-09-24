@@ -41,6 +41,10 @@ const CLOVER_ICON := preload("res://assets/sprites/ui/icon_clover.png")
 const DEBT_ICON := preload("res://assets/sprites/ui/icon_debt.png")
 const DEBT_PULSE_SPEED := 2.6
 const DEBT_BAR_HEIGHT := 1.0
+## 다음 층 진행률 바(7단계, ART_BIBLE 12장): 층 이름 아래 얇은 바. 90% 이상이면 빛난다.
+const FLOOR_BAR_HEIGHT := 1.0
+const FLOOR_BAR_GLOW_THRESHOLD := 0.9
+const FLOOR_BAR_PULSE_SPEED := 4.0
 const GEAR_ICON := preload("res://assets/sprites/ui/icon_gear.png")
 const LOCK_ICON := preload("res://assets/sprites/ui/icon_lock.png")
 const NOTIFY_DOT := preload("res://assets/sprites/ui/notify_dot.png")
@@ -79,6 +83,9 @@ var _debt_label: Label
 var _debt_pulse_time: float = 0.0
 var _debt_bar_bg: ColorRect
 var _debt_bar: ColorRect
+var _floor_bar_bg: ColorRect
+var _floor_bar: ColorRect
+var _floor_bar_pulse: float = 0.0
 var _skill_lock: TextureRect
 var _skill_lock_glow_time: float = -1.0
 var _wof_ring: Control
@@ -134,6 +141,14 @@ func _ready() -> void:
 	_debt_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_debt_bar.visible = false
 	add_child(_debt_bar)
+	_floor_bar_bg = ColorRect.new()
+	_floor_bar_bg.color = Palette.with_alpha(Palette.VOID, 0.6)
+	_floor_bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_floor_bar_bg)
+	_floor_bar = ColorRect.new()
+	_floor_bar.color = Palette.SEM_CHIP
+	_floor_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_floor_bar)
 	chips_label.set_value(GameState.chips, 0.0)
 	clover_label.set_value(GameState.clovers, 0.0)
 	income_label.set_value(0.0, 0.0)
@@ -271,6 +286,9 @@ func select_tab(id: String) -> void:
 func _refresh_floor() -> void:
 	var floor_def := GameState.current_floor()
 	floor_label.text = tr(floor_def.name_key) if floor_def != null else ""
+	var max_floor := FloorService.is_max_floor()
+	_floor_bar_bg.visible = not max_floor
+	_floor_bar.visible = not max_floor
 
 
 # ── 칩 ───────────────────────────────────────────────────
@@ -382,6 +400,19 @@ func _process(delta: float) -> void:
 	else:
 		_debt_bar_bg.visible = false
 		_debt_bar.visible = false
+	if _floor_bar_bg.visible:
+		var progress := FloorService.progress()
+		var rect := Rect2(Vector2(FLOOR_CENTER_X - FLOOR_LABEL_WIDTH * 0.5, BAR_SIZE.y), Vector2(FLOOR_LABEL_WIDTH, FLOOR_BAR_HEIGHT))
+		_floor_bar_bg.position = rect.position
+		_floor_bar_bg.size = rect.size
+		_floor_bar.position = rect.position
+		_floor_bar.size = Vector2(roundf(rect.size.x * progress), FLOOR_BAR_HEIGHT)
+		if progress >= FLOOR_BAR_GLOW_THRESHOLD:
+			_floor_bar_pulse += delta
+			_floor_bar.color = Palette.SEM_CHIP.lerp(Palette.GOLD_SHINE, 0.5 + 0.5 * sin(_floor_bar_pulse * FLOOR_BAR_PULSE_SPEED))
+		else:
+			_floor_bar_pulse = 0.0
+			_floor_bar.color = Palette.SEM_CHIP
 	if _save_icon_time >= 0.0:
 		_save_icon_time += delta
 		_save_icon.rotation += SAVE_ICON_SPIN_SPEED * delta

@@ -23,6 +23,9 @@ const PANEL_SLIDE_TIME := 0.18
 const GOLDEN_BADGE_Y := 72.0
 const GOLDEN_PARTICLES := 26
 const DEBUG_PANEL_PATH := "res://scenes/debug/debug_panel.gd"
+## 엘리베이터 버튼(7단계): 휠 오른쪽 위, 기록 패널·오른쪽 패널 사이의 열린 틈.
+const ELEVATOR_BUTTON_POS := Vector2(341, 41)
+const ELEVATOR_CLOVER_FLIGHTS := 3
 
 ## 등급별 날아가는 칩 개수.
 const CHIP_FLIGHTS := {
@@ -97,6 +100,10 @@ var prophecy_orb: ProphecyOrb
 var fever_gauge: FeverGauge
 var jackpot_chain_label: Label
 var wheel_of_fortune_popup: WheelOfFortunePopup
+var elevator_button: ElevatorButton
+var floor_confirm_popup: FloorConfirmPopup
+var elevator_cutscene: ElevatorCutscene
+var _elevator_was_visible: bool = false
 
 const LUCY_POSITION := Vector2(110, 306)
 
@@ -120,6 +127,8 @@ func _ready() -> void:
 	EventBus.spin_resolved.connect(_on_spin_resolved)
 	EventBus.bets_changed.connect(_refresh_spin_state)
 	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh_spin_state())
+	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh_elevator())
+	EventBus.floor_changed.connect(func(_i: int) -> void: _refresh_elevator())
 	EventBus.milestone_reached.connect(_on_milestone)
 	EventBus.upgrade_purchased.connect(_on_upgrade_purchased)
 	EventBus.golden_pockets_added.connect(_on_golden_pockets_added)
@@ -302,12 +311,45 @@ func _build_world() -> void:
 	world = Node2D.new()
 	world.name = "World"
 	add_child(world)
-	background = BackgroundScene.instantiate()
+	background = _background_for_floor(GameState.floor_index)
 	world.add_child(background)
 	wheel = WheelScene.instantiate()
 	wheel.position = WHEEL_CENTER
 	world.add_child(wheel)
 	_refresh_lucy()
+	EventBus.floor_changed.connect(_on_floor_changed_background)
+	_play_floor_music(GameState.floor_index)
+
+
+## 층별 배경(7단계, ART_BIBLE 12장). B1 은 기존 .tscn, 나머지는 절차적 Node2D.
+func _background_for_floor(index: int) -> Node2D:
+	var floor_def := GameData.floor_def(index)
+	match floor_def.id if floor_def != null else "b1":
+		"1f":
+			return Background1F.new()
+		"2f":
+			return Background2F.new()
+		"3f":
+			return Background3F.new()
+		"ph":
+			return BackgroundPH.new()
+	return BackgroundScene.instantiate()
+
+
+func _on_floor_changed_background(index: int) -> void:
+	var old := background
+	background = _background_for_floor(index)
+	world.add_child(background)
+	world.move_child(background, 0)
+	old.queue_free()
+	_play_floor_music(index)
+
+
+## 층별 BGM 슬롯(7단계): 실제 음원·크로스페이드는 8단계에서 AudioManager.play_music() 를 구현하면 그대로 동작한다.
+func _play_floor_music(index: int) -> void:
+	var floor_def := GameData.floor_def(index)
+	if floor_def != null and floor_def.music_id != "":
+		AudioManager.play_music(floor_def.music_id)
 
 
 ## 딜러 루시(6단계, M14 "dealer_hired": 루시가 테이블을 운영한다)는 스킬로 해금되면
@@ -376,6 +418,12 @@ func _build_ui() -> void:
 	root.add_child(prophecy_orb)
 	fever_gauge = FeverGauge.new()
 	root.add_child(fever_gauge)
+	elevator_button = ElevatorButton.new()
+	elevator_button.position = ELEVATOR_BUTTON_POS
+	elevator_button.pressed.connect(_on_elevator_pressed)
+	root.add_child(elevator_button)
+	_elevator_was_visible = FloorService.can_move() and not FloorService.is_max_floor()
+	elevator_button.visible = _elevator_was_visible
 
 
 func _build_fx() -> void:
@@ -440,6 +488,15 @@ func _build_fx() -> void:
 	root.add_child(penalty_toast)
 	smoke_overlay = SmokeOverlay.new()
 	root.add_child(smoke_overlay)
+	floor_confirm_popup = FloorConfirmPopup.new()
+	floor_confirm_popup.position = ((Vector2(640, 360) - FloorConfirmPopup.SIZE) * 0.5).round()
+	floor_confirm_popup.confirmed.connect(_on_floor_confirmed)
+	root.add_child(floor_confirm_popup)
+	elevator_cutscene = ElevatorCutscene.new()
+	elevator_cutscene.doors_closed.connect(_on_elevator_doors_closed)
+	elevator_cutscene.clover_moment.connect(_on_elevator_clover_moment)
+	elevator_cutscene.finished.connect(_on_elevator_finished)
+	root.add_child(elevator_cutscene)
 	tooltip_layer = TooltipLayer.new()
 	root.add_child(tooltip_layer)
 	pause_menu = PauseMenu.new()
@@ -469,7 +526,7 @@ func _layer_root(layer: CanvasLayer) -> Control:
 
 ## SPIN 버튼·Space. 스핀 중이면 남은 연출을 감는다(스킵). 연출 중에도 다음 스핀을 바로 시작할 수 있다.
 func request_spin() -> void:
-	if jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing():
+	if jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or elevator_cutscene.is_playing():
 		return
 	if wheel.spinning:
 		wheel.skip()
@@ -629,7 +686,12 @@ func _on_streak_clover_earned(_count: int) -> void:
 
 ## 살면서 처음 얻은 클로버(6단계): 스킬트리 탭 자물쇠가 깨지고(TopBar 가 스스로 처리) 루시가 한 마디 한다.
 func _on_first_clover_earned() -> void:
-	var entry := DialogueData.pick("skilltree_unlock")
+	_show_lucy_line("skilltree_unlock")
+
+
+## DialogueData 키 하나를 골라 루시가 말한다(공용 대화창 재사용, 이미 말하는 중이면 무시).
+func _show_lucy_line(key: String) -> void:
+	var entry := DialogueData.pick(key)
 	if entry.is_empty() or (_lucy_dialogue != null and _lucy_dialogue.is_open()):
 		return
 	if _lucy_dialogue == null:
@@ -638,6 +700,44 @@ func _on_first_clover_earned() -> void:
 		_lucy_dialogue.finished.connect(func() -> void: _lucy_dialogue.visible = false)
 	_lucy_dialogue.say(entry)
 	_stop_auto_spin("AUTO_STOP_DIALOGUE")
+
+
+# ── 층 이동·엘리베이터(7단계, ART_BIBLE 12장) ─────────────
+
+## 다음 층 비용을 채우면(칩 변화·층 이동마다) 호출: 버튼을 보여주고, 처음 나타나는 순간만 루시가 한 마디 한다.
+func _refresh_elevator() -> void:
+	var visible_now := FloorService.can_move() and not FloorService.is_max_floor()
+	elevator_button.visible = visible_now
+	if visible_now and not _elevator_was_visible:
+		_show_lucy_line("elevator_ready")
+	_elevator_was_visible = visible_now
+
+
+func _on_elevator_pressed() -> void:
+	if elevator_cutscene.is_playing():
+		return
+	floor_confirm_popup.open()
+
+
+func _on_floor_confirmed() -> void:
+	var next_def := FloorService.next_floor_def()
+	if next_def == null:
+		return
+	elevator_cutscene.play(GameState.current_floor().id, next_def.id, next_def.name_key)
+
+
+## 문이 다 닫힌 순간 실제로 층을 옮긴다(배경·휠 스킨 교체는 문 뒤에서 일어난다).
+func _on_elevator_doors_closed() -> void:
+	FloorService.move_to_next()
+
+
+func _on_elevator_clover_moment() -> void:
+	flying_chips.launch([WHEEL_CENTER], top_bar.clover_target(), ELEVATOR_CLOVER_FLIGHTS, FlyingChips.Icon.CLOVER)
+
+
+func _on_elevator_finished() -> void:
+	_refresh_elevator()
+	_refresh_spin_state()
 
 
 # ── 오토 스핀(6단계, M1) ────────────────────────────────
@@ -675,7 +775,7 @@ func _process(delta: float) -> void:
 	_process_auto_upgrade(delta)
 	if not GameState.auto_spin_enabled:
 		return
-	if not controller.is_idle() or wheel.spinning or jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or promotion.is_playing() or wheel_of_fortune_popup.visible:
+	if not controller.is_idle() or wheel.spinning or jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or promotion.is_playing() or wheel_of_fortune_popup.visible or elevator_cutscene.is_playing() or floor_confirm_popup.visible:
 		return
 	if _lucy_dialogue != null and _lucy_dialogue.is_open():
 		return
@@ -906,6 +1006,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			baron_payoff_seq.advance_input()
 		elif promotion.is_playing():
 			promotion.skip()
+		elif elevator_cutscene.is_playing():
+			elevator_cutscene.skip()
 		elif jackpot.is_open:
 			jackpot.close()
 		else:

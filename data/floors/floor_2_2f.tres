@@ -14,3 +14,5 @@ bet_mult = 10000.0
 clover_reward = 10
 marble_tier_cap = 7
 target_minutes = 90.0
+music_id = "bgm_2f"
+ambience_id = "ambience_2f"

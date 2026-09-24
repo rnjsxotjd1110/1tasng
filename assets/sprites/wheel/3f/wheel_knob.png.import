@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://do30xjns2a5xj"
-path="res://.godot/imported/wheel_hub.png-feb18afaf547ddc44994c27ee50209bc.ctex"
+uid="uid://cf2wqpqw2tkuy"
+path="res://.godot/imported/wheel_knob.png-ac8650b7f9cd94d5cb7e89b1bef39033.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/wheel/wheel_hub.png"
-dest_files=["res://.godot/imported/wheel_hub.png-feb18afaf547ddc44994c27ee50209bc.ctex"]
+source_file="res://assets/sprites/wheel/3f/wheel_knob.png"
+dest_files=["res://.godot/imported/wheel_knob.png-ac8650b7f9cd94d5cb7e89b1bef39033.ctex"]
 
 [params]
 

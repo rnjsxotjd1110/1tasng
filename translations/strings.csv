@@ -429,3 +429,12 @@ ACH_VELVET_ALL_LINES_NAME,벨벳의 모든 말,Every Word from Velvet
 ACH_VELVET_ALL_LINES_DESC,마담 벨벳의 대사를 전부 들었다.,Hear every one of Madame Velvet's lines.
 ACH_SAME_NUMBER_3_NAME,세 번의 우연,Three of a Kind
 ACH_SAME_NUMBER_3_DESC,같은 숫자가 3번 연속으로 나왔다.,Land on the exact same number three spins in a row.
+ELEVATOR_BUTTON_TIP,다음 층으로 이동,Move to the next floor
+FLOOR_CONFIRM_COST,비용: %s,Cost: %s
+FLOOR_CONFIRM_PAYOUT,당첨 배율 %s,Payout multiplier %s
+FLOOR_CONFIRM_CLOVER,클로버 +%s,Clover +%s
+BUTTON_MOVE_UP,이동,Move Up
+BUTTON_CANCEL,취소,Cancel
+LUCY_ELEVATOR_READY_1,엘리베이터가 준비됐어요. 위로 올라가 볼까요?,The elevator's ready. Shall we go up?
+LUCY_ELEVATOR_READY_2,다음 층 손님들이 기다리고 있겠네요.,The next floor's guests must be waiting.
+LUCY_ELEVATOR_READY_3,한 층 더 올라갈 준비 되셨죠?,Ready to go up another floor?

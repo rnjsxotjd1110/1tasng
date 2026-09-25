@@ -156,6 +156,7 @@ PAUSE_TITLE,일시정지,Paused
 PAUSE_RESUME,계속하기,Resume
 PAUSE_SETTINGS,설정,Settings
 PAUSE_STATS,통계,Stats
+PAUSE_ACHIEVEMENTS,업적,Achievements
 PAUSE_SAVE_AND_TITLE,저장 후 타이틀로,Save and Title
 PAUSE_TITLE_LOCKED_TIP,타이틀 화면은 다음 단계에서 추가됩니다,Title screen coming in a later update
 PAUSE_QUIT,게임 종료,Quit Game
@@ -429,6 +430,17 @@ ACH_VELVET_ALL_LINES_NAME,벨벳의 모든 말,Every Word from Velvet
 ACH_VELVET_ALL_LINES_DESC,마담 벨벳의 대사를 전부 들었다.,Hear every one of Madame Velvet's lines.
 ACH_SAME_NUMBER_3_NAME,세 번의 우연,Three of a Kind
 ACH_SAME_NUMBER_3_DESC,같은 숫자가 3번 연속으로 나왔다.,Land on the exact same number three spins in a row.
+ACH_SCREEN_TITLE,업적,Achievements
+ACH_TOAST_TITLE,업적 달성,Achievement Unlocked
+ACH_HIDDEN_NAME,???,???
+ACH_HIDDEN_DESC,아직 밝혀지지 않은 업적입니다.,An achievement yet to be uncovered.
+ACH_CATEGORY_BASIC,기본,Basic
+ACH_CATEGORY_DEBT,빚,Debt
+ACH_CATEGORY_PROGRESS,진행,Progress
+ACH_CATEGORY_COLLECTION,수집,Collection
+ACH_CATEGORY_FEATURE,특수,Special
+ACH_CATEGORY_CUMULATIVE,누적,Cumulative
+ACH_CATEGORY_HIDDEN,숨김,Hidden
 ELEVATOR_BUTTON_TIP,다음 층으로 이동,Move to the next floor
 FLOOR_CONFIRM_COST,비용: %s,Cost: %s
 FLOOR_CONFIRM_PAYOUT,당첨 배율 %s,Payout multiplier %s
@@ -438,3 +450,26 @@ BUTTON_CANCEL,취소,Cancel
 LUCY_ELEVATOR_READY_1,엘리베이터가 준비됐어요. 위로 올라가 볼까요?,The elevator's ready. Shall we go up?
 LUCY_ELEVATOR_READY_2,다음 층 손님들이 기다리고 있겠네요.,The next floor's guests must be waiting.
 LUCY_ELEVATOR_READY_3,한 층 더 올라갈 준비 되셨죠?,Ready to go up another floor?
+VELVET_FIRST_1,그러니까... 이 계단을 다 오른 게 당신이군요.,So... you're the one who climbed all these floors.
+"VELVET_FIRST_2","나무 구슬 하나로 여기까지 오다니, 재미있는 손님이네요.","All the way here with a single wooden marble. You're an interesting guest."
+"VELVET_FIRST_3","이 카지노의 주인은 나, 마담 벨벳이에요. 언젠가 여기서 마지막 판을 벌이게 될 거예요.","I'm the owner of this casino, Madame Velvet. Someday you'll play your final hand right here."
+VELVET_PERIODIC_1,돈은 늘 흐르죠. 문제는 어느 방향이냐는 거예요.,Money always flows. The question is which way.
+VELVET_PERIODIC_2,이 펜트하우스에서는 모든 게 다 보여요.,"From this penthouse, I see everything."
+VELVET_PERIODIC_3,당신 같은 손님은 오랜만이에요.,It's been a while since I've had a guest like you.
+"VELVET_PERIODIC_4","하우스는 절대 지지 않아요... 보통은요.","The house never loses... usually."
+VELVET_LAST_HAND_1,정말인가요? 이 카지노를 통째로 사겠다니.,Are you serious? Buying out this whole casino.
+"VELVET_LAST_HAND_2","좋아요, 그럼 마지막 한 판으로 정하죠. 이 판이 전부를 결정해요.","Very well. Let's settle it with one last hand. This spin decides everything."
+"VELVET_LAST_HAND_3","행운을 빌어요, 손님... 아니, 이제는 '주인님'이라 불러야 하나요.","Good luck, guest... or should I say, 'owner,' from now on."
+"VELVET_EPILOGUE_1","환영해요, 새로운 하우스. 이제부터는 당신이 이 카지노예요.","Welcome, new House. From now on, you are this casino."
+"LUCY_EPILOGUE_1","우와, 새 주인이라니! 축하해요, 사장님!","Whoa, the new owner! Congratulations, boss!"
+"BARON_EPILOGUE_1","허허, 이제 당신이 주인이니... 남은 빚은 없던 일로 하지요.","Heh, now that you're the owner... let's call your remaining debt forgiven."
+ACQUISITION_BUTTON_TIP,카지노 인수하기,Acquire the casino
+ENDING_DEED_TITLE,양도 증서,Deed of Sale
+"ENDING_DEED_LINE1","매도인: 마담 벨벳","Seller: Madame Velvet"
+ENDING_DEED_LINE2,매수인: 당신,Buyer: You
+"ENDING_DEED_LINE3","이 증서로 '하우스 에지' 카지노의 모든 권리가 이전됩니다.","This deed transfers all rights to the House Edge casino."
+ENDING_CREDITS_TITLE,THE END,THE END
+ENDING_CREDITS_SUBTITLE,당신이 새로운 하우스입니다,You are the new House
+ENDING_CREDITS_FINAL_MARBLE,최종 구슬,Final Marble
+ENDING_CONTINUE,계속하기,Continue
+OWNER_MODE_TOOLTIP,오너 모드: 모든 당첨금 ×2,Owner Mode: all payouts ×2

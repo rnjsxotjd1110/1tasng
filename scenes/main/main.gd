@@ -26,6 +26,9 @@ const DEBUG_PANEL_PATH := "res://scenes/debug/debug_panel.gd"
 ## 엘리베이터 버튼(7단계): 휠 오른쪽 위, 기록 패널·오른쪽 패널 사이의 열린 틈.
 const ELEVATOR_BUTTON_POS := Vector2(341, 41)
 const ELEVATOR_CLOVER_FLIGHTS := 3
+## 5~8분(초) 사이 무작위로 벨벳이 한 마디씩 한다(PH 에 있을 때만).
+const VELVET_PERIODIC_MIN := 300.0
+const VELVET_PERIODIC_MAX := 480.0
 
 ## 등급별 날아가는 칩 개수.
 const CHIP_FLIGHTS := {
@@ -82,6 +85,8 @@ var jackpot: JackpotOverlay
 var skill_overlay: SkillTreeScreen
 var settings_overlay: SettingsScreen
 var stats_screen: StatsScreen
+var achievement_screen: AchievementScreen
+var achievement_toast: AchievementToast
 var pause_menu: PauseMenu
 var return_popup: ReturnPopup
 var baron_loan_seq: BaronLoanSequence
@@ -94,7 +99,9 @@ var toasts: ToastLayer
 var tooltip_layer: TooltipLayer
 var shaker: ScreenShake
 var lucy: LucyDealer = null
-var _lucy_dialogue: DialogueBox = null
+var velvet: MadameVelvet = null
+var _npc_dialogue: DialogueBox = null
+var _velvet_periodic_timer: float = -1.0
 var buff_bar: BuffBar
 var prophecy_orb: ProphecyOrb
 var fever_gauge: FeverGauge
@@ -104,8 +111,13 @@ var elevator_button: ElevatorButton
 var floor_confirm_popup: FloorConfirmPopup
 var elevator_cutscene: ElevatorCutscene
 var _elevator_was_visible: bool = false
+var acquisition_button: AcquisitionButton
+var ending_sequence: EndingSequence
+var ending_credits: EndingCredits
+var _acquisition_was_visible: bool = false
 
 const LUCY_POSITION := Vector2(110, 306)
+const VELVET_POSITION := Vector2(596, 300)
 
 var current_tab: String = TopBar.TAB_BET
 var _payout_batch: int = -1
@@ -129,6 +141,8 @@ func _ready() -> void:
 	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh_spin_state())
 	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh_elevator())
 	EventBus.floor_changed.connect(func(_i: int) -> void: _refresh_elevator())
+	EventBus.chips_changed.connect(func(_v: float, _d: float) -> void: _refresh_acquisition())
+	EventBus.floor_changed.connect(func(_i: int) -> void: _refresh_acquisition())
 	EventBus.milestone_reached.connect(_on_milestone)
 	EventBus.upgrade_purchased.connect(_on_upgrade_purchased)
 	EventBus.golden_pockets_added.connect(_on_golden_pockets_added)
@@ -317,6 +331,7 @@ func _build_world() -> void:
 	wheel.position = WHEEL_CENTER
 	world.add_child(wheel)
 	_refresh_lucy()
+	_refresh_velvet(GameState.floor_index)
 	EventBus.floor_changed.connect(_on_floor_changed_background)
 	_play_floor_music(GameState.floor_index)
 
@@ -343,6 +358,7 @@ func _on_floor_changed_background(index: int) -> void:
 	world.move_child(background, 0)
 	old.queue_free()
 	_play_floor_music(index)
+	_refresh_velvet(index)
 
 
 ## 층별 BGM 슬롯(7단계): 실제 음원·크로스페이드는 8단계에서 AudioManager.play_music() 를 구현하면 그대로 동작한다.
@@ -360,6 +376,24 @@ func _refresh_lucy() -> void:
 	lucy = LucyDealer.new()
 	lucy.position = LUCY_POSITION
 	world.add_child(lucy)
+
+
+## 마담 벨벳(7단계)은 펜트하우스에 있을 때만 보인다. 처음 도착하면 소개 대사를, 그 뒤로는
+## 5~8분마다 한 마디씩 한다(PH 를 벗어나면 타이머를 멈춘다).
+func _refresh_velvet(index: int) -> void:
+	if velvet == null:
+		velvet = MadameVelvet.new()
+		velvet.position = VELVET_POSITION
+		world.add_child(velvet)
+	var at_ph := index >= GameData.floors().size() - 1
+	velvet.visible = at_ph
+	if not at_ph:
+		_velvet_periodic_timer = -1.0
+		return
+	if not GameState.velvet_intro_seen:
+		GameState.velvet_intro_seen = true
+		_show_npc_line("ph_first_visit")
+	_velvet_periodic_timer = RngService.randf_range_misc(VELVET_PERIODIC_MIN, VELVET_PERIODIC_MAX)
 
 
 func _build_ui() -> void:
@@ -424,6 +458,12 @@ func _build_ui() -> void:
 	root.add_child(elevator_button)
 	_elevator_was_visible = FloorService.can_move() and not FloorService.is_max_floor()
 	elevator_button.visible = _elevator_was_visible
+	acquisition_button = AcquisitionButton.new()
+	acquisition_button.position = ELEVATOR_BUTTON_POS
+	acquisition_button.pressed.connect(_on_acquisition_pressed)
+	root.add_child(acquisition_button)
+	_acquisition_was_visible = EndingService.can_trigger()
+	acquisition_button.visible = _acquisition_was_visible
 
 
 func _build_fx() -> void:
@@ -467,6 +507,11 @@ func _build_fx() -> void:
 	stats_screen.visible = false
 	stats_screen.close_requested.connect(_close_stats_screen)
 	root.add_child(stats_screen)
+	achievement_screen = AchievementScreen.new()
+	achievement_screen.position = FULL_OVERLAY_POS
+	achievement_screen.visible = false
+	achievement_screen.close_requested.connect(_close_achievement_screen)
+	root.add_child(achievement_screen)
 	return_popup = ReturnPopup.new()
 	return_popup.visible = false
 	return_popup.claimed.connect(func() -> void: EventBus.toast_requested.emit(tr("TOAST_OFFLINE_CLAIMED"), "chip"))
@@ -486,6 +531,8 @@ func _build_fx() -> void:
 	root.add_child(baron_payoff_seq)
 	penalty_toast = PenaltyToast.new()
 	root.add_child(penalty_toast)
+	achievement_toast = AchievementToast.new()
+	root.add_child(achievement_toast)
 	smoke_overlay = SmokeOverlay.new()
 	root.add_child(smoke_overlay)
 	floor_confirm_popup = FloorConfirmPopup.new()
@@ -508,10 +555,25 @@ func _build_fx() -> void:
 	pause_menu.stats_requested.connect(func() -> void:
 		_close_pause_menu()
 		_open_stats_screen())
+	pause_menu.achievements_requested.connect(func() -> void:
+		_close_pause_menu()
+		_open_achievement_screen())
 	root.add_child(pause_menu)
 	shaker = ScreenShake.new()
 	shaker.targets = [world, ui_layer]
 	add_child(shaker)
+	ending_sequence = EndingSequence.new()
+	ending_sequence.wheel = wheel
+	ending_sequence.shaker = shaker
+	ending_sequence.flash = flash
+	ending_sequence.velvet = velvet
+	ending_sequence.credits_ready.connect(_on_ending_credits_ready)
+	root.add_child(ending_sequence)
+	ending_credits = EndingCredits.new()
+	ending_credits.position = FULL_OVERLAY_POS
+	ending_credits.visible = false
+	ending_credits.continue_pressed.connect(_on_ending_continue_pressed)
+	root.add_child(ending_credits)
 
 
 func _layer_root(layer: CanvasLayer) -> Control:
@@ -526,7 +588,7 @@ func _layer_root(layer: CanvasLayer) -> Control:
 
 ## SPIN 버튼·Space. 스핀 중이면 남은 연출을 감는다(스킵). 연출 중에도 다음 스핀을 바로 시작할 수 있다.
 func request_spin() -> void:
-	if jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or elevator_cutscene.is_playing():
+	if jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or elevator_cutscene.is_playing() or ending_sequence.is_playing():
 		return
 	if wheel.spinning:
 		wheel.skip()
@@ -686,20 +748,47 @@ func _on_streak_clover_earned(_count: int) -> void:
 
 ## 살면서 처음 얻은 클로버(6단계): 스킬트리 탭 자물쇠가 깨지고(TopBar 가 스스로 처리) 루시가 한 마디 한다.
 func _on_first_clover_earned() -> void:
-	_show_lucy_line("skilltree_unlock")
+	_show_npc_line("skilltree_unlock")
 
 
-## DialogueData 키 하나를 골라 루시가 말한다(공용 대화창 재사용, 이미 말하는 중이면 무시).
-func _show_lucy_line(key: String) -> void:
+## DialogueData 키 하나를 골라 루시·벨벳이 말한다(공용 대화창 재사용, 이미 말하는 중이면 무시).
+## entry 의 speaker 필드가 화자를 정하므로 이 함수 자체는 화자를 가리지 않는다.
+func _show_npc_line(key: String) -> void:
 	var entry := DialogueData.pick(key)
-	if entry.is_empty() or (_lucy_dialogue != null and _lucy_dialogue.is_open()):
+	_say_npc_entry(entry)
+
+
+func _say_npc_entry(entry: Dictionary) -> void:
+	if entry.is_empty() or (_npc_dialogue != null and _npc_dialogue.is_open()):
 		return
-	if _lucy_dialogue == null:
-		_lucy_dialogue = DialogueBox.new()
-		_layer_root(fx_layer).add_child(_lucy_dialogue)
-		_lucy_dialogue.finished.connect(func() -> void: _lucy_dialogue.visible = false)
-	_lucy_dialogue.say(entry)
+	if _npc_dialogue == null:
+		_npc_dialogue = DialogueBox.new()
+		_layer_root(fx_layer).add_child(_npc_dialogue)
+		_npc_dialogue.finished.connect(func() -> void: _npc_dialogue.visible = false)
+	_npc_dialogue.say(entry)
 	_stop_auto_spin("AUTO_STOP_DIALOGUE")
+
+
+## 벨벳의 주기 대사(7단계): 어떤 변형을 봤는지 인덱스를 기록해야 숨김 업적("벨벳의 모든 말")을 셀 수 있다.
+func _show_velvet_periodic_line() -> void:
+	var count := DialogueData.variant_count("ph_periodic")
+	if count <= 0:
+		return
+	var index := RngService.randi_range_misc(0, count - 1)
+	_say_npc_entry(DialogueData.variant_at("ph_periodic", index))
+	GameState.achievement_manager.mark_dialogue_seen("ph_periodic", index)
+
+
+## PH 에 있는 동안만 5~8분마다 벨벳이 한 마디 한다(_velvet_periodic_timer < 0 이면 PH 밖이라 꺼둔 상태).
+func _process_velvet_periodic(delta: float) -> void:
+	if _velvet_periodic_timer < 0.0:
+		return
+	_velvet_periodic_timer -= delta
+	if _velvet_periodic_timer > 0.0:
+		return
+	_velvet_periodic_timer = RngService.randf_range_misc(VELVET_PERIODIC_MIN, VELVET_PERIODIC_MAX)
+	if not ending_sequence.is_playing():
+		_show_velvet_periodic_line()
 
 
 # ── 층 이동·엘리베이터(7단계, ART_BIBLE 12장) ─────────────
@@ -709,7 +798,7 @@ func _refresh_elevator() -> void:
 	var visible_now := FloorService.can_move() and not FloorService.is_max_floor()
 	elevator_button.visible = visible_now
 	if visible_now and not _elevator_was_visible:
-		_show_lucy_line("elevator_ready")
+		_show_npc_line("elevator_ready")
 	_elevator_was_visible = visible_now
 
 
@@ -738,6 +827,35 @@ func _on_elevator_clover_moment() -> void:
 func _on_elevator_finished() -> void:
 	_refresh_elevator()
 	_refresh_spin_state()
+
+
+# ── 엔딩(7단계, GDD 10장) ──────────────────────────────
+
+## 비용을 채우면(칩 변화·층 이동마다) 호출: PH + EndingService.can_trigger() 일 때만 버튼을 보여준다.
+func _refresh_acquisition() -> void:
+	acquisition_button.visible = EndingService.can_trigger()
+
+
+func _on_acquisition_pressed() -> void:
+	if ending_sequence.is_playing() or not EndingService.trigger():
+		return
+	acquisition_button.visible = false
+	# 벨벳의 주변 대사(도착 인사·주기 대사)가 마침 떠 있었다면 엔딩 전용 대사창과 자리가 겹치니 치운다.
+	if _npc_dialogue != null:
+		_npc_dialogue.visible = false
+	ending_sequence.play()
+
+
+func _on_ending_credits_ready() -> void:
+	ending_credits.visible = true
+	ending_credits.refresh()
+	ending_credits.focus_continue()
+
+
+func _on_ending_continue_pressed() -> void:
+	ending_credits.visible = false
+	EndingService.enter_infinite_mode()
+	SaveManager.save_game()
 
 
 # ── 오토 스핀(6단계, M1) ────────────────────────────────
@@ -773,11 +891,12 @@ var _auto_upgrade_timer: float = 0.0
 
 func _process(delta: float) -> void:
 	_process_auto_upgrade(delta)
+	_process_velvet_periodic(delta)
 	if not GameState.auto_spin_enabled:
 		return
-	if not controller.is_idle() or wheel.spinning or jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or promotion.is_playing() or wheel_of_fortune_popup.visible or elevator_cutscene.is_playing() or floor_confirm_popup.visible:
+	if not controller.is_idle() or wheel.spinning or jackpot.is_open or baron_loan_seq.is_playing() or baron_payoff_seq.is_playing() or promotion.is_playing() or wheel_of_fortune_popup.visible or elevator_cutscene.is_playing() or floor_confirm_popup.visible or ending_sequence.is_playing():
 		return
-	if _lucy_dialogue != null and _lucy_dialogue.is_open():
+	if _npc_dialogue != null and _npc_dialogue.is_open():
 		return
 	_apply_smart_betting()
 	if GameState.current_bets.is_empty():
@@ -942,7 +1061,7 @@ func _toggle_overlay(overlay: Control) -> void:
 	if overlay.visible:
 		_close_overlay(overlay)
 	else:
-		for other: Control in [skill_overlay, settings_overlay, stats_screen]:
+		for other: Control in [skill_overlay, settings_overlay, stats_screen, achievement_screen]:
 			if other != overlay and other.visible:
 				_close_overlay(other)
 		if overlay == skill_overlay:
@@ -963,7 +1082,7 @@ func _close_overlay(overlay: Control) -> void:
 # ── 일시정지·통계(4단계) ─────────────────────────────────
 
 func _open_pause_menu() -> void:
-	for other: Control in [skill_overlay, settings_overlay, stats_screen]:
+	for other: Control in [skill_overlay, settings_overlay, stats_screen, achievement_screen]:
 		_close_overlay(other)
 	PanelTransition.open(pause_menu)
 	pause_menu.refresh_time_flows_checkbox()
@@ -991,19 +1110,35 @@ func _close_stats_screen() -> void:
 	PanelTransition.close(stats_screen).tween_callback(_update_pause_freeze)
 
 
-## 일시정지 메뉴·통계 화면이 열려 있고 "메뉴 중 게임 진행"이 꺼져 있으면 게임 시간을 멈춘다(기본은 흐름).
+func _open_achievement_screen() -> void:
+	achievement_screen.refresh()
+	for other: Control in [skill_overlay, settings_overlay, stats_screen]:
+		_close_overlay(other)
+	PanelTransition.open(achievement_screen)
+	_update_pause_freeze()
+
+
+func _close_achievement_screen() -> void:
+	if not achievement_screen.visible:
+		return
+	PanelTransition.close(achievement_screen).tween_callback(_update_pause_freeze)
+
+
+## 일시정지 메뉴·통계·업적 화면이 열려 있고 "메뉴 중 게임 진행"이 꺼져 있으면 게임 시간을 멈춘다(기본은 흐름).
 func _update_pause_freeze() -> void:
-	get_tree().paused = (pause_menu.visible or stats_screen.visible) and not SettingsManager.pause_time_flows
+	get_tree().paused = (pause_menu.visible or stats_screen.visible or achievement_screen.visible) and not SettingsManager.pause_time_flows
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("spin"):
-		if _lucy_dialogue != null and _lucy_dialogue.is_open():
-			_lucy_dialogue.advance()
+		if _npc_dialogue != null and _npc_dialogue.is_open():
+			_npc_dialogue.advance()
 		elif baron_loan_seq.is_playing():
 			baron_loan_seq.advance_input()
 		elif baron_payoff_seq.is_playing():
 			baron_payoff_seq.advance_input()
+		elif ending_sequence.is_playing():
+			ending_sequence.advance_input()
 		elif promotion.is_playing():
 			promotion.skip()
 		elif elevator_cutscene.is_playing():
@@ -1024,6 +1159,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		# (PROCESS_MODE_ALWAYS 라 "메뉴 중 진행 끄기" 로 tree 가 paused 여도 동작해야 하기 때문).
 		if stats_screen.visible:
 			_close_stats_screen()
+			get_viewport().set_input_as_handled()
+		elif achievement_screen.visible:
+			_close_achievement_screen()
 			get_viewport().set_input_as_handled()
 		elif settings_overlay.visible:
 			_close_overlay(settings_overlay)

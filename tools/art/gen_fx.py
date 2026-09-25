@@ -23,7 +23,7 @@ from pixlib import ROOT, Canvas  # noqa: E402
 
 FONT = os.path.join(ROOT, "assets", "fonts", "Galmuri11-Bold.ttf")
 OUT = "assets/sprites/fx"
-NEON_CHARS = "BIGWN!LUCKYOPEA"
+NEON_CHARS = "BIGWN!LUCKYOPEAHSD"
 JACKPOT_CHARS = "JACKPOT"
 SCALE = 2
 JACKPOT_SCALE = 3

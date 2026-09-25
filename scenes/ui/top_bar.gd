@@ -89,6 +89,7 @@ var _floor_bar_pulse: float = 0.0
 var _skill_lock: TextureRect
 var _skill_lock_glow_time: float = -1.0
 var _wof_ring: Control
+var _crown_icon: Control
 
 
 func _ready() -> void:
@@ -164,6 +165,11 @@ func _ready() -> void:
 	EventBus.upgrade_purchased.connect(func(_id: String, _l: int) -> void: refresh_upgrade_dot())
 	EventBus.save_started.connect(_on_save_started)
 	EventBus.first_clover_earned.connect(break_skill_lock)
+	EventBus.infinite_mode_started.connect(func() -> void:
+		_crown_icon.visible = true
+		_crown_icon.queue_redraw())
+	if _crown_icon.visible:
+		_crown_icon.queue_redraw()
 	refresh_upgrade_dot()
 
 
@@ -204,6 +210,14 @@ func _build_right() -> void:
 	clover_label.custom_minimum_size = Vector2(0, RIGHT_BOX_HEIGHT)
 	clover_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	box.add_child(clover_label)
+	# 오너 모드 왕관(7단계): 무한 모드에 들어가면 나타난다. 그 시점엔 빚도 이미 탕감돼 있어 자리가 겹치지 않는다.
+	_crown_icon = Control.new()
+	_crown_icon.custom_minimum_size = Vector2(12, RIGHT_BOX_HEIGHT)
+	_crown_icon.mouse_filter = Control.MOUSE_FILTER_STOP
+	_crown_icon.tooltip_text = tr("OWNER_MODE_TOOLTIP")
+	_crown_icon.visible = GameState.infinite_mode
+	_crown_icon.draw.connect(_draw_crown)
+	box.add_child(_crown_icon)
 	# 빚 표시(5단계): 빨간 두루마리 아이콘 + 남은 금액, 빚이 있을 때만 보이고 은은히 맥동한다.
 	debt_box = HBoxContainer.new()
 	debt_box.add_theme_constant_override("separation", 2)
@@ -314,6 +328,16 @@ func _draw_wof_ring() -> void:
 	var progress := GameState.wheel_of_fortune_progress()
 	var center := (_wof_ring.size * 0.5).round()
 	_wof_ring.draw_arc(center, 6.0, -PI * 0.5, -PI * 0.5 + TAU * progress, 20, Palette.NEON_PURPLE, 1.0)
+
+
+## 오너 모드 왕관(7단계): 작은 금색 왕관을 그린다.
+func _draw_crown() -> void:
+	var base := (_crown_icon.size * 0.5).round() + Vector2(-5, 3)
+	_crown_icon.draw_rect(Rect2(base, Vector2(10, 2)), Palette.GOLD_HL)
+	_crown_icon.draw_colored_polygon(PackedVector2Array([base, base + Vector2(-1, -5), base + Vector2(2, -1)]), Palette.GOLD_HL)
+	_crown_icon.draw_colored_polygon(PackedVector2Array([base + Vector2(4, 0), base + Vector2(5, -6), base + Vector2(6, 0)]), Palette.GOLD_HL)
+	_crown_icon.draw_colored_polygon(PackedVector2Array([base + Vector2(10, 0), base + Vector2(11, -5), base + Vector2(8, -1)]), Palette.GOLD_HL)
+	_crown_icon.draw_rect(Rect2(base + Vector2(4, -6), Vector2(2, 2)), Palette.RED_L)
 
 
 func _refresh_debt() -> void:

@@ -59,3 +59,15 @@ static func pick(key: String) -> Dictionary:
 static func variant_count(key: String) -> int:
 	ensure_loaded()
 	return (_sets[key] as Array).size() if _sets.has(key) else 0
+
+
+## index 번째 변형을 그대로 돌려준다(7단계: 어떤 변형을 봤는지 기록해야 하는 숨김 업적용).
+## pick() 은 내부에서 무작위로 골라 인덱스를 알 수 없어 별도로 둔다.
+static func variant_at(key: String, index: int) -> Dictionary:
+	ensure_loaded()
+	if not _sets.has(key):
+		return {}
+	var variants: Array = _sets[key]
+	if index < 0 or index >= variants.size():
+		return {}
+	return variants[index]

@@ -87,9 +87,24 @@ func _label(variation: String, pos: Vector2, width: float, align: HorizontalAlig
 
 ## principal(대출액)·repay(상환액)를 보여주며 열린다.
 func open(principal: float, repay: float) -> void:
+	_title.text = tr("CONTRACT_TITLE")
 	_principal_label.text = tr("CONTRACT_PRINCIPAL") % NumberFormat.format_full(principal)
 	_repay_label.text = tr("CONTRACT_REPAY") % NumberFormat.format_full(repay)
 	_method_label.text = tr("CONTRACT_METHOD")
+	_open_common()
+
+
+## 대출과 다른 문구(7단계 엔딩의 카지노 양도 증서)로 연다. 서명·도장 메커니즘은 open() 과 같다.
+func open_custom(title: String, line1: String, line2: String, line3: String) -> void:
+	_title.text = title
+	_principal_label.text = line1
+	_repay_label.text = line2
+	_repay_label.remove_theme_color_override("font_color")
+	_method_label.text = line3
+	_open_common()
+
+
+func _open_common() -> void:
 	_sign_button.disabled = false
 	_sign_button.visible = true
 	_stamp.visible = false

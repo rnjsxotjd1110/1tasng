@@ -1,6 +1,6 @@
 class_name DialogueBox
 extends Control
-## 재사용 가능한 대사창(하단 중앙, ART_BIBLE 11-3). 루시·벨벳(8단계 이후)도 같은 컴포넌트를 쓴다.
+## 재사용 가능한 대사창(하단 중앙, ART_BIBLE 11-3). 루시·남작·벨벳(7단계) 모두 같은 컴포넌트를 쓴다.
 ## 사용: say(entry) 로 한 화자의 대사를(여러 줄이면 순서대로), ask(entry, choice_keys) 로 마지막에 선택지를 보여준다.
 ## entry = DialogueData.pick() 의 결과 {"speaker": 번역키, "portrait": 표정id, "lines": [번역키...]}.
 ## 클릭·Space 는 advance() 로 받는다(Main 이 입력을 넘겨준다).
@@ -29,12 +29,14 @@ const STOP_CHARS := [".", "!", "?", "…"]
 ## 초상화 프레임 순서(ART_BIBLE 11-1/11-3): 0 기본 1 웃음 2 교활한 미소/윙크 3 놀람 4 만족 5·6 입벙긋.
 const PORTRAIT_FRAME_INDEX := {"neutral": 0, "smile": 0, "laugh": 1, "sly": 2, "surprised": 3, "satisfied": 4}
 const LUCY_PORTRAIT_FRAME_INDEX := {"neutral": 0, "smile": 0, "laugh": 1, "wink": 2, "surprised": 3, "satisfied": 4}
+const VELVET_PORTRAIT_FRAME_INDEX := {"neutral": 0, "smile": 1, "sly": 2, "surprised": 3, "satisfied": 4}
 const TALK_FRAMES := [5, 6]
 const PORTRAIT_FRAME_SIZE := 64
 ## 화자 번역 키 → (초상화 시트, 프레임 순서, 목소리 '삑' 효과음 id). 새 화자를 추가할 때 여기에 등록한다.
 const SPEAKERS := {
 	"NPC_RATCHET": {"sheet": "res://assets/sprites/npc/baron_portrait.png", "frames": PORTRAIT_FRAME_INDEX, "voice": "dialogue_blip_baron"},
 	"NPC_LUCY": {"sheet": "res://assets/sprites/npc/lucy_portrait.png", "frames": LUCY_PORTRAIT_FRAME_INDEX, "voice": "dialogue_blip_lucy"},
+	"NPC_VELVET": {"sheet": "res://assets/sprites/npc/velvet_portrait.png", "frames": VELVET_PORTRAIT_FRAME_INDEX, "voice": "dialogue_blip_velvet"},
 }
 
 var _panel: Panel

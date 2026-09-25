@@ -25,6 +25,14 @@ func test_trigger_spends_chips_and_marks_ending() -> void:
 	check(not EndingService.can_trigger(), "다시 트리거 불가(이미 봄)")
 
 
+func test_trigger_forgives_remaining_debt() -> void:
+	GameState.floor_index = 4
+	GameState.add_chips(Economy.ENDING_COST)
+	GameState.debts = [{"principal": 100.0, "remaining": 250.0}] as Array[Dictionary]
+	check(EndingService.trigger(), "성공")
+	check(GameState.debts.is_empty(), "새 주인이 되며 남은 빚이 전부 탕감된다")
+
+
 func test_trigger_fails_when_not_eligible() -> void:
 	check(not EndingService.trigger(), "조건 미달 시 실패")
 	check(not GameState.ending_reached, "상태 그대로")

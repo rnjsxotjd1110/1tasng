@@ -68,7 +68,7 @@
 - [x] 엔딩 로직(1Dc → `EndingService`, `ending_reached`/`infinite_mode` 저장) — 최후의 스핀·크레딧·벨벳 연출은 3/N
 - [x] 업적 로직 30개(`AchievementManager`+`data/achievements.json`, 저장/불러오기) — 토스트·목록 화면은 3/N
 - [x] 층별 배경 4종·휠 스킨 5종·엘리베이터 UI·컷신 (2/N)
-- [ ] 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면 (3/N)
+- [x] 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면 (3/N)
 
 ### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비
 - [ ] 타이틀 화면, 루시 튜토리얼, 효과음·음악(AudioManager)
@@ -663,3 +663,81 @@
 - 엔딩 크레딧 화면은 새로운 화면이라 기존 오버레이 패턴(스킬트리 아이리스 와이프처럼)을 그대로 따를 필요는 없다 —
   대신 엘리베이터 컷신처럼 전체 화면을 덮는 `Control` + phase enum 상태 기계 패턴을 재사용하는 편이 이번 2/N 의
   `ElevatorCutscene` 과 톤이 맞을 것이다.
+
+### 7단계 진행 중 (2026-09-25) — 3/N: 마담 벨벳·엔딩 시퀀스·업적 토스트/목록 화면
+
+**한 일**
+- **업적 아이콘 30종+숨김 1종**(`tools/art/gen_achievements.py`, 24px): `gen_skills.py` 의 배지+글리프 조합·글리프
+  라이브러리를 재사용(새 글리프 없음), 카테고리 7갈래(기본/빚/진행/수집/특수/누적/숨김)를 각자 5색 램프로 구분.
+  미달성은 `gen_skills.silhouette()`, 숨김+미달성은 전용 "?" 아이콘 하나로 통일.
+- **업적 토스트**(`AchievementToast`, 신규): 화면 우하단, `BadgeGolden` 패널(황금 포켓 배지와 같은 스타일) +
+  아이콘 + "업적 달성" + 이름. 0.3초 슬라이드인 → 4초 유지 → 0.2초 슬라이드아웃, 여러 개는 큐잉. 새 효과음
+  `achievement_unlock`(`tools/audio/gen_sfx.py`) 재생.
+- **업적 목록 화면**(`AchievementScreen`+`AchievementSlot`, 신규, 일시정지 메뉴 새 버튼): `StatsScreen` 과 같은
+  640×336 자리, 카테고리 헤더 + 10열 그리드. 달성=원색 아이콘/이름·설명 공개, 미달성(일반)=실루엣이지만 이름·설명은
+  공개, 미달성(숨김)=전용 "?" 아이콘 + 이름·설명도 "???". `PauseMenu` 패널 높이를 190→222 로 늘려 버튼 한 줄 추가.
+- **마담 벨벳**: `tools/art/gen_velvet.py`(신규, `gen_lucy.py` 골격 재사용) 로 초상화(64×64×7)·월드 스프라이트
+  (48×72×4: idle/wine/gesture/clap) 생성. `MadameVelvet`(신규, 루시와 동형인 순수 연출 클래스). PH 배경의 옛
+  플레이스홀더 실루엣(`madame_silhouette.png` 관련 코드)을 `background_ph.gd` 에서 완전히 제거하고 실제 월드
+  액터로 교체. `DialogueBox.SPEAKERS` 에 `NPC_VELVET` 추가(전용 목소리 '삑' 효과음 `dialogue_blip_velvet` 포함).
+  도착 인사(`ph_first_visit`, `GameState.velvet_intro_seen` 로 1회만)·5~8분 주기 대사(`ph_periodic`, 변형 4개,
+  숨김 업적 "벨벳의 모든 말" 판정에 이 키를 쓴다)·엔딩 전용 대사(`velvet_last_hand`, `velvet_epilogue`) 4개
+  키를 `data/dialogue/velvet.json` 에 정의. 루시 전용이던 `Main._lucy_dialogue`/`_show_lucy_line()` 을 화자
+  무관 공용 이름(`_npc_dialogue`/`_show_npc_line()`)으로 리팩터링해 두 NPC가 한 대사창을 공유한다.
+- **엔딩 시퀀스**(`EndingSequence`, 신규, `Main` 이 `wheel`/`shaker`/`flash` 참조를 직접 주입): 하우스 인수 버튼
+  (`AcquisitionButton`, 엘리베이터 버튼과 같은 자리·같은 절차적 `_draw()` 패턴, 왕관 아이콘) → 화면 어둡게(0.6초)
+  → 벨벳 "마지막 한 판" 대사 → 최후의 스핀(`wheel.play_spin()` 을 결과만 misc RNG 로 뽑아 직접 호출, `SpinController`
+  완전히 우회 — 승패 없는 순수 연출) → 착지 효과(화면 흔들림·플래시·코인 파티클 5줄기, 전부 기존 컴포넌트 재사용)
+  → 골드 웨이브(새 텍스처 없이 `draw_arc()` 로 휠 위에 금색 원호가 도는 것을 그린다) → 양도 증서 서명(5단계
+  `ContractPopup` 에 `open_custom()` 을 추가해 대출 계약서와 같은 서명·도장 메커니즘 재사용) → 에필로그(벨벳→루시
+  →남작, 남작이 빚 탕감 언급 — `EndingService.trigger()` 가 `GameState.forgive_debt(1.0)` 을 실제로 부른다) → 네온
+  간판 "HOUSE EDGE" 점등(기존 `NeonText`/"LUCKY" 아틀라스에 `gen_fx.py` 로 H·S·D 3글자만 추가해 재사용) →
+  `EndingCredits`(신규, `StatsScreen` 과 같은 틀에 플레이 시간·총 스핀·최대 당첨금·최대 연승·대출 횟수·최다 출현
+  숫자·최종 구슬 7개 통계 카드 + [계속하기]) → `EndingService.enter_infinite_mode()`(오너 모드 ×2, `TopBar` 에
+  절차적으로 그린 작은 금색 왕관 아이콘).
+- `request_spin()`·오토 스핀·`_unhandled_input` 가드에 `ending_sequence.is_playing()` 추가(다른 컷신들과 같은
+  목록). 새 저장 필드 `velvet_intro_seen`.
+
+**버그 네 건(스크린샷 검수로 발견, 전부 수정)**
+1. `AchievementSlot`(목록 화면 그리드 칸)에 `custom_minimum_size` 를 안 두고 `size` 만 지정했더니 `GridContainer`
+   가 모든 칸을 0×0 으로 접어 한 카테고리의 아이콘 여러 개가 전부 같은 자리에 겹쳐 보임(마지막에 그려진 것만
+   보여 "카테고리당 아이콘 1개"처럼 보였다) — Container 의 자식은 `custom_minimum_size` 로만 자리를 예약한다는
+   일반 규칙을 놓침. `AchievementSlot._ready()` 에 `custom_minimum_size = SIZE` 추가로 해결.
+2. 벨벳 월드 스프라이트 초안에서 팔을 드레스와 같은 색(`DRESS[1]`)으로 그렸더니 몸통에 묻혀 거의 안 보임(치맛단도
+   너무 넓어 종 모양처럼 보임) — 팔을 검은 오페라 장갑(`HAIR[0]`, 대비색)으로 바꾸고 치맛단 폭도 줄였다.
+3. PH 도착 인사 대사(`_npc_dialogue`, Main 소유)가 열려 있는 상태에서 바로 하우스 인수 버튼을 누르면, 엔딩 전용
+   대사창(`EndingSequence.dialogue`, 별도 인스턴스)과 같은 화면 자리(하단 고정)에 두 대사창이 겹쳐, 나중에 추가된
+   `_npc_dialogue` 가 엔딩 전체를 가려버림(캡처 스크린샷에서 "엔딩이 시작됐는데 화면이 전혀 안 어두워 보인다"로
+   나타나 처음엔 디밍 버그로 오인했다가, 실제로는 알파값이 정확했고 위에 다른 패널이 덮고 있던 것이었다) —
+   `_on_acquisition_pressed()` 에서 엔딩 시작 전에 `_npc_dialogue.visible = false` 로 먼저 치우도록 수정.
+4. 계약서 서명 뒤 `contract.close()` 를 빼먹어서, 서명 완료 뒤 에필로그·네온 간판·크레딧 내내 양도 증서 팝업이
+   화면에 계속 남아 있었다 — 대출 계약서(`BaronLoanSequence`)의 `SIGNED_WAIT`(도장 뒤 0.7초 대기 후 `close()`)
+   패턴을 그대로 가져와 `EndingSequence` 에도 같은 단계를 추가.
+- 그 외(사소): 네온 간판을 엔딩 시작부터 계속 보이게(꺼진 유리관 상태로) 뒀더니 나중 "점등" 반전 효과가 약해져,
+  `NEON_SIGN` 단계 전까지는 아예 `visible=false` 로 숨기도록 조정(기능 버그는 아니고 연출 임팩트 문제).
+- 테스트 신규: `test_achievement_screen.gd`(7)·`test_achievement_toast.gd`(4)·`test_madame_velvet.gd`(3)·
+  `test_ending_sequence.gd`(6)·`test_ending_credits.gd`(2) + `test_main_scene.gd`/`test_pause_menu.gd`/
+  `test_ending_service.gd` 에 통합 테스트 추가(하우스 인수 버튼 가시성·스핀 차단·대사창 충돌 방지·빚 탕감 등).
+  전체 **348 tests, 8713 checks, 0 failures**.
+- 캡처: `velvet_intro`, `acquisition_button`, `ending_last_hand`, `ending_final_spin`, `ending_signing`,
+  `ending_epilogue`, `ending_credits`, `achievement_toast`, `achievement_screen` 9개 시나리오 신규(ko/en) —
+  위 버그 1·3·4 를 전부 이 캡처들로 발견했다.
+
+**남은 이슈**
+- 엔딩 컷신은 스킵을 지원하지 않는다(대사만 클릭으로 넘길 수 있고, 최후의 스핀 8초는 그대로 기다려야 한다) —
+  의도적 범위 축소(GDD 17장). 9단계에서 QA 중 불편하면 추가.
+- `tools/capture/capture.gd -s zzz_dim_check.gd` 류의 임시 디버그 스크립트로 dim 알파를 직접 검증했었다(알파값
+  자체는 정상이었고 실제 원인은 버그 3) — 검증에 썼던 파일은 커밋 전 삭제했다. 비슷한 "화면이 이상한데 원인을
+  못 찾겠다" 상황에서는 연출 파라미터 값을 직접 print 하는 임시 테스트를 만들어 논리 버그와 z-order/겹침 버그를
+  먼저 구분하는 게 효율적이었다.
+- 캡처 도구 종료 시 가끔("floor_ph" 등 일부 시나리오에서 3회 중 1회꼴) `ObjectDB instances leaked`/`resources
+  still in use` 경고가 뜬다 — 재현이 간헐적이고 헤드리스 테스트 스위트(`tests/run_tests.gd`)에서는 전혀 나타나지
+  않아, 캡처 도구가 리소스를 빠르게 로드/해제하며 `quit()` 하는 타이밍 문제로 추정된다(실제 게임 플레이에 영향
+  없음). 9단계 최종 QA 때 재확인.
+
+**다음 작업(4/N — 검수·문서화)이 알아야 할 것**
+- 헤드리스 테스트 전부 통과, 문서(GDD 10/17장, ART_BIBLE 12-2/13장, 이 파일) 갱신 완료. 남은 건 최종 스크린샷
+  전수 재확인(ko/en)과 커밋·푸시뿐이다.
+- 8단계(타이틀·튜토리얼·사운드·폴리시)에서 참고할 것: `AudioManager.play_music()` 가 아직 스텁이라 엔딩의 "bass_drop"
+  같은 SFX 는 나지만 배경음악 크로스페이드는 안 들린다. PH 층 BGM(`bgm_ph`)이 연결되면 엔딩 시퀀스 중에는 음악을
+  낮추거나 멈추는 처리가 있으면 더 극적일 것(지금은 손대지 않음).

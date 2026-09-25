@@ -16,7 +16,9 @@ extends SceneTree
 ##   5단계: baron_appear, dialogue_baron, contract, stamp, penalty_watcher, penalty_pickpocket, penalty_smoke,
 ##          penalty_blur, penalty_seize, penalty_clover_fee, debt_panel, debt_paid
 ##   7단계: floor_b1, floor_1f, floor_2f, floor_3f, floor_ph, elevator_ready, elevator_confirm,
-##          elevator_cutscene_close, elevator_cutscene_tick, elevator_cutscene_title
+##          elevator_cutscene_close, elevator_cutscene_tick, elevator_cutscene_title,
+##          achievement_toast, achievement_screen, velvet_intro, acquisition_button, ending_last_hand,
+##          ending_final_spin, ending_signing, ending_epilogue, ending_credits
 ## 인자 tier=<n>: betting·spin_* 시나리오에서 구슬 재질을 강제로 바꾼다.
 
 const MAIN_SCENE := "res://scenes/main/Main.tscn"
@@ -37,6 +39,9 @@ const SCENARIOS: Array[String] = [
 	"debt_panel", "debt_paid",
 	"floor_b1", "floor_1f", "floor_2f", "floor_3f", "floor_ph",
 	"elevator_ready", "elevator_confirm", "elevator_cutscene_close", "elevator_cutscene_tick", "elevator_cutscene_title",
+	"achievement_toast", "achievement_screen",
+	"velvet_intro", "acquisition_button", "ending_last_hand", "ending_final_spin", "ending_signing",
+	"ending_epilogue", "ending_credits",
 ]
 const UPGRADE_SERVICE := "res://scripts/core/upgrade_service.gd"
 
@@ -568,6 +573,62 @@ func _capture(scenario: String, lang: String) -> void:
 		"elevator_cutscene_title":
 			_start_elevator_cutscene()
 			await _wait_seconds(2.3)
+		"achievement_toast":
+			root.get_node("EventBus").emit_signal("achievement_unlocked", "marble_gold")
+			await _wait_seconds(0.5)
+		"achievement_screen":
+			var unlocked: Array[String] = ["first_spin", "first_straight", "zero_hit", "win_streak_10", "first_loan", "floor_reached_2f", "marble_gold", "first_fever", "offline_8h", "velvet_all_lines"]
+			game_state.set("unlocked_achievements", unlocked)
+			main.call("_open_achievement_screen")
+			await _wait_seconds(0.3)
+		"velvet_intro":
+			_set_floor(4)
+			await _wait_seconds(1.0)
+		"acquisition_button":
+			_set_floor(4)
+			_set_chips(1e34)
+			await _wait_seconds(0.6)
+		"ending_last_hand":
+			_set_floor(4)
+			_set_chips(1e34)
+			main.call("_on_acquisition_pressed")
+			await _wait_seconds(0.8)
+		"ending_final_spin":
+			_set_floor(4)
+			_set_chips(1e34)
+			main.call("_on_acquisition_pressed")
+			await _wait_seconds(0.7)  # DIM_IN(0.6초)이 끝나 대사창이 열릴 때까지 기다린다
+			await _advance_dialogue(main.get("ending_sequence"))
+			await _wait_seconds(2.5)
+		"ending_signing":
+			_set_floor(4)
+			_set_chips(1e34)
+			main.call("_on_acquisition_pressed")
+			await _wait_seconds(0.7)  # DIM_IN(0.6초)이 끝나 대사창이 열릴 때까지 기다린다
+			await _advance_dialogue(main.get("ending_sequence"))
+			await _wait_seconds(11.5)
+		"ending_epilogue":
+			_set_floor(4)
+			_set_chips(1e34)
+			main.call("_on_acquisition_pressed")
+			await _wait_seconds(0.7)  # DIM_IN(0.6초)이 끝나 대사창이 열릴 때까지 기다린다
+			await _advance_dialogue(main.get("ending_sequence"))
+			await _wait_seconds(11.5)
+			main.get("ending_sequence").get("contract").call("_on_sign_pressed")
+			await _wait_seconds(1.4)
+		"ending_credits":
+			_set_floor(4)
+			_set_chips(1e34)
+			main.call("_on_acquisition_pressed")
+			await _wait_seconds(0.7)  # DIM_IN(0.6초)이 끝나 대사창이 열릴 때까지 기다린다
+			await _advance_dialogue(main.get("ending_sequence"))
+			await _wait_seconds(11.5)
+			var deed: Object = main.get("ending_sequence").get("contract")
+			deed.call("_on_sign_pressed")
+			await _wait_seconds(1.4)
+			for i in 3:
+				await _advance_dialogue(main.get("ending_sequence"))
+			await _wait_seconds(2.5)
 		_:
 			push_error("capture: 모르는 시나리오 %s" % scenario)
 	await _wait_frames(1)

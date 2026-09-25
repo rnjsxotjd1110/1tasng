@@ -214,3 +214,48 @@ func test_request_spin_blocked_during_elevator_cutscene() -> void:
 	main.request_spin()
 	check(not main.wheel.spinning, "컷신 중에는 스핀 시작 안 함")
 	main.elevator_cutscene.skip()
+
+
+# ── 엔딩(7단계) ─────────────────────────────────────────
+
+func test_acquisition_button_visible_only_at_ph_with_enough_chips() -> void:
+	check(not main.acquisition_button.visible, "B1 에서는 칩이 있어도 안 보임")
+	GameState.floor_index = 4
+	EventBus.floor_changed.emit(4)
+	check(not main.acquisition_button.visible, "PH 여도 칩 부족이면 안 보임")
+	GameState.add_chips(Economy.ENDING_COST)
+	EventBus.chips_changed.emit(GameState.chips, Economy.ENDING_COST)
+	check(main.acquisition_button.visible, "PH + 비용을 채우면 보임")
+
+
+func test_acquisition_pressed_starts_ending_sequence_and_hides_button() -> void:
+	GameState.floor_index = 4
+	GameState.add_chips(Economy.ENDING_COST)
+	main._on_acquisition_pressed()
+	check(GameState.ending_reached, "엔딩 확정")
+	check(main.ending_sequence.is_playing(), "엔딩 시퀀스 시작")
+	check(not main.acquisition_button.visible, "버튼은 즉시 숨음")
+
+
+func test_request_spin_blocked_during_ending_sequence() -> void:
+	main.bet_panel.board.place("R")
+	GameState.floor_index = 4
+	GameState.add_chips(Economy.ENDING_COST)
+	main._on_acquisition_pressed()
+	main.request_spin()
+	check(not main.wheel.spinning, "엔딩 중에는 스핀 시작 안 함")
+
+
+func test_ending_continue_enters_infinite_mode() -> void:
+	main._on_ending_continue_pressed()
+	check(GameState.infinite_mode, "무한 모드 진입")
+	check(not main.ending_credits.visible, "크레딧 화면 닫힘")
+
+
+func test_acquisition_hides_leftover_velvet_dialogue() -> void:
+	GameState.floor_index = 4
+	EventBus.floor_changed.emit(4)  # 도착 인사가 떠서 _npc_dialogue 가 생성·표시됨
+	check(main._npc_dialogue != null and main._npc_dialogue.visible, "도착 인사 대사창이 떠 있음")
+	GameState.add_chips(Economy.ENDING_COST)
+	main._on_acquisition_pressed()
+	check(not main._npc_dialogue.visible, "엔딩 시작 시 겹치는 대사창을 치운다")

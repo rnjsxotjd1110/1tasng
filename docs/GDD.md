@@ -283,20 +283,31 @@ B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하�
 
 ### 10-1. 엔딩 시퀀스
 
-PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마담 벨벳과 **최후의 스핀**(연출, 승리 확정) → 크레딧·통계 → **무한 모드**(계속 플레이, 스킬트리 완성 가능).
-`EndingService.can_trigger()` 는 PH(마지막 층)이고 보유 칩이 `ENDING_COST` 이상이며 아직 엔딩을 안 봤을 때만 true. `trigger()` 는 칩을 낸 뒤 `GameState.ending_reached=true` 로 표시하고 `EventBus.ending_triggered()` 를 발행한다(실제 컷신 연출은 화면 레이어가 이 신호를 듣고 재생).
+PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마담 벨벳의 "마지막 한 판" 대사 → **최후의 스핀**(8초, 오직 연출용 — `RngService.*_misc()` 로 뽑은 결과를 `wheel.play_spin()` 에 직접 넘기고 `SpinController`/경제 정산은 전혀 거치지 않는다) → 착지 효과(화면 흔들림·플래시·코인 파티클) → 골드 웨이브(휠 위에 금색 원호가 한 바퀴 돈다) → 양도 증서 서명(`ContractPopup.open_custom()` 으로 5단계 계약서 컴포넌트를 재사용, 서명·도장 메커니즘 동일) → 에필로그(벨벳→루시→남작 순서로 대사, 남작이 남은 빚 탕감을 언급) → 네온 간판 "HOUSE EDGE" 점등(`NeonText` 재사용, `NEON_CHARS` 에 H·S·D 3글자 추가) → 크레딧(`EndingCredits`).
+`EndingService.can_trigger()` 는 PH(마지막 층)이고 보유 칩이 `ENDING_COST` 이상이며 아직 엔딩을 안 봤을 때만 true. `trigger()` 는 칩을 낸 뒤 `GameState.ending_reached=true` 로 표시하고 남은 빚을 전부 탕감(`GameState.forgive_debt(1.0)`)한 뒤 `EventBus.ending_triggered()` 를 발행한다(실제 컷신은 `EndingSequence.play()` 가 재생 — `AcquisitionButton` 을 누르면 `Main._on_acquisition_pressed()` 가 `trigger()` 와 `play()` 를 함께 부른다).
+`EndingSequence` 는 `wheel`·`shaker`·`flash` 를 Main 이 소유한 화면 요소로 직접 참조 주입받는다(다른 컷신은 `signed()`/`finished()` 신호로 Main 에 되돌리지만, 이 연출은 사실상 화면 전체를 쓰는 이펙트라 직접 참조가 더 단순하다는 판단, 17장 참고).
 
 ### 10-2. 무한 모드
 
-엔딩 크레딧 뒤 "계속하기"를 누르면 `EndingService.enter_infinite_mode()` 가 `GameState.infinite_mode=true` 로 표시하고 영구 수정자 `ending:owner_mode`(`payout_mult_all` MULT `Economy.OWNER_MODE_PAYOUT_MULT`=2.0, 오너 모드 "수익 ×2")를 건다. 불러오기 뒤에는 `GameState.rebuild_ending_modifiers()` 가 `infinite_mode` 값을 보고 이 수정자를 다시 건다(`rebuild_upgrade_modifiers`/`rebuild_skill_modifiers` 와 같은 패턴). 상단 바에 왕관 아이콘이 뜬다(연출은 7단계 3/N).
+엔딩 크레딧(`EndingCredits`: 플레이 시간·총 스핀·최대 당첨금·최대 연승·대출 횟수·최다 출현 숫자·최종 구슬 통계 카드) 뒤 "계속하기"를 누르면 `Main._on_ending_continue_pressed()` 가 `EndingService.enter_infinite_mode()` 를 불러 `GameState.infinite_mode=true` 로 표시하고 영구 수정자 `ending:owner_mode`(`payout_mult_all` MULT `Economy.OWNER_MODE_PAYOUT_MULT`=2.0, 오너 모드 "수익 ×2")를 건다. 불러오기 뒤에는 `GameState.rebuild_ending_modifiers()` 가 `infinite_mode` 값을 보고 이 수정자를 다시 건다(`rebuild_upgrade_modifiers`/`rebuild_skill_modifiers` 와 같은 패턴). 상단 바 오른쪽(클로버 옆)에 작은 금색 왕관 아이콘이 뜬다(`TopBar._draw_crown()`, 절차적 드로잉이라 새 스프라이트 없음).
 
 ### 10-3. 업적
 
 - `data/achievements.json`(표시용 메타데이터: id·category·name_key·desc_key·icon·hidden) + `AchievementData`(정적 로더, `DialogueData` 와 동형) + `AchievementManager`(`GameState.achievement_manager` 가 소유, `PenaltyManager` 와 동형인 RefCounted — `attach()` 로 필요한 `EventBus` 신호를 구독해 조건을 판정하고, 시간 기반 조건(1시간 무파산)만 `process(delta)` 로 잰다).
 - 조건 판정은 데이터가 아니라 코드(`AchievementManager._on_*`)로 한다 — 30개 안팎의 대부분이 한 번뿐인 개별 조건이라 범용 규칙 엔진보다 명시적 분기가 더 읽기 쉽다(6단계 특수 기능과 같은 판단).
-- 해금되면 `GameState.unlocked_achievements`(Array[String], 저장됨)에 추가하고 `EventBus.achievement_unlocked(id)` 를 발행한다(토스트·목록 화면은 7단계 3/N).
-- 숨김 업적(벨벳 대사 전부 보기)은 `GameState.achievement_dialogue_seen`(저장됨, `{대사 키: {변형 인덱스: true}}`)에 `AchievementManager.mark_dialogue_seen()` 으로 기록하다가 한 키의 모든 변형을 다 보면 해금된다(호출부는 7단계 3/N 벨벳 대사 재생 지점).
-- 목록: 30개 요청 중 "누적 스핀 1000/10000"은 2개로 센다. 명시된 항목을 모두 헤아리면 27개라, 진행·기능 카테고리에 3개(2F 도달·3F 도달·첫 황금 포켓 적중)를 채워 30개를 맞췄다(코드·아이콘 준비 완료, `data/achievements.json` 참고).
+- 해금되면 `GameState.unlocked_achievements`(Array[String], 저장됨)에 추가하고 `EventBus.achievement_unlocked(id)` 를 발행한다. `AchievementToast`(화면 우하단, `BadgeGolden` 패널, 0.3초 슬라이드인·4초 유지·0.2초 슬라이드아웃, 여러 개는 큐에 쌓아 순서대로) 와 일시정지 메뉴의 `AchievementScreen`(카테고리별 아이콘 그리드, 달성=원색 아이콘, 미달성=실루엣, 숨김+미달성="???")이 이 신호와 `GameState.unlocked_achievements` 를 그대로 읽어 그린다.
+- 아이콘 30종+숨김용 1종은 `tools/art/gen_achievements.py` 가 `gen_skills.py` 의 배지+글리프 조합 방식을 재사용해 24px 로 그린다(카테고리별 5색 램프, 달성/실루엣/숨김 세 버전).
+- 숨김 업적(벨벳 대사 전부 보기)은 `GameState.achievement_dialogue_seen`(저장됨, `{대사 키: {변형 인덱스: true}}`)에 `AchievementManager.mark_dialogue_seen()` 으로 기록하다가 한 키의 모든 변형을 다 보면 해금된다. 호출부는 `Main._show_velvet_periodic_line()`(벨벳의 주기 대사 `ph_periodic` 키 — 대사 자체가 랜덤 변형을 도는 유일한 키라 이 업적에 쓸 수 있는 키다. `DialogueData.pick()` 은 내부에서 무작위로 골라 인덱스를 감추므로, 인덱스가 필요한 이 호출부만 별도로 둔 `DialogueData.variant_at()` 을 쓴다).
+- 목록: 30개 요청 중 "누적 스핀 1000/10000"은 2개로 센다. 명시된 항목을 모두 헤아리면 27개라, 진행·기능 카테고리에 3개(2F 도달·3F 도달·첫 황금 포켓 적중)를 채워 30개를 맞췄다.
+
+### 10-4. 마담 벨벳
+
+펜트하우스 전용 월드 액터(`MadameVelvet`, `Lucy`/`Baron` 과 동형인 순수 연출 클래스 — idle/wine/gesture/clap 4가지 애니메이션). PH 에 있을 때만 보이고(`Main._refresh_velvet()`), 다른 층으로 가면 주기 대사 타이머가 꺼진다.
+- **첫 방문**: `GameState.velvet_intro_seen`(저장됨) 이 false 면 도착 즉시 소개 대사(`ph_first_visit`, 3줄)를 보여주고 true 로 바꾼다.
+- **주기 대사**: PH 에 있는 동안 5~8분(`Main.VELVET_PERIODIC_MIN/MAX`)마다 `ph_periodic`(변형 4개) 중 하나를 무작위로 말한다.
+- **엔딩 대사**: 하우스 인수 버튼을 누르면 `velvet_last_hand`(마지막 한 판 요구), 서명 뒤에는 `velvet_epilogue`.
+- 루시·벨벳 모두 같은 대사창(`DialogueBox`, `_npc_dialogue`)을 공유해 화면에 한 번에 하나만 뜬다. 엔딩이 시작되면 마침 떠 있던 주변 대사(`_npc_dialogue`)를 먼저 숨긴다(엔딩 전용 대사창과 자리가 겹치므로).
+- 초상화·월드 스프라이트는 `tools/art/gen_velvet.py`(은발 올림머리·짙은 빨강 드레스·진주 목걸이, `gen_lucy.py` 와 같은 골격 재사용).
 
 ---
 
@@ -351,7 +362,7 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 
 ### 11-3. GameState
 
-- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), number_frequency(포켓 번호 → 누적 출현 횟수, 통계용), golden_pockets, highest_milestone, spin_in_progress, pending_spin_bets/pending_spin_results(스핀 도중 저장용 스냅샷, 4단계), auto_spin_enabled(6단계 자동 스핀. 해금 수단이 없어 지금은 항상 false), last_income_per_second(마지막 저장 시점 초당 순수익, 오프라인 수익 계산용), modifiers(StatModifiers), income_tracker(IncomeTracker, 최근 Economy.LOAN_INCOME_WINDOW(5분) 이동평균, 오프라인 수익·5단계 대출액 계산에 공용), unlocked_achievements(Array[String], 7단계), achievement_dialogue_seen(Dictionary, 7단계 숨김 업적용), achievement_manager(AchievementManager, 7단계), ending_reached/infinite_mode(bool, 7단계)
+- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), number_frequency(포켓 번호 → 누적 출현 횟수, 통계용), golden_pockets, highest_milestone, spin_in_progress, pending_spin_bets/pending_spin_results(스핀 도중 저장용 스냅샷, 4단계), auto_spin_enabled(6단계 자동 스핀. 해금 수단이 없어 지금은 항상 false), last_income_per_second(마지막 저장 시점 초당 순수익, 오프라인 수익 계산용), modifiers(StatModifiers), income_tracker(IncomeTracker, 최근 Economy.LOAN_INCOME_WINDOW(5분) 이동평균, 오프라인 수익·5단계 대출액 계산에 공용), unlocked_achievements(Array[String], 7단계), achievement_dialogue_seen(Dictionary, 7단계 숨김 업적용), achievement_manager(AchievementManager, 7단계), ending_reached/infinite_mode/velvet_intro_seen(bool, 7단계)
 - stats: total_spins(총 스핀), total_wins(당첨 스핀 수, 승률 계산용), biggest_win(최대 당첨=한 스핀 최대 반환액), best_streak(최대 연승), play_time(초), loans_taken(대출 횟수), straight_hits(적중 숫자 수), total_earned(누적 획득 칩 = 당첨 반환액 합계, 대출금·오프라인 수익 제외)
 - `add_chips()/spend_chips()` 는 음수·NaN·INF 를 거부하고(경고 로그) false 를 돌려준다. spend 는 잔액 부족도 거부.
 - `to_dict()/from_dict()`(4단계): SaveManager 가 쓴다. `from_dict()` 호출 뒤에는 반드시 `rebuild_upgrade_modifiers()`(영구 수정자 재구성)를 불러야 한다(SaveManager.load_game() 은 이미 그렇게 한다). 시간제(`buff:`) 수정자만 함께 저장/복원하고, 영구 수정자는 upgrade_levels/skill_levels 에서 다시 만든다.
@@ -494,3 +505,11 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 | 벨벳 대사 전부 보기(숨김) | `AchievementManager.mark_dialogue_seen(key, variant_index)` 를 대사 재생부(7단계 3/N, 마담 벨벳 화면)가 호출하는 형태로 인터페이스만 1/N 에서 먼저 만들었다 | 벨벳 대사 자체가 3/N(화면) 작업이라 로직 커밋(1/N)에서는 실제 호출부가 없다 — `test_achievement_manager.gd` 는 직접 호출로 검증 |
 | 층별 휠 스킨 색 표현 | 팔레트에 "마호가니"(1F) 전용 색이 없어 wood 램프를 그대로 쓰고 `gloss`(반사 세기)·`grain_accent`(결 강조색)로 차별화했다. 3F "네온 청록 라인"·PH "보석 8개 순차 반짝임"은 정적 텍스처가 아니라 `RouletteWheel._draw_fx()` 런타임 효과로 구현(회전하지 않는 고정 반지름 애니메이션) | 36색 팔레트 제약 안에서 "재질 교체"라는 형태 그대로(기하 불변) 재질감만 바꾸는 것이 요청 명세("림·트랙·터렛만 교체")에 가장 가까웠다 |
 | UI 패널 프레임 5색 테마 축소 | 오른쪽 패널의 큰 펠트 텍스처(216×328)를 층마다 다시 굽는 대신, `scripts/core/floor_theme.gd`(강조색 표, 순수 표시용)를 만들어 엘리베이터 확인 팝업 썸네일에만 적용했다 | 배경·휠 스킨이 이미 층 구분을 강하게 전달해서, 큰 텍스처 5벌을 더 굽는 비용 대비 이득이 낮다고 판단(2/N 남은 이슈에 기록, 8단계에서 원하면 표를 재사용해 확장 가능) |
+| 최후의 스핀 = 연출 전용 | `EndingSequence` 가 `wheel.play_spin(results, 8.0)` 을 직접 부른다. `results` 는 `RngService.*_misc()` 로 뽑고, `SpinController`/베팅·정산은 전혀 거치지 않는다 | 이 스핀은 승패를 가리는 실제 베팅이 아니라 "승리를 보여주는" 연출이라, 경제 로직을 전혀 안 건드리는 편이 안전하고 `RouletteWheel.play_spin()` 은 애초에 연출·경제를 분리해 만들어져 그대로 재사용 가능했다 |
+| 양도 증서 = 계약서 컴포넌트 재사용 | 5단계 `ContractPopup`(양피지 펼침·서명·도장)에 `open_custom(title, line1, line2, line3)` 을 추가해, 대출 전용이던 `open()` 과 공통 로직(`_open_common()`)만 공유한다 | 서명·도장 메커니즘이 대출과 완전히 같고, 각 연출이 자기 `ContractPopup` 인스턴스를 새로 만들어 쓰므로 두 진입점이 서로 간섭하지 않는다(대출 계약서의 빨간 상환액 강조색을 증서에서는 `remove_theme_color_override()` 로 끈다) |
+| `EndingSequence` 가 wheel·shaker·flash 를 직접 참조 | 다른 컷신은 `signed()`/`finished()` 신호로 Main 에 되돌려 처리하지만, 엔딩은 화면 전체(휠 스핀·흔들림·플래시·코인비)를 오케스트레이션해야 해서 Main 이 생성 직후 세 참조를 필드로 바로 꽂아준다(`shaker.targets=[...]` 처럼 이미 있던 직접 주입 패턴과 같은 결) | 신호를 늘리는 것보다 참조 주입이 더 단순하고, 세 참조 모두 null 이어도(테스트 환경) 안전하게 동작하도록 각 사용처에 null 체크를 뒀다 |
+| 네온사인 "HOUSE EDGE" | `tools/art/gen_fx.py` 의 `NEON_CHARS` 에 H·S·D 3글자를 추가(폭이 가장 넓은 W 가 이미 있어 아틀라스 셀 크기·기존 글자 좌표는 그대로 유지됨, 재생성 후 바이트 비교로 확인) | 기존 "LUCKY" 간판용 `NeonText`/아틀라스가 완전히 범용이라(트루타입 폰트에서 글리프를 뽑는 방식) 필요한 글자만 추가하면 됐다 |
+| 루시·벨벳 대사창 공유 | `Main._npc_dialogue`(옛 `_lucy_dialogue`, 화자 무관 공용 이름으로 변경)를 두 NPC가 함께 쓴다. 엔딩 시작 시 이 대사창이 열려 있으면 먼저 숨긴다(`_on_acquisition_pressed()`) | `DialogueBox` 는 화면에 하나만 뜨는 고정 위치 UI라, PH 도착 인사 대사와 엔딩 전용 대사창(`EndingSequence.dialogue`, 별도 인스턴스)이 동시에 겹칠 수 있었다(실제로 스크린샷 검수에서 발견). 엔딩 쪽은 독립 인스턴스를 유지하되, 겹치는 원인(주변 대사)만 치우는 쪽이 더 단순했다 |
+| 엔딩 컷신은 스킵 미지원 | 층 이동 컷신과 달리 엔딩은 스킵 버튼이 없다(대사만 클릭으로 넘길 수 있다) | 세이브당 한 번뿐인 축하 이벤트라 반복 스킵 수요가 낮고, 최후의 스핀(8초)·골드 웨이브 등 여러 연출이 서로 다른 방식(휠 애니메이션·파티클·네온)으로 얽혀 있어 범용 스킵 로직을 만드는 비용이 크다고 판단(9단계에서 필요하면 추가) |
+| 크레딧 화면 범위 축소 | "스크롤링 카지노 풍경" 대신 고정 화면(제목+부제+통계 7줄+계속하기 버튼)으로 축소, `StatsScreen` 과 같은 자리·행 구조를 재사용 | 이미 있는 4단계 통계 집계·`CountLabel` 카운트업을 그대로 재사용할 수 있어 새 연출 코드 없이도 "성과를 보여준다"는 목적을 달성한다 |
+| 마담 벨벳 아트 | 은발 올림머리·진한 빨강 드레스(이름 그대로 "벨벳")·팔은 드레스와 같은 색이면 실루엣이 안 보여 대비되는 검은 장갑(`HAIR[0]`)으로 그렸다. 초상화 7프레임(표정 5+입벙긋 2)·월드 스프라이트 48×72×4(idle/wine/gesture/clap) 는 `gen_lucy.py` 골격을 그대로 재사용 | 루시·남작과 같은 절차적 파이프라인을 그대로 쓰되(새 그리기 헬퍼 없음), 옷·머리색만 바꿔 카지노 소유주다운 관록을 표현했다 |

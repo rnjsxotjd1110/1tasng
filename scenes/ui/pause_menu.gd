@@ -7,9 +7,10 @@ extends Control
 signal resume_requested()
 signal settings_requested()
 signal stats_requested()
+signal achievements_requested()
 
 const SCREEN := Vector2(640, 360)
-const PANEL_SIZE := Vector2(150, 190)
+const PANEL_SIZE := Vector2(150, 222)
 const BUTTON_SIZE := Vector2(120, 20)
 const BUTTON_GAP := 6
 
@@ -48,6 +49,8 @@ func _ready() -> void:
 	_menu_button(panel, "PAUSE_SETTINGS", y, func() -> void: settings_requested.emit())
 	y += BUTTON_SIZE.y + BUTTON_GAP
 	_menu_button(panel, "PAUSE_STATS", y, func() -> void: stats_requested.emit())
+	y += BUTTON_SIZE.y + BUTTON_GAP
+	_menu_button(panel, "PAUSE_ACHIEVEMENTS", y, func() -> void: achievements_requested.emit())
 	y += BUTTON_SIZE.y + BUTTON_GAP
 	var title_button := _menu_button(panel, "PAUSE_SAVE_AND_TITLE", y, Callable())
 	title_button.disabled = true

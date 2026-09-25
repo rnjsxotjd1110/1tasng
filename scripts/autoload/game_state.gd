@@ -107,6 +107,8 @@ var achievement_dialogue_seen: Dictionary = {}
 var ending_reached: bool = false
 ## 엔딩 크레딧 뒤 "계속하기"로 무한 모드(오너 모드)에 들어갔는가.
 var infinite_mode: bool = false
+## 펜트하우스 첫 방문 때 마담 벨벳의 소개 대사를 봤는가(그 뒤로는 주기 대사만 나온다).
+var velvet_intro_seen: bool = false
 var achievement_manager := AchievementManager.new()
 
 
@@ -214,6 +216,7 @@ func reset() -> void:
 	achievement_dialogue_seen = {}
 	ending_reached = false
 	infinite_mode = false
+	velvet_intro_seen = false
 	achievement_manager.reset()
 	stats = {
 		STAT_TOTAL_SPINS: 0,
@@ -851,6 +854,7 @@ func to_dict() -> Dictionary:
 		"achievement_dialogue_seen": achievement_dialogue_seen.duplicate(true),
 		"ending_reached": ending_reached,
 		"infinite_mode": infinite_mode,
+		"velvet_intro_seen": velvet_intro_seen,
 	}
 
 
@@ -915,6 +919,7 @@ func from_dict(data: Dictionary) -> void:
 		achievement_dialogue_seen[key] = (loaded_dialogue_seen[key] as Dictionary).duplicate()
 	ending_reached = bool(data.get("ending_reached", false))
 	infinite_mode = bool(data.get("infinite_mode", false))
+	velvet_intro_seen = bool(data.get("velvet_intro_seen", false))
 	EventBus.chips_changed.emit(chips, 0.0)
 	EventBus.clovers_changed.emit(clovers, 0)
 	EventBus.bets_changed.emit()

@@ -29,10 +29,13 @@ func test_resume_signal() -> void:
 func test_settings_and_stats_signals() -> void:
 	var settings_emitted := watch(menu.settings_requested)
 	var stats_emitted := watch(menu.stats_requested)
+	var achievements_emitted := watch(menu.achievements_requested)
 	menu.settings_requested.emit()
 	menu.stats_requested.emit()
+	menu.achievements_requested.emit()
 	check_eq(settings_emitted.size(), 1, "설정 신호")
 	check_eq(stats_emitted.size(), 1, "통계 신호")
+	check_eq(achievements_emitted.size(), 1, "업적 신호")
 
 
 func test_pause_action_emits_resume() -> void:

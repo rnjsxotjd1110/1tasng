@@ -1,0 +1,21 @@
+{
+  "ph_first_visit": [
+    {"speaker": "NPC_VELVET", "portrait": "neutral", "lines": ["VELVET_FIRST_1"]},
+    {"speaker": "NPC_VELVET", "portrait": "sly", "lines": ["VELVET_FIRST_2"]},
+    {"speaker": "NPC_VELVET", "portrait": "satisfied", "lines": ["VELVET_FIRST_3"]}
+  ],
+  "ph_periodic": [
+    {"speaker": "NPC_VELVET", "portrait": "neutral", "lines": ["VELVET_PERIODIC_1"]},
+    {"speaker": "NPC_VELVET", "portrait": "sly", "lines": ["VELVET_PERIODIC_2"]},
+    {"speaker": "NPC_VELVET", "portrait": "smile", "lines": ["VELVET_PERIODIC_3"]},
+    {"speaker": "NPC_VELVET", "portrait": "satisfied", "lines": ["VELVET_PERIODIC_4"]}
+  ],
+  "velvet_last_hand": [
+    {"speaker": "NPC_VELVET", "portrait": "surprised", "lines": ["VELVET_LAST_HAND_1"]},
+    {"speaker": "NPC_VELVET", "portrait": "sly", "lines": ["VELVET_LAST_HAND_2"]},
+    {"speaker": "NPC_VELVET", "portrait": "satisfied", "lines": ["VELVET_LAST_HAND_3"]}
+  ],
+  "velvet_epilogue": [
+    {"speaker": "NPC_VELVET", "portrait": "smile", "lines": ["VELVET_EPILOGUE_1"]}
+  ]
+}

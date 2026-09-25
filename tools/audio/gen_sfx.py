@@ -477,6 +477,20 @@ def promote_jingle(name: str, level: int) -> None:
     write(name, reverb(mix(*parts), 0.32, 0.8, 0.7), 0.88)
 
 
+def dialogue_blip_velvet() -> None:
+    """대사 타자기 목소리 '삑'. 남작보다 높고 루시보다 낮은, 부드럽고 차분한 톤."""
+    body = tone("sine", 480, 430, 0.05, 0.002, 0.035) * 0.6
+    warmth = tone("tri", 240, 215, 0.05, 0.002, 0.035) * 0.25
+    x = lowpass(body + warmth, 4200)
+    write("dialogue_blip_velvet", x, 0.5)
+
+
+def achievement_unlock() -> None:
+    """업적 토스트(7단계): 짧고 또렷한 벨 아르페지오. 승급 징글보다 가볍고, win_good 과는 음·리버브로 구분."""
+    x = arpeggio([79, 84, 91], 0.09, 0.3, "sine", sparkle=True)
+    write("achievement_unlock", reverb(x, 0.22, 0.45, 0.28), 0.65)
+
+
 # ── 5단계: 래칫 남작 ──────────────────────────────────────
 
 def dialogue_blip_baron() -> None:
@@ -711,6 +725,8 @@ def main() -> None:
     wof_tick()
     wof_land()
     destiny_flip()
+    dialogue_blip_velvet()
+    achievement_unlock()
     print("sfx ok:", sorted(os.listdir(OUT)))
 
 

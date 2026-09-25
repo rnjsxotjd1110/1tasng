@@ -558,6 +558,7 @@ func _build_fx() -> void:
 	pause_menu.achievements_requested.connect(func() -> void:
 		_close_pause_menu()
 		_open_achievement_screen())
+	pause_menu.title_requested.connect(_on_title_requested)
 	root.add_child(pause_menu)
 	shaker = ScreenShake.new()
 	shaker.targets = [world, ui_layer]
@@ -1094,6 +1095,13 @@ func _close_pause_menu() -> void:
 	if not pause_menu.visible:
 		return
 	PanelTransition.close(pause_menu).tween_callback(_update_pause_freeze)
+
+
+## "저장 후 타이틀로"(8단계 1/N): 저장하고 타이틀 화면으로 돌아간다. 진행 중인 게임을 지우지 않으므로
+## TitleScreen 의 "이어하기" 로 그대로 이어서 할 수 있다.
+func _on_title_requested() -> void:
+	SaveManager.save_game()
+	get_tree().change_scene_to_file("res://scenes/main/TitleScreen.tscn")
 
 
 func _open_stats_screen() -> void:

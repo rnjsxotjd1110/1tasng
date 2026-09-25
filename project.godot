@@ -12,7 +12,7 @@ config_version=5
 
 config/name="HOUSE EDGE"
 config/description="1인용 방치형 픽셀아트 룰렛 게임"
-run/main_scene="res://scenes/main/Main.tscn"
+run/main_scene="res://scenes/main/SplashScreen.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
 [autoload]

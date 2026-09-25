@@ -26,8 +26,12 @@ func _run_wheel_to_end(max_seconds: float = 10.0) -> void:
 		elapsed += STEP
 
 
-func test_main_is_project_main_scene() -> void:
-	check_eq(ProjectSettings.get_setting("application/run/main_scene"), MAIN_SCENE, "메인 씬")
+## 8단계부터 부팅 순서는 SplashScreen → TitleScreen → Main(이어하기/새 게임)이다(GDD 1장).
+## project.godot 의 run/main_scene 자체는 SplashScreen.tscn 이고, Main.tscn 은 더 이상 직접
+## 실행되는 첫 씬이 아니다 — 이 파일의 다른 테스트들처럼 직접 로드해서 통합 검증한다.
+func test_main_is_reachable_from_boot_chain() -> void:
+	check_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://scenes/main/SplashScreen.tscn", "부팅 씬은 스플래시(8단계)")
+	check(ResourceLoader.exists(MAIN_SCENE), "메인 씬(게임 화면) 존재")
 	check(not ResourceLoader.exists("res://scenes/debug/DebugLogic.tscn"), "1단계 디버그 씬 삭제")
 	check(main.controller != null and not main.controller.instant_resolve, "연출이 finish_spin 을 부른다")
 

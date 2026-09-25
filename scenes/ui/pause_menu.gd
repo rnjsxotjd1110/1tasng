@@ -8,6 +8,7 @@ signal resume_requested()
 signal settings_requested()
 signal stats_requested()
 signal achievements_requested()
+signal title_requested()
 
 const SCREEN := Vector2(640, 360)
 const PANEL_SIZE := Vector2(150, 222)
@@ -52,11 +53,7 @@ func _ready() -> void:
 	y += BUTTON_SIZE.y + BUTTON_GAP
 	_menu_button(panel, "PAUSE_ACHIEVEMENTS", y, func() -> void: achievements_requested.emit())
 	y += BUTTON_SIZE.y + BUTTON_GAP
-	var title_button := _menu_button(panel, "PAUSE_SAVE_AND_TITLE", y, Callable())
-	title_button.disabled = true
-	title_button.mouse_entered.connect(func() -> void:
-		TooltipLayer.show_tip(title_button, tr("PAUSE_TITLE_LOCKED_TIP"), title_button.get_global_rect()))
-	title_button.mouse_exited.connect(func() -> void: TooltipLayer.hide_tip(title_button))
+	_menu_button(panel, "PAUSE_SAVE_AND_TITLE", y, func() -> void: title_requested.emit())
 	y += BUTTON_SIZE.y + BUTTON_GAP
 	_menu_button(panel, "PAUSE_QUIT", y, _on_quit_pressed)
 	y += BUTTON_SIZE.y + BUTTON_GAP + 4

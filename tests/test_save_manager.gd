@@ -163,3 +163,29 @@ func test_pending_spin_settles_instantly_after_load() -> void:
 	check(not GameState.spin_in_progress, "정산 후 진행중 아님")
 	check(GameState.pending_spin_bets.is_empty(), "스냅샷 비워짐")
 	check(GameState.chips > chips_before_settle or outcome.total_return == 0.0, "정산 결과가 칩에 반영")
+
+
+func test_delete_save_removes_all_files() -> void:
+	_fill_varied_state()
+	check(SaveManager.save_game(), "저장")
+	check(SaveManager.has_save(), "저장 파일 존재")
+	SaveManager.delete_save()
+	check(not SaveManager.has_save(), "delete_save 이후 저장 파일 없음(8단계: 타이틀 화면 새 게임)")
+	check(not FileAccess.file_exists(SaveManager.BAK_PATH), "백업도 함께 삭제")
+
+
+func test_peek_summary_reads_without_mutating_game_state() -> void:
+	GameState.floor_index = 2
+	GameState.add_chips(4567.0)
+	check(SaveManager.save_game(), "저장")
+	GameState.reset()
+	var summary := SaveManager.peek_summary()
+	check_eq(int(summary.get("floor_index")), 2, "층 읽음")
+	check_rel(float(summary.get("chips")), Economy.STARTING_CHIPS + 4567.0, 1e-9, "칩 읽음")
+	check_eq(GameState.floor_index, 0, "peek_summary 는 GameState 를 바꾸지 않음(reset 값 그대로)")
+	check_rel(GameState.chips, Economy.STARTING_CHIPS, 1e-9, "GameState.chips 도 그대로")
+
+
+func test_peek_summary_empty_without_save() -> void:
+	check(not SaveManager.has_save(), "저장 없음")
+	check(SaveManager.peek_summary().is_empty(), "저장이 없으면 빈 Dictionary")

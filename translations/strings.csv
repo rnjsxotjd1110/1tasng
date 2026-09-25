@@ -158,7 +158,6 @@ PAUSE_SETTINGS,설정,Settings
 PAUSE_STATS,통계,Stats
 PAUSE_ACHIEVEMENTS,업적,Achievements
 PAUSE_SAVE_AND_TITLE,저장 후 타이틀로,Save and Title
-PAUSE_TITLE_LOCKED_TIP,타이틀 화면은 다음 단계에서 추가됩니다,Title screen coming in a later update
 PAUSE_QUIT,게임 종료,Quit Game
 PAUSE_TIME_FLOWS,메뉴가 열려 있어도 게임 진행,Game keeps running while menu is open
 SETTINGS_TAB_AUDIO,오디오,Audio
@@ -473,3 +472,27 @@ ENDING_CREDITS_SUBTITLE,당신이 새로운 하우스입니다,You are the new H
 ENDING_CREDITS_FINAL_MARBLE,최종 구슬,Final Marble
 ENDING_CONTINUE,계속하기,Continue
 OWNER_MODE_TOOLTIP,오너 모드: 모든 당첨금 ×2,Owner Mode: all payouts ×2
+TITLE_CONTINUE,이어하기,Continue
+"TITLE_CONTINUE_SUMMARY","%s · %s %s · %s","%s · %s %s · %s"
+TITLE_NEW_GAME,새 게임,New Game
+TITLE_SETTINGS,설정,Settings
+TITLE_ACHIEVEMENTS,업적,Achievements
+TITLE_CREDITS,크레딧,Credits
+TITLE_QUIT,종료,Quit
+"TITLE_NEW_GAME_CONFIRM_TITLE","새 게임을 시작할까요?","Start a new game?"
+"TITLE_NEW_GAME_CONFIRM_BODY","기존 저장 파일을 덮어씁니다.","This will overwrite your existing save."
+TITLE_NEW_GAME_CONFIRM_YES,새로 시작,Start New
+TITLE_NEW_GAME_CONFIRM_NO,취소,Cancel
+INTRO_SKIP,건너뛰기,Skip
+"INTRO_CAPTION_ALLEY","비를 맞으며 골목에 들어선다.","Rain falling, they step into the alley."
+"INTRO_CAPTION_MARBLE","주머니에서 나무 구슬 하나를 꺼낸다.","They pull a single wooden marble from their pocket."
+"INTRO_CAPTION_DOOR","도박장 문을 연다.","They push open the gambling den's door."
+"LUCY_INTRO_1","어서 오세요. 처음 뵙는 얼굴이네요.","Welcome in. Haven't seen your face before."
+"LUCY_INTRO_2","나무 구슬 하나 들고 오시는 분들은… 다들 사연이 있죠.","Folks who walk in with just a wooden marble… they all have a story."
+"LUCY_INTRO_3","저 위 펜트하우스까지 올라간 사람은 아직 없어요.","Nobody's ever made it up to the penthouse. Not yet, anyway."
+"LUCY_INTRO_4","자, 한번 해보시겠어요?","So — care to give it a try?"
+CREDITS_TITLE,크레딧,Credits
+"CREDITS_DEVELOPER","제작: %s (가제)","Developed by: %s (working title)"
+"CREDITS_ENGINE","Godot Engine (MIT License)","Godot Engine (MIT License)"
+"CREDITS_FONT","글꼴: Galmuri (SIL OFL 1.1)","Font: Galmuri (SIL OFL 1.1)"
+"CREDITS_MUSIC_PENDING","음악·효과음 출처는 다음 업데이트에서 추가됩니다.","Music and sound credits will be added in a future update."

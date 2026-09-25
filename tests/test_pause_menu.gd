@@ -55,17 +55,22 @@ func test_time_flows_checkbox_updates_settings() -> void:
 	check_eq(SettingsManager.pause_time_flows, false, "체크박스가 설정을 바꿈")
 
 
-func test_save_and_title_button_disabled() -> void:
-	var found := false
-	for child in menu.get_children():
-		found = found or _has_disabled_title_button(child)
-	check(found, "저장 후 타이틀로 버튼이 존재하고 비활성 상태")
+func test_save_and_title_button_enabled_emits_signal() -> void:
+	var button := _find_title_button(menu)
+	check(button != null, "저장 후 타이틀로 버튼이 존재")
+	if button == null:
+		return
+	check(not button.disabled, "저장 후 타이틀로 버튼이 활성 상태(8단계)")
+	var emitted := watch(menu.title_requested)
+	button.pressed.emit()
+	check_eq(emitted.size(), 1, "타이틀로 신호 발행")
 
 
-func _has_disabled_title_button(node: Node) -> bool:
+func _find_title_button(node: Node) -> Button:
 	if node is Button and (node as Button).text == "PAUSE_SAVE_AND_TITLE":
-		return (node as Button).disabled
+		return node as Button
 	for child in node.get_children():
-		if _has_disabled_title_button(child):
-			return true
-	return false
+		var found := _find_title_button(child)
+		if found != null:
+			return found
+	return null

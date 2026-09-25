@@ -19,6 +19,8 @@ extends SceneTree
 ##          elevator_cutscene_close, elevator_cutscene_tick, elevator_cutscene_title,
 ##          achievement_toast, achievement_screen, velvet_intro, acquisition_button, ending_last_hand,
 ##          ending_final_spin, ending_signing, ending_epilogue, ending_credits
+##   8단계: splash, title, title_continue, title_new_game_confirm, title_settings, title_achievements,
+##          title_credits, intro_alley, intro_marble, intro_door (Main.tscn 이 아니라 부팅 흐름을 찍는다)
 ## 인자 tier=<n>: betting·spin_* 시나리오에서 구슬 재질을 강제로 바꾼다.
 
 const MAIN_SCENE := "res://scenes/main/Main.tscn"
@@ -42,11 +44,19 @@ const SCENARIOS: Array[String] = [
 	"achievement_toast", "achievement_screen",
 	"velvet_intro", "acquisition_button", "ending_last_hand", "ending_final_spin", "ending_signing",
 	"ending_epilogue", "ending_credits",
+	"splash", "title", "title_continue", "title_new_game_confirm", "title_settings", "title_achievements",
+	"title_credits", "intro_alley", "intro_marble", "intro_door",
 ]
 const UPGRADE_SERVICE := "res://scripts/core/upgrade_service.gd"
+## 8단계: Main.tscn 이 아니라 부팅 흐름(스플래시·타이틀·인트로 컷신)을 찍는 시나리오.
+const TITLE_SCENARIOS: Array[String] = [
+	"splash", "title", "title_continue", "title_new_game_confirm", "title_settings", "title_achievements",
+	"title_credits", "intro_alley", "intro_marble", "intro_door",
+]
 
 var game_state: Node
 var rng_service: Node
+var save_manager: Node
 var main: Node
 var out_dir: String = DEFAULT_OUT
 ## tier=<n> 인자: 캡처 전에 구슬 재질을 강제로 바꾼다(-1 이면 그대로).
@@ -69,6 +79,7 @@ func _args() -> Dictionary:
 func _run() -> void:
 	game_state = root.get_node("GameState")
 	rng_service = root.get_node("RngService")
+	save_manager = root.get_node("SaveManager")
 	var args := _args()
 	out_dir = String(args["out"])
 	_tier_arg = int(args.get("tier", "-1"))
@@ -119,6 +130,23 @@ func _fresh() -> void:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 	main = load(MAIN_SCENE).instantiate()
+	root.add_child(main)
+	await _wait_frames(3)
+
+
+## 8단계: 스플래시/타이틀/인트로 컷신을 찍을 때는 Main.tscn 이 아니라 scene_path 를 띄운다.
+## keep_save 가 false 면 기존 저장을 지운다(타이틀의 "이어하기" 비활성 상태를 보고 싶을 때).
+func _fresh_title(scene_path: String, keep_save: bool = false) -> void:
+	if main != null:
+		main.queue_free()
+		await process_frame
+	game_state.call("reset")
+	rng_service.call("set_seed", SEED)
+	if not keep_save:
+		for path in ["user://save.json", "user://save.tmp", "user://save.bak"]:
+			if FileAccess.file_exists(path):
+				DirAccess.remove_absolute(path)
+	main = load(scene_path).instantiate()
 	root.add_child(main)
 	await _wait_frames(3)
 
@@ -248,6 +276,9 @@ func _spin_to_result(wait_after: float) -> void:
 
 
 func _capture(scenario: String, lang: String) -> void:
+	if TITLE_SCENARIOS.has(scenario):
+		await _capture_title_flow(scenario, lang)
+		return
 	await _fresh()
 	match scenario:
 		"idle":
@@ -631,6 +662,11 @@ func _capture(scenario: String, lang: String) -> void:
 			await _wait_seconds(2.5)
 		_:
 			push_error("capture: 모르는 시나리오 %s" % scenario)
+	await _save_shot(scenario, lang)
+
+
+## 뷰포트를 640×360 원본 + 3배 확대본으로 저장한다(모든 시나리오 공용, 8단계에서 분리).
+func _save_shot(scenario: String, lang: String) -> void:
 	await _wait_frames(1)
 	await RenderingServer.frame_post_draw
 	var image := root.get_texture().get_image()
@@ -640,3 +676,55 @@ func _capture(scenario: String, lang: String) -> void:
 	big.resize(image.get_width() * UPSCALE, image.get_height() * UPSCALE, Image.INTERPOLATE_NEAREST)
 	big.save_png(base + "_x3.png")
 	print("captured ", base)
+
+
+## 8단계: 스플래시·타이틀·인트로 컷신 시나리오(Main.tscn 을 쓰지 않는다).
+func _capture_title_flow(scenario: String, lang: String) -> void:
+	match scenario:
+		"splash":
+			await _fresh_title("res://scenes/main/SplashScreen.tscn")
+			await _wait_seconds(0.3)
+		"title":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			await _wait_seconds(1.3)
+		"title_continue":
+			game_state.call("reset")
+			game_state.set("floor_index", 1)
+			game_state.call("add_chips", 5000.0)
+			save_manager.call("save_game")
+			await _fresh_title("res://scenes/main/TitleScreen.tscn", true)
+			await _wait_seconds(1.3)
+		"title_new_game_confirm":
+			game_state.call("reset")
+			save_manager.call("save_game")
+			await _fresh_title("res://scenes/main/TitleScreen.tscn", true)
+			await _wait_seconds(1.3)
+			main.call("_on_new_game_pressed")
+			await _wait_seconds(0.2)
+		"title_settings":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			main.call("_toggle_overlay", main.get("_settings_overlay"))
+			await _wait_seconds(0.3)
+		"title_achievements":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			main.call("_toggle_overlay", main.get("_achievement_overlay"))
+			await _wait_seconds(0.3)
+		"title_credits":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			main.call("_toggle_overlay", main.get("_credits_overlay"))
+			await _wait_seconds(0.3)
+		"intro_alley":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			main.call("_on_new_game_pressed")
+			await _wait_seconds(0.6)
+		"intro_marble":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			main.call("_on_new_game_pressed")
+			await _wait_seconds(4.4)
+		"intro_door":
+			await _fresh_title("res://scenes/main/TitleScreen.tscn")
+			main.call("_on_new_game_pressed")
+			await _wait_seconds(8.2)
+		_:
+			push_error("capture: 모르는 타이틀 시나리오 %s" % scenario)
+	await _save_shot(scenario, lang)

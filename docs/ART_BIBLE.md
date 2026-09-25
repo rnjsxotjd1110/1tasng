@@ -461,6 +461,9 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 | `assets/sprites/bg/ph/madame_silhouette.png` | 44×40 | 2(idle·와인잔) | 마담 벨벳 뒤태 실루엣(3/N 실제 캐릭터 전 복선) | tools/art/gen_bg.py | 7 |
 | `assets/sprites/bg/{1f,2f,3f,ph}/table.png` | 640×360 | 1 | B1 `table.png` 그대로 복사(게임 판은 층과 무관) | tools/art/gen_bg.py(복사) | 7 |
 | `assets/sprites/bg/{1f,2f,3f,ph}/lamp_cone.png` `light_pool.png` | 220×250 / 320×250 | 1 | 층별 색(gold_shine·amber·neon_cyan·neon_purple·ivory)으로 다시 구운 조명 웅덩이 | tools/art/gen_bg.py | 7 |
+| `assets/sprites/title/dev_logo.png` | 220×40 | 1 | 스플래시 개발사 워드마크(가제) + 칩 글리프 | tools/art/gen_title.py | 8 |
+| `assets/sprites/title/bg_wall.png` | 640×360 | 1 | 타이틀 배경(비 내리는 밤거리·카지노 정면, 정적) | tools/art/gen_title.py | 8 |
+| `assets/sprites/title/wheel_icon.png` | 16×16 | 8(회전) | 타이틀 로고 아래 미니 룰렛 아이콘 | tools/art/gen_title.py | 8 |
 
 ---
 
@@ -706,3 +709,43 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
   한다** — 처음엔 `size` 만 지정했더니 `GridContainer` 가 모든 칸을 0×0 으로 접어 아이콘이 전부 같은 자리에
   겹쳐 보이는 버그가 있었다(스크린샷 검수로 발견, Container 자식은 `custom_minimum_size` 로만 자리를 예약한다는
   일반 규칙).
+
+## 14. 부팅·타이틀·인트로 컷신 (8단계 1/N)
+
+### 14-1. 스플래시
+
+- `assets/sprites/title/dev_logo.png`(220×40, `tools/art/gen_title.py`): `STUDIO_NAME`(가제 "HOUSE EDGE")을
+  Galmuri11 Bold 에서 뽑아 금색 램프(gold_hl→gold_l→gold)로 칠하고 `gold_d` 외곽선을 두른 워드마크 + 왼쪽에
+  작은 칩(스페이드 대신 원형 칩) 글리프. 화면 중앙, 0.4초 페이드인 → 1.1초 유지 → 0.35초 페이드아웃 → 타이틀로
+  전환. 클릭·아무 키나 누르면 즉시 건너뛴다.
+
+### 14-2. 타이틀 화면 레이아웃 (640×360)
+
+| 요소 | 좌표·크기 |
+|---|---|
+| 배경 | `assets/sprites/title/bg_wall.png`(640×360, 정적) — 비 내리는 밤거리, 좌우 건물(창문 점등), 중앙 카지노
+  정면(간판 지지대 x 226~414 y 96~130, 캐노피, 양쪽 여닫이 문, 문 밑 golden 빛줄기), 가로등 1개, 젖은 보도(y 302~360,
+  창문·간판 색이 아래로 옅어지는 세로 반사 얼룩) |
+| 빗줄기 | `TitleScreen._RainLayer`(내부 클래스, 새 텍스처 없이 `_draw()`): 90개, 낙하 속도 220~340px/s, 살짝 왼쪽으로
+  흐름(바람), `mist` 알파 0.35, 화면 밖으로 나가면 위로 재배치 |
+| 번개 | 화면 전체 `ivory` 알파 플래시(6~15초 무작위 주기, 이중 깜빡임). `VisualSettings.flash_alpha()` 따름(번쩍임
+  줄이기 설정 적용) |
+| 네온 로고 "HOUSE EDGE" | 간판 지지대 안, `NeonText`(7단계 엔딩과 같은 컴포넌트·아틀라스 재사용 — H·O·U·S·E·D·G
+  글자가 이미 있다) 폭의 절반만큼 왼쪽으로 옮겨 가운데 정렬. `flicker_on()` 으로 등장, 이후 `idle_flicker=true` |
+| 미니 룰렛 아이콘 | 로고 아래(320,150), `assets/sprites/title/wheel_icon.png`(16×16×8프레임, `tools/art/gen_title.py`).
+  8프레임이 45°/8 씩 돌아간 상태라 한 바퀴(45°, 8쐐기 대칭이라 이게 곧 360°와 같은 무늬) 순환이 이음매 없이
+  반복된다. 0.16초마다 프레임 교체(연속 회전 금지 규칙 — ART_BIBLE 4장) |
+| 메뉴 패널 | `PanelFelt`, (456, 92) 150×192. 버튼 6개(세로, 120×20, `ButtonDark`): 이어하기(저장 없으면 비활성 +
+  요약 문구 없음, 있으면 층 이름·칩·플레이 시간 두 줄 요약)/새 게임/설정/업적/크레딧/종료 |
+| 칩 커서 | `assets/ui/coin.png`, 포커스·호버된 버튼의 왼쪽(간격 4px)으로 0.22초 큐빅 이즈 이동. 새 스프라이트 없음 |
+| 새 게임 확인 팝업 | `PanelPlain`, 화면 중앙 220×100. 기존 저장이 있을 때만 뜬다 |
+
+### 14-3. 인트로 컷신 (`IntroCutscene`, 새 게임 전용)
+
+- 골목(4초, 뒷모습 실루엣이 왼쪽에서 걸어 들어옴) → 구슬(3.2초, 나무 구슬 24px 아이콘이 화면 중앙에 떠오름) →
+  문(0.6초, 화면이 살짝 밝아짐) → 대사(루시, `data/dialogue/lucy.json` 의 `intro_greeting`, 4줄) → 종료.
+  전부 `_process(delta)` 누적으로 진행하고(GDD 18장), 우상단 "건너뛰기" 버튼으로 언제든 즉시 끝낼 수 있다.
+- **뒷모습 실루엣**(`_WalkingFigure`, 절차적, 16×40): 머리(원)·몸통(사각형) 모두 `ink` 바탕 + `mist` 1px 테두리.
+  처음에는 `void` 하나로 채웠더니 화면 디밍(알파 0.75) 위에서 거의 안 보였다 — 밝은 테두리로 바꿔 해결(캡처로
+  발견, GDD 18장).
+- 문 단계부터는 `LucyDealer`(6단계, idle 애니메이션)가 문 틈(300, 306)에 서고, 기존 `DialogueBox` 를 그대로 쓴다.

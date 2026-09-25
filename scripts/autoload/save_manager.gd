@@ -50,6 +50,30 @@ func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
 
+## 저장 파일을 전부 지운다(8단계: 타이틀 화면 "새 게임"이 기존 저장을 덮어쓰기 전에 부른다).
+func delete_save() -> void:
+	for path in [SAVE_PATH, TMP_PATH, BAK_PATH]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path)
+
+
+## GameState 를 실제로 불러오지 않고 "이어하기" 요약(층·칩·플레이 시간)만 읽는다(8단계 타이틀 화면).
+## 저장이 없거나 손상됐으면 빈 Dictionary.
+func peek_summary() -> Dictionary:
+	var payload := _read_and_verify(SAVE_PATH)
+	if payload.is_empty():
+		payload = _read_and_verify(BAK_PATH)
+	if payload.is_empty():
+		return {}
+	var data: Dictionary = payload.get("data", {})
+	var stats: Dictionary = data.get("stats", {})
+	return {
+		"floor_index": int(data.get("floor_index", 0)),
+		"chips": float(data.get("chips", Economy.STARTING_CHIPS)),
+		"play_time": float(stats.get(GameState.STAT_PLAY_TIME, 0.0)),
+	}
+
+
 ## GameState + RngService 상태를 저장한다. 대출 직후·업그레이드·스킬·층 이동·포커스 상실·30초마다·창 닫기에서 호출된다.
 func save_game() -> bool:
 	var data := GameState.to_dict()

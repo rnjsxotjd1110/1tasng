@@ -4,6 +4,11 @@ extends Node
 
 enum ChipSize { TENTH, HALF, MAX }
 
+## 스튜디오/개발자 이름(가제, 8단계 1/N). 스플래시 로고(tools/art/gen_title.py 의 STUDIO_NAME 과
+## 반드시 같은 문자열)·크레딧·Windows 내보내기 회사명에 쓴다. 정식 이름이 정해지면 이 한 곳만 바꾸고
+## `python3 tools/art/gen_title.py` 를 다시 돌린다.
+const STUDIO_NAME := "HOUSE EDGE"
+
 # ── 시작 상태 ─────────────────────────────────────────────
 const STARTING_CHIPS := 100.0
 const STARTING_MARBLES := 1

@@ -70,8 +70,10 @@
 - [x] 층별 배경 4종·휠 스킨 5종·엘리베이터 UI·컷신 (2/N)
 - [x] 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면 (3/N)
 
-### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비
-- [ ] 타이틀 화면, 루시 튜토리얼, 효과음·음악(AudioManager)
+### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비 (진행 중)
+- [x] 부팅 순서(스플래시→타이틀→인트로 컷신→메인), 이어하기/새 게임, "저장 후 타이틀로" 활성화 (1/N)
+- [ ] 루시 튜토리얼
+- [ ] 효과음·음악(AudioManager)
 - [ ] 폴리시 패스, 내보내기 프리셋(Windows), 스팀 빌드 준비
 
 ### 9단계 — 밸런스 시뮬레이션·최종 QA
@@ -741,3 +743,62 @@
 - 8단계(타이틀·튜토리얼·사운드·폴리시)에서 참고할 것: `AudioManager.play_music()` 가 아직 스텁이라 엔딩의 "bass_drop"
   같은 SFX 는 나지만 배경음악 크로스페이드는 안 들린다. PH 층 BGM(`bgm_ph`)이 연결되면 엔딩 시퀀스 중에는 음악을
   낮추거나 멈추는 처리가 있으면 더 극적일 것(지금은 손대지 않음).
+
+### 8단계 진행 중 (2026-09-25) — 1/N: 부팅·타이틀·인트로 컷신
+
+**작업 브랜치 관련 참고**: 이 단계를 시작한 세션은 원래 1단계 커밋에서 갈라진 빈 브랜치에서 출발했다(2~7단계가
+전혀 없는 상태). 원격에 이미 1~7단계가 순서대로 쌓인 브랜치(`claude/tender-goldberg-scqis9`, 348 tests 전부
+통과)가 있어 그 지점으로 브랜치를 다시 맞추고(안전한 fast-forward, 기존 커밋 손실 없음) 여기서부터 이어간다.
+
+**한 일**
+- `run/main_scene` 을 `Main.tscn` → `SplashScreen.tscn` 으로 변경. 부팅 순서: 스플래시(개발사 로고, 스킵 가능)
+  → `TitleScreen.tscn`(이어하기/새 게임/설정/업적/크레딧/종료) → (새 게임이면 `IntroCutscene`) → `Main.tscn`.
+  `Main._ready()` 의 기존 `SaveManager.load_game()` 호출은 그대로 둬서 기존 348개 테스트와 완전히 호환된다(GDD 18장).
+- `SaveManager` 에 `delete_save()`(새 게임용)·`peek_summary()`(GameState 를 안 건드리고 저장 요약만 읽기) 추가.
+- `TitleScreen`(신규): 비 내리는 밤거리 배경(`bg_wall.png`, 정적) + 절차적 빗줄기(`_RainLayer`, 90개)·번개 플래시
+  + 네온 로고(7단계 엔딩과 같은 `NeonText` 재사용, `flicker_on()`+`idle_flicker`) + 미니 회전 룰렛 아이콘(8프레임)
+  + 메뉴 패널(칩 커서가 포커스·호버된 버튼 옆으로 이동) + 새 게임 확인 팝업(기존 저장 있을 때만).
+- `SplashScreen`(신규): 개발사 워드마크 페이드인·유지·페이드아웃(가제 `Economy.STUDIO_NAME = "HOUSE EDGE"`,
+  `tools/art/gen_title.py` 의 같은 이름 상수와 반드시 맞춰야 한다 — 정식 이름이 정해지면 두 곳만 바꾸고 재생성).
+- `IntroCutscene`(신규, `scenes/fx/`): 골목(뒷모습 실루엣)→구슬(나무 구슬 아이콘)→문→루시 대사(`intro_greeting`,
+  4줄) 4단계, 전부 `_process(delta)` 누적으로 전이(트윈 콜백에 걸지 않음 — 7단계 EndingSequence 와 같은 이유,
+  헤드리스 테스트가 `_process(dt)` 를 직접 여러 번 불러 진행 상황을 재현해야 한다). 우상단 "건너뛰기"로 언제든 종료.
+- `PauseMenu.title_requested` 신호 추가, "저장 후 타이틀로" 버튼을 잠금 해제(`Main._on_title_requested()` 가
+  저장 후 타이틀로 전환. 이미 저장된 상태라 확인 팝업 불필요).
+- `CreditsScreen`(신규, 초안): 스튜디오 이름·Godot·Galmuri 라이선스 고지. 음원 출처는 3/N 이후 채운다.
+- `tools/art/gen_title.py`(신규): 스플래시 로고, 타이틀 배경, 미니 휠 아이콘 8프레임 절차적 생성.
+- `tools/capture/capture.gd` 에 8단계 전용 경로(`TITLE_SCENARIOS`, `_fresh_title()`, `_capture_title_flow()`)
+  추가 — 기존 90여 개 시나리오(전부 `Main.tscn` 기준)는 손대지 않고 완전히 분리했다.
+- 테스트 신규: `test_splash_screen.gd`·`test_title_screen.gd`·`test_intro_cutscene.gd`·`test_credits_screen.gd`,
+  `test_save_manager.gd`(delete_save/peek_summary)·`test_pause_menu.gd`(잠금 해제 확인)에 추가. **주의**: 실제
+  `get_tree().change_scene_to_file()` 로 이어지는 경로(이어하기 클릭, 인트로 완주)는 어떤 테스트도 실행하지
+  않는다 — 헤드리스 테스트가 공유하는 SceneTree 에서 실제 씬 전환이 한 번이라도 일어나면 그 씬 전체가 트리에
+  남아 이후 테스트를 오염시키기 때문(GDD 18장에 기록). 그 경로는 캡처 스크린샷과 수동 실행으로만 검증했다.
+- `tests/test_main_scene.gd::test_main_is_project_main_scene` 을 `test_main_is_reachable_from_boot_chain` 으로
+  교체(더 이상 `Main.tscn` 이 `run/main_scene` 자체가 아니므로).
+- 전체 **370 tests, 8877 checks, 0 failures**.
+- 캡처(ko/en): `splash`, `title`, `title_continue`, `title_new_game_confirm`, `title_settings`,
+  `title_achievements`, `title_credits`, `intro_alley`, `intro_marble`, `intro_door` — 직접 보고 확인.
+
+**버그 한 건(캡처로 발견, 수정)**
+- 인트로 골목 단계의 뒷모습 실루엣을 처음엔 `void` 한 색으로만 채웠더니 화면 디밍(알파 0.75) 위에서 거의 안
+  보였다(둘 다 어두운 보라 계열이라 대비가 없음) — `ink` 바탕 + `mist` 1px 테두리로 바꿔 또렷한 실루엣이 되게
+  했다(ART_BIBLE 14-3).
+
+**남은 이슈**
+- 개발사 이름이 가제("HOUSE EDGE")다. 정식 이름이 정해지면 `Economy.STUDIO_NAME` 과
+  `tools/art/gen_title.py::STUDIO_NAME` 을 함께 바꾸고 스플래시 로고를 재생성해야 한다.
+  Windows 내보내기 회사명(5단계)에도 같은 값을 쓸 것.
+- 크레딧 화면은 초안이다 — 음원 출처는 3/N(음악·사운드) 뒤에 채운다.
+- 타이틀 화면의 "이어하기" 요약 두 번째 줄("칩 · 0시간 0분")이 좁은 패널 폭 때문에 살짝 어색하게 줄바꿈된다
+  (예: "5.10K\n칩" 처럼 숫자와 단위가 나뉨) — 4/N 폴리시 패스에서 문구를 다듬거나 패널을 넓힐지 검토.
+- 새 게임 확인 팝업이 타이틀 네온 간판 아래쪽과 픽셀 단위로 딱 붙어 있다(겹치지는 않음) — 4/N 에서 여유를 더
+  줄지 검토.
+
+**다음 작업(2/N — 튜토리얼)이 알아야 할 것**
+- 튜토리얼은 게임플레이 화면(Main) 안에서 진행되므로 이 사분기의 부팅 흐름과는 독립적이다. 다만 "설정에서
+  튜토리얼 끄기/다시보기"가 필요하므로 `SettingsManager` 에 새 필드를 추가할 때 이 파일의 설정 화면(4단계,
+  탭 "게임")과 저장 방식을 그대로 따르면 된다.
+- 인트로 컷신 종료 시점(`IntroCutscene.finished`)이 곧 튜토리얼 시작 시점과 자연스럽게 이어질 수 있다 — 새
+  게임으로 `Main.tscn` 에 처음 진입했을 때만 튜토리얼을 시작하는 조건(예: `GameState` 에 "튜토리얼을 본 적
+  있는가" 플래그)이 필요할 것이다(저장 파일에 포함해야 다시 시작해도 튜토리얼이 반복되지 않는다).

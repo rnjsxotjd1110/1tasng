@@ -761,3 +761,20 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
 - 손가락 포인터(`_Pointer`, 절차적, 12×12, `wood_hl`+`wood_d` 테두리): 대상 위에 공간이 있으면 위에서 아래로,
   없으면 아래에서 위로 가리키며 0.7초 주기로 정수 2px 상하 bob(소수 배율 금지 규칙 그대로 따름).
 - CLOVER 단계처럼 강조할 대상이 없는 "설명만" 하는 단계는 디밍·테두리·포인터 전부 끄고 대사만 보여준다.
+
+## 16. 커스텀 마우스 커서 3종 (8단계 4/N)
+
+- `assets/sprites/ui/cursor_normal.png`(24×24, `tools/art/gen_cursor.py`): 기본 화살표 대체. `ivory` 채움 +
+  `ink` 1px 외곽선의 대각선 삼각형, 원점(0,0)이 뾰족한 끝(핫스팟).
+- `cursor_pointer.png`(24×24): 버튼처럼 상호작용 가능한 곳 위(`Control.CURSOR_POINTING_HAND` 대체) — 금색
+  칩(`gold`/`gold_hl` 테두리) + 우상단 `gold_shine` 반짝임 십자. 핫스팟은 칩 중심 (12,12).
+- `cursor_forbidden.png`(24×24): 비활성 버튼 위(`Control.CURSOR_FORBIDDEN` 대체) — 회색조 칩(`ink`/`stone`) 위에
+  굵은 `red_hl` 대각선 금지 띠. 핫스팟 (12,12).
+- **커서 크기는 뷰포트 정수 배율을 따라가지 않는다** — `Input.set_custom_mouse_cursor()` 는 OS 커서라 640×360
+  기준 픽셀아트처럼 자동으로 확대되지 않는다(엔진이 별도로 스케일하지 않음). 그래서 16px 급 아이콘보다 일부러
+  크게(24px) 그려 1배 창에서도 또렷하다 — 완벽한 정수 배율 추종(창 크기가 바뀔 때마다 다시 그려 갈아 끼우기)은
+  이번 단계 범위에서 뺐다(비용 대비 효과가 작다고 판단, `CursorTheme` 에 근거 기록).
+- `CursorTheme.apply(tree)`(`scenes/fx/cursor_theme.gd`, `SplashScreen._ready()` 에서 1회 호출)가 세 커서를
+  각각 `CURSOR_ARROW`/`CURSOR_POINTING_HAND`/`CURSOR_FORBIDDEN` 에 등록하고, 이후 새로 추가되는 모든
+  `BaseButton` 에 `disabled` 여부에 따라 손가락/금지 커서를 자동으로 붙인다(이미 다른 모양을 정한 버튼은
+  그대로 둔다).

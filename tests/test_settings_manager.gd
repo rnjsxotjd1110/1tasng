@@ -76,6 +76,14 @@ func test_spin_visual_speed_mult() -> void:
 	SettingsManager.spin_visual_speed = SettingsManager.SpinVisualSpeed.NORMAL
 
 
+func test_background_focus_reduces_and_restores_fps() -> void:
+	SettingsManager.max_fps = 60
+	SettingsManager._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check_eq(Engine.max_fps, SettingsManager.BACKGROUND_FPS, "창이 배경으로 가면 프레임을 크게 줄인다(최소화 포함)")
+	SettingsManager._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	check_eq(Engine.max_fps, 60, "다시 포커스를 받으면 설정값으로 복귀")
+
+
 func test_visual_settings_full_effects() -> void:
 	VisualSettings.big_win_effect_full = true
 	VisualSettings.auto_spin_effects_reduced = true

@@ -7,6 +7,8 @@ const WINDOW_SCALES: Array[int] = [2, 3, 4]
 const BASE_WINDOW_SIZE := Vector2i(640, 360)
 ## 0 = 무제한.
 const MAX_FPS_OPTIONS: Array[int] = [30, 60, 120, 0]
+## 창이 최소화·비활성 상태일 때(8단계 4/N, GDD 20장): 배터리·CPU 절약을 위해 프레임을 크게 줄인다.
+const BACKGROUND_FPS := 10
 
 enum SpinVisualSpeed { NORMAL, FAST, FASTEST }
 const SPIN_SPEED_MULT: Dictionary = {SpinVisualSpeed.NORMAL: 1.0, SpinVisualSpeed.FAST: 1.5, SpinVisualSpeed.FASTEST: 2.0}
@@ -174,4 +176,20 @@ func _apply_display() -> void:
 	if not fullscreen:
 		DisplayServer.window_set_size(BASE_WINDOW_SIZE * window_scale)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
-	Engine.max_fps = max_fps
+	if not _backgrounded:
+		Engine.max_fps = max_fps
+
+
+## 창이 최소화되거나(포커스를 잃어도 같은 신호) 배경으로 밀려나면 BACKGROUND_FPS 로, 돌아오면
+## 설정값으로 복귀한다. 헤드리스(테스트)에는 창이 없어 이 알림이 오지 않는다.
+var _backgrounded: bool = false
+
+
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+			_backgrounded = true
+			Engine.max_fps = BACKGROUND_FPS
+		NOTIFICATION_APPLICATION_FOCUS_IN, NOTIFICATION_WM_WINDOW_FOCUS_IN:
+			_backgrounded = false
+			Engine.max_fps = max_fps

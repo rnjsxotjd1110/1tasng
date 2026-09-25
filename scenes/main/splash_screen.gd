@@ -15,6 +15,7 @@ var _advancing: bool = false
 
 
 func _ready() -> void:
+	CursorTheme.apply(get_tree())
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var bg := ColorRect.new()

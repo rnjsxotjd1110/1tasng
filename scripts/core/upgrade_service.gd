@@ -185,6 +185,11 @@ static func purchase(id: String, mode: BuyMode = BuyMode.ONE) -> int:
 	if def.kind == UpgradeDef.Kind.MARBLE_TIER:
 		GameState.set_upgrade_level(GameState.UPGRADE_MARBLE_POLISH, 0)
 	EventBus.upgrade_purchased.emit(id, new_level)
+	# 베팅 한도(bet_limit)는 min_bet 자체를 즉시 올린다 — 사고 나니 최소 베팅 1개도 못 낼 만큼 자산이
+	# 쪼그라들면, 스핀이 끝나야 도는 check_bankruptcy() 로는 절대 구제받지 못해(스핀을 시작조차 못 하므로)
+	# 진행이 완전히 막힌다(9단계 시뮬레이터로 발견). 스핀 뒤와 똑같이 즉시 파산 판정을 돌려 남작의 대출로
+	# 구제한다 — "빚져서라도 계속 굴러간다"는 이 게임의 기존 철학과 같은 처리다.
+	GameState.check_bankruptcy()
 	return int(info["count"])
 
 

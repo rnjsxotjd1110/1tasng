@@ -5,13 +5,14 @@ extends RefCounted
 ## 연출 등급(ART_BIBLE.md "당첨 연출 등급").
 enum Tier { LOSS, NORMAL, GOOD, BIG, JACKPOT }
 
-## 등급 기준. 배율 = 순이익 ÷ 총 베팅액.
+## GOOD 은 배율(순이익 ÷ 총 베팅액)로 정한다.
 const GOOD_RATIO := 5.0
-const BIG_RATIO := 20.0
-const JACKPOT_RATIO := 100.0
-## 개별숫자 적중이 이 개수 이상이면 BIG, JACKPOT.
-const BIG_STRAIGHT_HITS := 1
-const JACKPOT_STRAIGHT_HITS := 2
+## BIG·JACKPOT 은 배율이 아니라 "한 번호에 구슬을 몰아 걸어서 다 같이 맞혔는지"로 정한다(같은 개별숫자에
+## 건 구슬 수의 최댓값 — RouletteRules.resolve() 가 계산). 예전엔 배율 임계값(20배/100배)이었는데, 층
+## 배율이 커질수록 색·홀짝 베팅도 쉽게 그 배율을 넘어 버려 BIG/JACKPOT 이 너무 자주 나온다는 피드백으로
+## 바꿨다(9단계). 이제 색·홀짝 베팅은 배율이 아무리 커도 GOOD 까지만 간다.
+const BIG_SAME_NUMBER_BETS := 2
+const JACKPOT_SAME_NUMBER_BETS := 3
 
 
 ## 베팅 1개의 정산 결과. 공이 여러 개면 공마다 판정한 값을 합친다.
@@ -71,14 +72,15 @@ func ratio() -> float:
 	return net / total_bet
 
 
-static func classify(any_won: bool, net_value: float, total_bet_value: float, straight_hits: int) -> Tier:
+## same_number_bets: 이번에 이긴 개별숫자 중, 같은 번호에 건 구슬(베팅) 수의 최댓값(RouletteRules.resolve 계산).
+static func classify(any_won: bool, net_value: float, total_bet_value: float, same_number_bets: int) -> Tier:
 	if not any_won:
 		return Tier.LOSS
-	var value_ratio := net_value / total_bet_value if total_bet_value > 0.0 else 0.0
-	if value_ratio >= JACKPOT_RATIO or straight_hits >= JACKPOT_STRAIGHT_HITS:
+	if same_number_bets >= JACKPOT_SAME_NUMBER_BETS:
 		return Tier.JACKPOT
-	if value_ratio >= BIG_RATIO or straight_hits >= BIG_STRAIGHT_HITS:
+	if same_number_bets >= BIG_SAME_NUMBER_BETS:
 		return Tier.BIG
+	var value_ratio := net_value / total_bet_value if total_bet_value > 0.0 else 0.0
 	if value_ratio >= GOOD_RATIO:
 		return Tier.GOOD
 	return Tier.NORMAL

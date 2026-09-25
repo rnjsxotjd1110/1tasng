@@ -109,7 +109,7 @@ func test_straight_hit_awards_clover_and_streak() -> void:
 	controller.start_spin()
 	check_eq(GameState.clovers, 1, "개별숫자 적중 +1")
 	check_eq(GameState.get_stat_value(GameState.STAT_STRAIGHT_HITS), 1.0, "적중 통계")
-	check_eq(controller.last_outcome.tier, SpinOutcome.Tier.BIG, "BIG")
+	check_eq(controller.last_outcome.tier, SpinOutcome.Tier.GOOD, "개별숫자를 1개만 걸었으면 몰아걸기가 아니라 배율만으로 GOOD(9단계: BIG/JACKPOT 은 같은 번호에 구슬 2개↑)")
 
 
 func test_win_streak_awards_clover_every_five() -> void:

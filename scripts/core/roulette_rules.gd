@@ -173,5 +173,20 @@ static func resolve(bets: Array[Bet], results: Array[int], context: SpinContext 
 	for bet_result in outcome.bet_results:
 		outcome.total_return += bet_result.payout + bet_result.refunded
 	outcome.net = outcome.total_return - outcome.total_bet
-	outcome.tier = SpinOutcome.classify(outcome.any_win(), outcome.net, outcome.total_bet, outcome.hit_straights.size())
+	outcome.tier = SpinOutcome.classify(outcome.any_win(), outcome.net, outcome.total_bet, _max_same_number_concentration(bets, results))
 	return outcome
+
+
+## 이긴 개별숫자 중, 같은 번호에 건 구슬(베팅) 수의 최댓값. 더블 볼로 공 하나가 같은 번호를 두 번 맞힌
+## 경우는 세지 않는다 — BIG/JACKPOT 은 "몰아 걸어서" 다 같이 맞혔을 때를 위한 것이지 운 좋은 더블히트를
+## 위한 게 아니다(SpinOutcome.BetResult.hit_count 가 그 몫을 이미 담당한다).
+static func _max_same_number_concentration(bets: Array[Bet], results: Array[int]) -> int:
+	var counts: Dictionary = {}
+	for bet in bets:
+		if bet.type == Bet.Type.STRAIGHT:
+			counts[bet.number] = int(counts.get(bet.number, 0)) + 1
+	var max_count := 0
+	for number: int in counts.keys():
+		if results.has(number):
+			max_count = maxi(max_count, int(counts[number]))
+	return max_count

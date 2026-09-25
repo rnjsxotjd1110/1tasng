@@ -53,6 +53,17 @@ func test_cost_mult_stat_applies() -> void:
 	check_rel(float(plan["cost"]), 20.0 * 0.5, 1e-12, "20 × 0.5")
 
 
+## 9단계 시뮬레이터로 발견한 진행 불가 버그: bet_limit 는 min_bet 자체를 즉시 올린다 — 딱 맞춰 사면
+## 최소 베팅 1개도 못 낼 수 있는데, check_bankruptcy() 는 스핀이 "끝나야" 도는 로직이라 스핀을 아예
+## 시작 못 하면 구제도 못 받아 게임이 멈춘다. purchase() 가 구매 직후 즉시 파산 판정을 돌려야 한다.
+func test_purchase_that_strands_below_min_bet_triggers_loan() -> void:
+	GameState.spend_chips(GameState.chips - 20.0)
+	check_eq(GameState.chips, 20.0, "정확히 다음 레벨 비용만큼만 있음")
+	check_eq(UpgradeService.purchase("bet_limit"), 1, "구매는 성공한다")
+	check(GameState.chips >= GameState.min_bet(), "구매 직후에도 다음 스핀을 낼 수 있다")
+	check(not GameState.debts.is_empty(), "자산이 최소 베팅 밑으로 떨어져 즉시 대출로 구제됨")
+
+
 func test_geometric_sum_matches_loop() -> void:
 	for id: String in ["bet_limit", "marble_count", "spin_speed", "golden_pocket"]:
 		var def := GameData.upgrade(id)

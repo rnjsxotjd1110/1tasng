@@ -115,6 +115,7 @@ var acquisition_button: AcquisitionButton
 var ending_sequence: EndingSequence
 var ending_credits: EndingCredits
 var _acquisition_was_visible: bool = false
+var tutorial: TutorialGuide
 
 const LUCY_POSITION := Vector2(110, 306)
 const VELVET_POSITION := Vector2(596, 300)
@@ -158,10 +159,16 @@ func _ready() -> void:
 	EventBus.streak_clover_earned.connect(_on_streak_clover_earned)
 	EventBus.auto_spin_stopped.connect(_on_auto_spin_stopped)
 	wheel.spin_finished.connect(_on_wheel_finished)
+	EventBus.tutorial_reset_requested.connect(func() -> void: tutorial.restart())
 	_refresh_spin_state()
 	_attach_debug_panel()
 	_show_return_popup_if_needed()
 	_resume_baron_event_if_needed()
+	# 반드시 이 _ready() 의 EventBus.first_clover_earned 연결(위) 뒤에 불러야 한다: 신호 발행 시 먼저
+	# 연결된 쪽부터 실행되므로, Main._on_first_clover_earned() 가 tutorial.is_active_at(CLOVER) 를
+	# (아직 SKILLTREE 로 넘어가기 전 값으로) 먼저 확인한 뒤에 tutorial 자신의 처리가 이어져야 중복
+	# 대사(skilltree_unlock + tutorial_skilltree)를 막을 수 있다.
+	tutorial.start(self, GameState.tutorial_step)
 
 
 ## 저장 불러오기(있으면). 스핀 도중 저장된 것이 있으면 연출 없이 즉시 정산한다. UI 를 만들기 전에 해서
@@ -476,6 +483,8 @@ func _build_fx() -> void:
 	float_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	float_layer.size = Vector2(640, 360)
 	root.add_child(float_layer)
+	tutorial = TutorialGuide.new()
+	root.add_child(tutorial)
 	flying_chips = FlyingChipsScene.instantiate()
 	root.add_child(flying_chips)
 	flying_chips.arrived.connect(_on_chip_arrived)
@@ -749,18 +758,23 @@ func _on_streak_clover_earned(_count: int) -> void:
 
 ## 살면서 처음 얻은 클로버(6단계): 스킬트리 탭 자물쇠가 깨지고(TopBar 가 스스로 처리) 루시가 한 마디 한다.
 func _on_first_clover_earned() -> void:
+	if tutorial.is_active_at(TutorialGuide.Step.CLOVER):
+		return  # 튜토리얼이 이 시점에 자기 설명(tutorial_clover)을 이미 보여줬다 — 중복 방지.
 	_show_npc_line("skilltree_unlock")
 
 
 ## DialogueData 키 하나를 골라 루시·벨벳이 말한다(공용 대화창 재사용, 이미 말하는 중이면 무시).
 ## entry 의 speaker 필드가 화자를 정하므로 이 함수 자체는 화자를 가리지 않는다.
-func _show_npc_line(key: String) -> void:
+## force 가 true 면 이미 열려 있어도 즉시 내용을 바꾼다(튜토리얼 단계 안내용 — 플레이어가 대사를
+## 닫지 않고도 다음 행동(베팅·탭 클릭)을 할 수 있어 단계가 넘어갈 때 이전 대사가 그대로 남는 문제가
+## 있었다. TutorialGuide 만 이 값을 쓴다).
+func _show_npc_line(key: String, force: bool = false) -> void:
 	var entry := DialogueData.pick(key)
-	_say_npc_entry(entry)
+	_say_npc_entry(entry, force)
 
 
-func _say_npc_entry(entry: Dictionary) -> void:
-	if entry.is_empty() or (_npc_dialogue != null and _npc_dialogue.is_open()):
+func _say_npc_entry(entry: Dictionary, force: bool = false) -> void:
+	if entry.is_empty() or (not force and _npc_dialogue != null and _npc_dialogue.is_open()):
 		return
 	if _npc_dialogue == null:
 		_npc_dialogue = DialogueBox.new()

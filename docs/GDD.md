@@ -359,6 +359,7 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 | `achievement_unlocked(id: String)` | 업적 해금(7단계). `AchievementData` 로 이름·아이콘 조회 |
 | `ending_triggered()` | PH 에서 1Dc 를 내고 하우스 인수 확정(7단계, 엔딩 컷신 시작 신호) |
 | `infinite_mode_started()` | 엔딩 크레딧 뒤 "계속하기"로 무한 모드(오너 모드) 진입 |
+| `tutorial_reset_requested()` | 설정 화면의 튜토리얼 "다시 보기"(8단계 2/N). `TutorialGuide.restart()` 가 이 신호를 구독해 1단계부터 다시 시작한다 |
 
 ### 11-3. GameState
 
@@ -529,3 +530,16 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 | 개발사 이름 자리표시자 | 정식 이름이 아직 없어 `Economy.STUDIO_NAME = "HOUSE EDGE"` 를 스플래시 로고·크레딧·(5단계) Windows 회사명에 임시로 쓴다. `tools/art/gen_title.py` 의 같은 이름 상수와 반드시 맞춰야 한다 | 나중에 이름이 정해지면 두 상수만 바꾸고 `python3 tools/art/gen_title.py` 를 다시 돌리면 전부 갱신된다 |
 | 네온 로고는 기존 `NeonText` 재사용 | 타이틀의 "HOUSE EDGE" 마퀴는 새 컴포넌트가 아니라 7단계 엔딩 네온사인과 같은 `NeonText`(글자 H·O·U·S·E·D·G 가 이미 `neon_pink.png` 아틀라스에 있다)를 그대로 쓴다. `flicker_on()` 으로 인트로에 지직거리며 켜지고, 이후 `idle_flicker=true` 로 가끔 한 글자가 깜빡인다 | 요청 명세("글자가 하나씩 지직거리며 켜지고, 이후 가끔 한 글자가 깜빡")가 `NeonText` 가 이미 제공하는 기능과 정확히 같다 |
 | 인트로 실루엣은 절차적 도형 | "주인공의 뒷모습"은 새 스프라이트 없이 `IntroCutscene._WalkingFigure`(내부 클래스)가 `_draw()` 로 그리는 단순 도형(머리 원 + 몸통 사각형)이다. 처음에는 `void` 하나로만 채웠더니 어두운 배경(디밍 알파 0.75)에 완전히 묻혀 안 보였다 — `ink` 바탕 + `mist` 테두리(빗물에 젖어 반짝이는 느낌)로 바꿔 실루엣이 또렷이 보이게 했다(캡처로 발견) | 이름 없는 주인공의 얼굴·표정이 필요 없는 장면이라(요청 명세도 "뒷모습"만 요구) 전용 캐릭터 시트를 만드는 비용이 이득보다 크다고 판단. 대신 대비색 실루엣으로 "빗속의 사람" 인상은 충분히 전달한다 |
+
+## 19. 8단계 2/N 에서 정한 세부 규칙 (튜토리얼)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 튜토리얼 진행 방식 | `scenes/fx/tutorial_guide.gd`(`TutorialGuide`, `Main` 의 fx 레이어에 상주) 가 `enum Step { PLACE_BET, SPIN, RESULT, UPGRADE_TAB, UPGRADE_BUY, CLOVER, SKILLTREE, DONE }` 을 실제 `EventBus` 이벤트(`bets_changed`/`spin_resolved`/`tab_pressed`/`upgrade_purchased`/`first_clover_earned`)로만 전진시킨다. 진행 값은 `GameState.tutorial_step`(저장됨) | 요청 명세("각 단계는 실제 게임 이벤트가 조건을 채우면 넘어간다")를 그대로 구현. 저장에 포함시켜 중간에 끄고 켜도 이어서 진행된다 |
+| 대상 강조 방식 | 화면을 덮는 4조각 `ColorRect`(대상 위/아래/좌/우를 뺀 "구멍" 모양)로 어둡게 하고, 대상 둘레에 금테 4조각(`Palette.GOLD_HL`)을 두른다. 입력은 막지 않는다(`mouse_filter = IGNORE`) — 대사를 닫지 않고도 실제 칸을 클릭·탭을 누르는 등 진짜 조작을 할 수 있다 | 요청 명세("자연스럽게 녹인다")대로 별도 확인 버튼이나 입력 차단 레이어 없이 실제 UI를 그대로 조작하게 했다 |
+| **알파 블렌딩 렌더링 버그(중요)** | `DIM_ALPHA` 를 처음엔 `JackpotOverlay` 와 같은 0.85 로 맞췄지만, 스크린샷 픽셀 비교로 "world(휠·배경, Node2D)" 위에서는 알파값과 무관하게 반투명 `ColorRect` 가 전혀 합성되지 않는 것을 발견했다(같은 fx_layer 의 UI 패널 위에서는 정상 동작). 완전 불투명(`DIM_ALPHA := 1.0`)으로 바꾸니 블렌딩이 필요 없어져 문제가 사라졌다. **기존 `JackpotOverlay`(DIM_ALPHA=0.85)도 같은 증상**(잭팟이 터져도 휠 자체는 안 어두워짐)임을 확인해 별도 작업(spawn_task)으로 보고했다 | 이 프로젝트 렌더러 조합(gl_compatibility, 소프트웨어 Mesa llvmpipe)의 환경 특성으로 보인다. 근본 원인은 못 찾았지만 완전 불투명이 확실한 우회책이라 채택했다 — 앞으로 반투명 오버레이가 휠/배경 같은 world 콘텐츠를 덮어야 할 때는 이 문제를 먼저 의심할 것 |
+| **대사 강제 교체(중요)** | `Main._say_npc_entry()` 에 `force: bool` 매개변수를 추가했다. 기존에는 "대사창이 이미 열려 있으면 무시"했는데, 튜토리얼은 플레이어가 대사를 안 닫고 바로 다음 행동(베팅·탭 클릭)을 할 수 있으므로 이전 단계 대사가 안 지워지고 그대로 남는 버그가 있었다(캡처로 발견 — SPIN 단계인데 "판 위의 칸을 하나" PLACE_BET 문구가 그대로 보였다). `TutorialGuide._show_step_line()` 은 항상 `force=true` 로 부른다 | 대사 표시 자체를 담당하는 `_say_npc_entry` 는 그대로 두고(다른 호출자는 기존처럼 "말하는 중이면 무시"), 튜토리얼만 강제 교체하도록 최소로 고쳤다 |
+| SPIN 단계에서 대사창이 SPIN 버튼을 가림 | `DialogueBox`(y=268~352) 와 SPIN 버튼(전역 좌표 y=318~352)이 원래 겹치는 레이아웃이다(대사가 있으면 항상 이렇다 — 튜토리얼만의 문제가 아니다). 플레이어가 대사를 한 번 닫으면 버튼과 스포트라이트가 드러난다 | 기존 레이아웃 관례를 그대로 따랐다. 별도 재배치는 이번 단계 범위 밖으로 판단(대사를 읽고 닫으면 정상적으로 보인다) |
+| 1회성 신규 기능 팁 | 첫 대출(`debt_changed` + `STAT_LOANS_TAKEN>=1`)·첫 층 이동(`floor_changed(1)`)·황금 포켓 해금(`floor_changed(>=2)`) 은 `TutorialGuide` 의 활성 여부와 무관하게 항상 검사하고, `GameState.tutorial_tips_seen`(Array[String], 저장됨) 으로 한 번만 띄운다. `SettingsManager.tutorial_enabled` 로만 전부 끌 수 있다 | 튜토리얼 6단계가 끝난 뒤에도(또는 튜토리얼을 꺼도) 새로 나타나는 기능은 계속 짧게 짚어줘야 한다는 요청 명세 반영 |
+| 설정 "다시 보기" | `SettingsManager.tutorial_enabled`(bool, 체크박스) + "다시 보기" 버튼이 `GameState.tutorial_step=0`, `tutorial_tips_seen=[]` 로 리셋하고 `EventBus.tutorial_reset_requested` 를 발행, `TutorialGuide.restart()` 가 받아 처음부터 재생한다 | 요청 명세대로 튜토리얼을 끄거나 다시 볼 수 있게 했다 |
+

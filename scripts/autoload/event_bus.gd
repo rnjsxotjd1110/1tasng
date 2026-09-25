@@ -85,3 +85,8 @@ signal ending_triggered()
 ## 엔딩 크레딧 이후 "계속하기"로 무한 모드(오너 모드)에 들어갔다.
 @warning_ignore("unused_signal")
 signal infinite_mode_started()
+
+# ── 8단계 2/N: 튜토리얼 ─────────────────────────────────
+## 설정 화면의 "튜토리얼 다시 보기"를 눌렀다. Main 이 살아있으면 TutorialGuide 를 처음부터 재생한다.
+@warning_ignore("unused_signal")
+signal tutorial_reset_requested()

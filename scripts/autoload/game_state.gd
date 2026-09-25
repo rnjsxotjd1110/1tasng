@@ -111,6 +111,12 @@ var infinite_mode: bool = false
 var velvet_intro_seen: bool = false
 var achievement_manager := AchievementManager.new()
 
+# ── 8단계 2/N: 튜토리얼 ──────────────────────────────────
+## 루시 튜토리얼 진행 단계(TutorialGuide.Step 과 같은 정수). DONE 이상이면 다시 보여주지 않는다.
+var tutorial_step: int = 0
+## 1회성 신규 기능 팁(첫 대출·첫 층 이동 등)을 이미 본 id 목록.
+var tutorial_tips_seen: Array[String] = []
+
 
 func _ready() -> void:
 	modifiers.source_expired.connect(_on_modifier_source_expired)
@@ -172,6 +178,14 @@ func auto_spin_unlocked() -> bool:
 	return SkillService.has_feature("auto_spin")
 
 
+## 1회성 신규 기능 팁(8단계 2/N)을 처음 보는 것이면 기록하고 true, 이미 봤으면 false.
+func mark_tutorial_tip_seen(id: String) -> bool:
+	if tutorial_tips_seen.has(id):
+		return false
+	tutorial_tips_seen.append(id)
+	return true
+
+
 ## 새 게임 상태로 되돌린다.
 func reset() -> void:
 	chips = Economy.STARTING_CHIPS
@@ -217,6 +231,8 @@ func reset() -> void:
 	ending_reached = false
 	infinite_mode = false
 	velvet_intro_seen = false
+	tutorial_step = 0
+	tutorial_tips_seen = []
 	achievement_manager.reset()
 	stats = {
 		STAT_TOTAL_SPINS: 0,
@@ -855,6 +871,8 @@ func to_dict() -> Dictionary:
 		"ending_reached": ending_reached,
 		"infinite_mode": infinite_mode,
 		"velvet_intro_seen": velvet_intro_seen,
+		"tutorial_step": tutorial_step,
+		"tutorial_tips_seen": tutorial_tips_seen.duplicate(),
 	}
 
 
@@ -920,6 +938,10 @@ func from_dict(data: Dictionary) -> void:
 	ending_reached = bool(data.get("ending_reached", false))
 	infinite_mode = bool(data.get("infinite_mode", false))
 	velvet_intro_seen = bool(data.get("velvet_intro_seen", false))
+	tutorial_step = int(data.get("tutorial_step", 0))
+	tutorial_tips_seen = []
+	for value in data.get("tutorial_tips_seen", []):
+		tutorial_tips_seen.append(String(value))
 	EventBus.chips_changed.emit(chips, 0.0)
 	EventBus.clovers_changed.emit(clovers, 0)
 	EventBus.bets_changed.emit()

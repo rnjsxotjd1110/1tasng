@@ -173,6 +173,18 @@ func _checkbox_row(parent: VBoxContainer, label_key: String, initial: bool, on_c
 	return box
 
 
+func _button_row(parent: VBoxContainer, label_key: String, button_key: String, on_pressed: Callable) -> Button:
+	var row := _add_row(parent, label_key)
+	var button := Button.new()
+	button.theme_type_variation = "ButtonDark"
+	button.text = button_key
+	button.custom_minimum_size = Vector2(120, 20)
+	FocusStyle.apply(button)
+	button.pressed.connect(on_pressed)
+	row.add_child(button)
+	return button
+
+
 ## options: [[값, 표시_키, 사용가능(bool)], ...]
 func _choice_row(parent: VBoxContainer, label_key: String, options: Array, current: Variant, on_change: Callable) -> HBoxContainer:
 	var row := _add_row(parent, label_key)
@@ -256,6 +268,12 @@ func _build_game_tab() -> VBoxContainer:
 	], SettingsManager.big_win_effect_full, func(v: bool) -> void: SettingsManager.big_win_effect_full = v; SettingsManager.commit())
 	_checkbox_row(list, "SETTINGS_GAME_AUTO_EFFECTS", SettingsManager.auto_spin_effects_reduced,
 		func(v: bool) -> void: SettingsManager.auto_spin_effects_reduced = v; SettingsManager.commit())
+	_checkbox_row(list, "SETTINGS_GAME_TUTORIAL", SettingsManager.tutorial_enabled,
+		func(v: bool) -> void: SettingsManager.tutorial_enabled = v; SettingsManager.commit())
+	_button_row(list, "SETTINGS_GAME_TUTORIAL_REPLAY", "SETTINGS_GAME_TUTORIAL_REPLAY_BUTTON", func() -> void:
+		GameState.tutorial_step = 0
+		GameState.tutorial_tips_seen = []
+		EventBus.tutorial_reset_requested.emit())
 	return list
 
 

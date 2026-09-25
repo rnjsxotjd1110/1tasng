@@ -72,7 +72,7 @@
 
 ### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비 (진행 중)
 - [x] 부팅 순서(스플래시→타이틀→인트로 컷신→메인), 이어하기/새 게임, "저장 후 타이틀로" 활성화 (1/N)
-- [ ] 루시 튜토리얼
+- [x] 루시 튜토리얼(6단계 안내, 저장 재개, 설정 끄기/다시 보기, 1회성 신규 기능 팁 3종) (2/N)
 - [ ] 효과음·음악(AudioManager)
 - [ ] 폴리시 패스, 내보내기 프리셋(Windows), 스팀 빌드 준비
 
@@ -802,3 +802,60 @@
 - 인트로 컷신 종료 시점(`IntroCutscene.finished`)이 곧 튜토리얼 시작 시점과 자연스럽게 이어질 수 있다 — 새
   게임으로 `Main.tscn` 에 처음 진입했을 때만 튜토리얼을 시작하는 조건(예: `GameState` 에 "튜토리얼을 본 적
   있는가" 플래그)이 필요할 것이다(저장 파일에 포함해야 다시 시작해도 튜토리얼이 반복되지 않는다).
+
+### 8단계 진행 중 (2026-09-25) — 2/N: 튜토리얼
+
+**한 일**
+- `scenes/fx/tutorial_guide.gd`(신규, `TutorialGuide`): `enum Step { PLACE_BET, SPIN, RESULT, UPGRADE_TAB,
+  UPGRADE_BUY, CLOVER, SKILLTREE, DONE }` 6단계를 실제 `EventBus` 이벤트로만 전진(GDD 19장). 대상 UI 만 밝히고
+  나머지는 어둡게 하되 입력은 막지 않는다(대사를 안 닫고도 실제 칸 클릭·탭 누르기 가능). `Main` 의 fx 레이어에
+  상주하며 `_build_fx()` 에서 생성, `Main._ready()` 맨 마지막 줄에서 `tutorial.start(self, GameState.tutorial_step)`
+  호출(다른 초기화가 전부 끝난 뒤여야 대상 UI 의 `get_global_rect()` 가 유효하다).
+- `GameState` 에 `tutorial_step: int`(저장됨, 이어서 진행)·`tutorial_tips_seen: Array[String]`(저장됨) 추가.
+  `SettingsManager.tutorial_enabled`(bool, 기본 true) 로 전체 on/off. 설정 화면(4단계 탭 "게임")에 체크박스 +
+  "다시 보기" 버튼 추가 — 누르면 `EventBus.tutorial_reset_requested` 발행, `TutorialGuide.restart()` 가 받는다.
+- 1회성 신규 기능 팁(첫 대출·첫 층 이동·황금 포켓 해금): 튜토리얼 활성 여부와 무관하게 항상 검사하고
+  `tutorial_tips_seen` 으로 한 번만 토스트. `SettingsManager.tutorial_enabled` 로만 껐다 켰다 한다.
+- `data/dialogue/lucy.json` 에 6단계 대사 키(`tutorial_place_bet`~`tutorial_skilltree`) 추가, `translations/strings.csv`
+  에 ko/en 함께.
+- `tools/capture/capture.gd` 에 `tutorial_place_bet`/`tutorial_spin`/`tutorial_upgrade_tab`/`tutorial_upgrade_buy`/
+  `tutorial_clover` 5개 시나리오 추가. **주의**: `-s` 진입 스크립트 안에서 `TutorialGuide.Step.X` 처럼 클래스 이름을
+  직접 쓰면 컴파일 시점에 그 클래스를 앞당겨 읽어(오토로드가 아직 없는 시점) "Identifier not found: EventBus" 오류가
+  난다(CLAUDE.md 의 기존 `-s` 스크립트 주의사항과 같은 원인) — 정수 리터럴(3=UPGRADE_TAB, 5=CLOVER)을 썼다.
+- 테스트 신규: `test_tutorial_guide.gd`(17개 — 6단계 진행 조건 전부·저장 재개·다시 보기·1회성 팁 4종).
+- 전체 **387 tests, 8951 checks, 0 failures**.
+- 캡처(ko/en, 총 10장): `tutorial_place_bet`/`tutorial_spin`/`tutorial_upgrade_tab`/`tutorial_upgrade_buy`/
+  `tutorial_clover` — 직접 보고 확인.
+
+**버그 두 건(둘 다 캡처로 발견, 수정) — 둘 다 "테스트는 통과하는데 스크린샷이 이상하다" 유형**
+
+1. **디밍이 world(휠·배경) 위에서 전혀 안 보임**. `DIM_ALPHA` 를 처음엔 `JackpotOverlay` 와 같은 0.85 로 맞췄고,
+   논리 상태(`_dim_rects` 의 visible/position/size/color, `GameState.tutorial_step`)는 전부 정확했는데도 캡처
+   스크린샷에서 대상 UI 를 뺀 나머지 중 "휠·배경" 부분만 전혀 안 어두워졌다(UI 패널 부분은 정상적으로 어두워짐).
+   임시 진단 스크립트로 idle 스크린샷과 픽셀 값을 직접 비교해(휠 위 좌표는 완전히 동일값, UI 패널 위 좌표는
+   `blend(alpha=0.85)` 계산과 정확히 일치) "world(Node2D, 휠·배경) 위에서는 반투명 `ColorRect` 가 알파값과 무관하게
+   전혀 합성되지 않는다"는 렌더러 조합(gl_compatibility·소프트웨어 Mesa) 특성임을 확인했다. 완전 불투명 사각형은
+   같은 좌표를 정확히 덮는 것으로 검증(알파=1.0 이면 블렌딩이 필요 없어 문제를 우회한다) — `DIM_ALPHA := 1.0` 으로
+   변경해 해결(ART_BIBLE 15장). **기존 `JackpotOverlay`(DIM_ALPHA=0.85)도 같은 방식으로 재현 확인**(잭팟이 터져도
+   휠 자체는 안 어두워짐) — 이번 단계 범위 밖이라 직접 고치지 않고 `spawn_task` 로 별도 작업 제안을 남겼다.
+2. **이전 단계 대사가 안 지워짐**. `Main._say_npc_entry()` 가 "대사창이 이미 열려 있으면 새 요청을 무시"하는데,
+   튜토리얼은 플레이어가 대사를 안 닫고 바로 다음 행동(베팅·탭 클릭)을 할 수 있게 설계했으므로, 예를 들어
+   PLACE_BET 대사를 안 닫은 채로 베팅하면 내부 상태는 SPIN 으로 정확히 넘어갔는데도 화면엔 PLACE_BET 문구가
+   그대로 남아 있었다(스크린샷에서 SPIN 강조(스핀 버튼 금테)인데 문구는 "판 위의 칸을 하나"인 것으로 발견).
+   `_say_npc_entry(entry, force: bool = false)` 로 매개변수를 추가하고 `TutorialGuide._show_step_line()` 만
+   `force=true` 로 불러, 튜토리얼 문구는 항상 즉시 교체되게 했다(다른 호출자는 기존 동작 그대로 유지).
+
+**남은 이슈**
+- SPIN 단계에서 대사창(`DialogueBox`, y 268~352)이 스핀 버튼(전역 y 318~352)을 완전히 가린다 — 이는 대사가 떠
+  있을 때 항상 그런 기존 레이아웃이라 튜토리얼만의 문제는 아니며, 대사를 한 번 닫으면 버튼과 스포트라이트가
+  정상적으로 드러난다. 4/N 폴리시 패스에서 재배치가 필요할지 재검토.
+- `JackpotOverlay` 의 world-위-디밍 버그는 고치지 않고 `spawn_task` 로 남겨뒀다(task 카드로 사용자에게 제안됨).
+- 대사 타이핑 효과 도중 캡처하면(대기 0.3초) 스크린샷에 문장이 중간까지만 보인다 — 실제 텍스트 잘림이 아니라
+  타이핑 애니메이션을 캡처 시점에 멈춰 찍은 것뿐이니 혼동하지 말 것(전체 문구는 `translations/strings.csv` 로 확인).
+
+**다음 작업(3/N — 음악·사운드)이 알아야 할 것**
+- `AudioManager.play_music()` 는 아직 스텁(`pass`)이다. 사용자가 CC0/무료 음원 제안 방식을 선택했으므로,
+  실제 음원 파일을 넣기 전에 후보 트랙을 라이선스와 함께 먼저 제시하고 승인받아야 한다(라이선스 불명확한 음원을
+  임의로 추가하지 말 것).
+- 튜토리얼 대사가 열려 있는 동안은 `_stop_auto_spin("AUTO_STOP_DIALOGUE")` 가 이미 자동 스핀을 멈춘다 — 음악
+  페이드/덕킹을 붙일 때 대사 시작·종료 시점(`_npc_dialogue` 의 열림/닫힘)을 참고할 수 있다.

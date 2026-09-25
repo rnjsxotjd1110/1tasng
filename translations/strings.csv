@@ -190,6 +190,19 @@ SETTINGS_GAME_BIG_WIN,큰 당첨 연출,Big Win Effects
 SETTINGS_BIG_WIN_FULL,전체,Full
 SETTINGS_BIG_WIN_SIMPLE,간략,Simple
 SETTINGS_GAME_AUTO_EFFECTS,오토 스핀 중 연출 줄이기,Reduce Effects During Auto-Spin
+SETTINGS_GAME_TUTORIAL,튜토리얼 사용,Enable Tutorial
+SETTINGS_GAME_TUTORIAL_REPLAY,튜토리얼 다시 보기,Replay Tutorial
+SETTINGS_GAME_TUTORIAL_REPLAY_BUTTON,다시 보기,Replay
+"LUCY_TUTORIAL_PLACE_BET","여기, 판 위의 칸을 하나 눌러서 나무 구슬을 놓아보세요.","Here — tap a cell on the board to place your wooden marble."
+"LUCY_TUTORIAL_SPIN","좋아요! 이제 SPIN 버튼을 눌러 휠을 돌려보세요.","Nice! Now press SPIN to get the wheel rolling."
+"LUCY_TUTORIAL_RESULT","맞히면 배당만큼 칩을 받고, 못 맞히면 구슬만 사라져요. 결과는 왼쪽에 쌓여요.","Hit it and you get paid out — miss, and you just lose the marble. Results stack up on the left."
+"LUCY_TUTORIAL_UPGRADE_TAB","저 위에 '업그레이드' 탭 보이시죠? 한번 눌러보세요.","See the Upgrades tab up there? Give it a tap."
+"LUCY_TUTORIAL_UPGRADE_BUY","나무 구슬은 손해예요. 돌 구슬을 사면 배당이 올라서 이득이 되죠.","A wood marble loses you money. A stone one bumps the payout enough to turn a profit."
+"LUCY_TUTORIAL_CLOVER","특정 숫자를 정확히 맞히면 클로버도 받아요. 클로버는 스킬트리에서 쓸 수 있죠.","Hit an exact number and you'll earn a clover too — spend those in the skill tree."
+"LUCY_TUTORIAL_SKILLTREE","클로버를 얻었네요! 위쪽 스킬트리 탭에서 스킬을 배우고, 나중엔 오토 스핀도 배울 수 있어요.","You've got a clover! Check the skill tree tab up top — you'll unlock auto-spin there eventually."
+"TUTORIAL_TIP_FIRST_LOAN","빚을 졌어요. 당첨금 일부가 자동으로 상환됩니다.","You're in debt. Part of your winnings will repay it automatically."
+"TUTORIAL_TIP_FIRST_FLOOR","새 층에 도착했어요! 배당과 베팅 한도가 올랐어요.","New floor! Payouts and bet limits just went up."
+"TUTORIAL_TIP_GOLDEN_POCKET_UNLOCKED","새 업그레이드가 해금됐어요: 황금 포켓!","New upgrade unlocked: Golden Pocket!"
 SETTINGS_A11Y_SCREEN_SHAKE_OFF,화면 흔들림 끄기,Disable Screen Shake
 SETTINGS_A11Y_REDUCE_FLASHING,번쩍임 줄이기,Reduce Flashing
 SETTINGS_A11Y_COLORBLIND,색약 보조,Colorblind Assist

@@ -31,6 +31,8 @@ var spin_visual_speed: SpinVisualSpeed = SpinVisualSpeed.NORMAL
 var big_win_effect_full: bool = true
 ## 오토 스핀 중에는 BIG 이상만 연출(GDD).
 var auto_spin_effects_reduced: bool = true
+## 루시 튜토리얼(8단계 2/N)을 보여줄지. 꺼도 GameState.tutorial_step 은 그대로 유지된다(다시 켜면 이어서 진행).
+var tutorial_enabled: bool = true
 
 # ── 접근성 ───────────────────────────────────────────────
 var screen_shake: bool = true
@@ -63,6 +65,7 @@ func reset_to_defaults() -> void:
 	spin_visual_speed = SpinVisualSpeed.NORMAL
 	big_win_effect_full = true
 	auto_spin_effects_reduced = true
+	tutorial_enabled = true
 	screen_shake = true
 	reduce_flashing = false
 	colorblind_assist = false
@@ -91,6 +94,7 @@ func load_settings() -> void:
 	spin_visual_speed = clampi(int(cfg.get_value("game", "spin_visual_speed", spin_visual_speed)), 0, SpinVisualSpeed.FASTEST) as SpinVisualSpeed
 	big_win_effect_full = bool(cfg.get_value("game", "big_win_effect_full", big_win_effect_full))
 	auto_spin_effects_reduced = bool(cfg.get_value("game", "auto_spin_effects_reduced", auto_spin_effects_reduced))
+	tutorial_enabled = bool(cfg.get_value("game", "tutorial_enabled", tutorial_enabled))
 	screen_shake = bool(cfg.get_value("accessibility", "screen_shake", screen_shake))
 	reduce_flashing = bool(cfg.get_value("accessibility", "reduce_flashing", reduce_flashing))
 	colorblind_assist = bool(cfg.get_value("accessibility", "colorblind_assist", colorblind_assist))
@@ -113,6 +117,7 @@ func save_settings() -> void:
 	cfg.set_value("game", "spin_visual_speed", int(spin_visual_speed))
 	cfg.set_value("game", "big_win_effect_full", big_win_effect_full)
 	cfg.set_value("game", "auto_spin_effects_reduced", auto_spin_effects_reduced)
+	cfg.set_value("game", "tutorial_enabled", tutorial_enabled)
 	cfg.set_value("accessibility", "screen_shake", screen_shake)
 	cfg.set_value("accessibility", "reduce_flashing", reduce_flashing)
 	cfg.set_value("accessibility", "colorblind_assist", colorblind_assist)

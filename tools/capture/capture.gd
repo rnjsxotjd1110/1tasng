@@ -20,7 +20,8 @@ extends SceneTree
 ##          achievement_toast, achievement_screen, velvet_intro, acquisition_button, ending_last_hand,
 ##          ending_final_spin, ending_signing, ending_epilogue, ending_credits
 ##   8단계: splash, title, title_continue, title_new_game_confirm, title_settings, title_achievements,
-##          title_credits, intro_alley, intro_marble, intro_door (Main.tscn 이 아니라 부팅 흐름을 찍는다)
+##          title_credits, intro_alley, intro_marble, intro_door (Main.tscn 이 아니라 부팅 흐름을 찍는다),
+##          tutorial_place_bet, tutorial_spin, tutorial_upgrade_tab, tutorial_upgrade_buy, tutorial_clover
 ## 인자 tier=<n>: betting·spin_* 시나리오에서 구슬 재질을 강제로 바꾼다.
 
 const MAIN_SCENE := "res://scenes/main/Main.tscn"
@@ -46,6 +47,7 @@ const SCENARIOS: Array[String] = [
 	"ending_epilogue", "ending_credits",
 	"splash", "title", "title_continue", "title_new_game_confirm", "title_settings", "title_achievements",
 	"title_credits", "intro_alley", "intro_marble", "intro_door",
+	"tutorial_place_bet", "tutorial_spin", "tutorial_upgrade_tab", "tutorial_upgrade_buy", "tutorial_clover",
 ]
 const UPGRADE_SERVICE := "res://scripts/core/upgrade_service.gd"
 ## 8단계: Main.tscn 이 아니라 부팅 흐름(스플래시·타이틀·인트로 컷신)을 찍는 시나리오.
@@ -283,6 +285,28 @@ func _capture(scenario: String, lang: String) -> void:
 	match scenario:
 		"idle":
 			await _wait_seconds(0.6)
+		"tutorial_place_bet":
+			await _wait_seconds(0.3)
+		"tutorial_spin":
+			_bets(["R"])
+			await _wait_seconds(0.3)
+		"tutorial_upgrade_tab":
+			# TutorialGuide.Step 을 이름으로 쓰지 않고 정수(3=UPGRADE_TAB)로 쓴다: -s 진입 스크립트가
+			# 클래스 이름을 참조하면 컴파일 시점에 그 스크립트를 앞당겨 읽어버려(오토로드가 아직 없는
+			# 시점) "Identifier not found: EventBus" 같은 오류가 난다(CLAUDE.md 의 -s 스크립트 주의사항과
+			# 같은 원인). 문자열 기반 `root.get_node()` 접근과 같은 이유로 정수 리터럴을 쓴다.
+			game_state.set("tutorial_step", 3)
+			main.get("tutorial").call("_goto_step", 3)
+			await _wait_seconds(0.3)
+		"tutorial_upgrade_buy":
+			game_state.set("tutorial_step", 3)
+			main.get("tutorial").call("_goto_step", 3)
+			main.get("top_bar").emit_signal("tab_pressed", "upgrade")
+			await _wait_seconds(0.3)
+		"tutorial_clover":
+			game_state.set("tutorial_step", 5)
+			main.get("tutorial").call("_goto_step", 5)
+			await _wait_seconds(0.3)
 		"betting":
 			game_state.call("set_upgrade_level", "marble_count", 5)
 			if _tier_arg >= 0:

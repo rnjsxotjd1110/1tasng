@@ -56,9 +56,15 @@ const GOLDEN_POCKET_MULT := 3.0
 # ── 클로버 ────────────────────────────────────────────────
 const CLOVER_PER_STRAIGHT_HIT := 1
 const CLOVER_PER_STREAK := 1
-## 한 스핀에 1개 이상 당첨이 이만큼 연속되면(5, 10, 15…) 클로버.
-const STREAK_LENGTH := 5
-const CLOVER_PER_MILESTONE := 3
+## 한 스핀에 1개 이상 당첨이 이만큼 연속되면(20, 40, 60…) 클로버.
+## 9단계 후속 밸런스: 5→20(빈도 1/4). 시뮬레이터 실측 클로버 평균이 목표(약 230개)의 4배를
+## 넘었는데, 그 대부분이 큰 당첨 한 번에 자릿수(K→M→B…)를 여러 단계 건너뛸 때마다 _check_milestones()
+## 의 while 루프가 단계마다 클로버를 지급해서였다(CLOVER_PER_MILESTONE 3→1 과 함께 적용, 자세한
+## 기록은 docs/BALANCE_LOG.md).
+const STREAK_LENGTH := 20
+## 자릿수(K/M/B/…) 하나를 새로 넘을 때마다 지급 — 3→1(위 주석 참고, 자릿수를 한 번에 여러 단계
+## 건너뛰면 그 단계 수만큼 반복 지급되므로 단가를 낮춰 과다 지급을 줄였다).
+const CLOVER_PER_MILESTONE := 1
 const CLOVER_PER_FLOOR := 10
 const CLOVER_PER_DEBT_PAID := 2
 ## 제로의 축복(Y7): 0 스트레이트 적중 시 일반 적중 클로버에 더해지는 추가분.

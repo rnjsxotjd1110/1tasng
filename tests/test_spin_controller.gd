@@ -112,13 +112,14 @@ func test_straight_hit_awards_clover_and_streak() -> void:
 	check_eq(controller.last_outcome.tier, SpinOutcome.Tier.GOOD, "개별숫자를 1개만 걸었으면 몰아걸기가 아니라 배율만으로 GOOD(9단계: BIG/JACKPOT 은 같은 번호에 구슬 2개↑)")
 
 
-func test_win_streak_awards_clover_every_five() -> void:
+func test_win_streak_awards_clover_every_twenty() -> void:
+	# 9단계 후속 밸런스: STREAK_LENGTH 5→20(클로버 과다 조정, docs/BALANCE_LOG.md 참고).
 	GameState.add_chips(1e9)  # 마일스톤 보상을 먼저 받아 두고 이후 클로버만 센다
 	var clovers_before := GameState.clovers
 	var wins := 0
 	var guard := 0
 	# 매 스핀 결과를 미리 보고 맞는 색에 걸어 연승을 만든다.
-	while wins < 10 and guard < 100:
+	while wins < 20 and guard < 200:
 		guard += 1
 		var result: int = RngService.peek_next(1)[0]
 		GameState.clear_bets()
@@ -128,10 +129,10 @@ func test_win_streak_awards_clover_every_five() -> void:
 			GameState.add_bet(Bet.red() if RouletteRules.is_red(result) else Bet.black())
 		controller.start_spin()
 		wins += 1
-	check_eq(GameState.win_streak, 10, "10연승")
+	check_eq(GameState.win_streak, 20, "20연승")
 	var straight_clovers := int(GameState.get_stat_value(GameState.STAT_STRAIGHT_HITS))
-	check_eq(GameState.clovers - clovers_before - straight_clovers, 2, "5연승마다 +1 (2회)")
-	check_eq(GameState.get_stat_value(GameState.STAT_BEST_STREAK), 10.0, "최대 연승")
+	check_eq(GameState.clovers - clovers_before - straight_clovers, 1, "20연승마다 +1 (1회)")
+	check_eq(GameState.get_stat_value(GameState.STAT_BEST_STREAK), 20.0, "최대 연승")
 	GameState.clear_bets()
 	var loss: int = RngService.peek_next(1)[0]
 	GameState.add_bet(Bet.straight((loss + 1) % 37))

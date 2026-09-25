@@ -42,13 +42,13 @@ func test_milestones_award_clovers() -> void:
 	GameState.add_chips(900.0)  # 1000 = K
 	check_eq(milestones.size(), 1, "K 도달")
 	check_eq(milestones[0][0], 1, "suffix_index 1")
-	check_eq(GameState.clovers, 3, "클로버 +3")
+	check_eq(GameState.clovers, 1, "클로버 +1(9단계 후속: CLOVER_PER_MILESTONE 3→1)")
 	GameState.spend_chips(500.0)
 	GameState.add_chips(500.0)
 	check_eq(milestones.size(), 1, "같은 단위 재도달은 보상 없음")
 	GameState.add_chips(5e9)  # M 과 B 를 한 번에
 	check_eq(milestones.size(), 3, "M, B 동시 도달")
-	check_eq(GameState.clovers, 9, "클로버 +6")
+	check_eq(GameState.clovers, 3, "클로버 +2(9단계 후속: 단가 인하)")
 	check_eq(GameState.highest_milestone, 3, "최고 단위 B")
 
 

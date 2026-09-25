@@ -58,6 +58,8 @@ func play(event: Dictionary) -> void:
 	baron.position = Vector2(BARON_ENTER_X, BARON_Y)
 	baron.play(BaronRatchet.Anim.IDLE)
 	AudioManager.play_sfx("bass_drop")
+	AudioManager.duck_music(AudioManager.MUSIC_DUCK_BANKRUPT_DB, AudioManager.MUSIC_DUCK_BANKRUPT_ATTACK,
+			AudioManager.MUSIC_DUCK_BANKRUPT_HOLD, AudioManager.MUSIC_DUCK_BANKRUPT_RELEASE)
 	_set_phase(Phase.DIM_IN)
 
 

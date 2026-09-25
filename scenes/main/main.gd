@@ -272,6 +272,7 @@ func _on_penalty_buff_started(id: String, _duration: float) -> void:
 			wheel.set_rainbow_mode(true)
 			FloatingText.spawn(float_layer, tr("FEVER_BANNER"), "Num14Gold", TEXT_ANCHOR + Vector2(0, -40))
 			AudioManager.play_sfx("fever_start")
+			AudioManager.set_fever_layer(true)
 		"jackpot_chain":
 			wheel.trigger_lightning()
 			_refresh_jackpot_chain_label()
@@ -288,6 +289,7 @@ func _on_penalty_buff_ended(id: String) -> void:
 		"fever":
 			wheel.set_rainbow_mode(false)
 			AudioManager.play_sfx("fever_end")
+			AudioManager.set_fever_layer(false)
 		"jackpot_chain":
 			_refresh_jackpot_chain_label()
 
@@ -697,10 +699,14 @@ func play_tier_effects(outcome: SpinOutcome, winners: Array[String]) -> void:
 		SpinOutcome.Tier.BIG:
 			_big_effects(outcome, full)
 			AudioManager.play_sfx("win_big")
+			AudioManager.duck_music(AudioManager.MUSIC_DUCK_BIG_WIN_DB, AudioManager.MUSIC_DUCK_BIG_WIN_ATTACK,
+					AudioManager.MUSIC_DUCK_BIG_WIN_HOLD, AudioManager.MUSIC_DUCK_BIG_WIN_RELEASE)
 		SpinOutcome.Tier.JACKPOT:
 			_big_effects(outcome, full, false)
 			if full:
 				shaker.shake(JACKPOT_SHAKE, JACKPOT_SHAKE_TIME)
+			AudioManager.duck_music(AudioManager.MUSIC_DUCK_BIG_WIN_DB, AudioManager.MUSIC_DUCK_BIG_WIN_ATTACK,
+					AudioManager.MUSIC_DUCK_BIG_WIN_HOLD, AudioManager.MUSIC_DUCK_BIG_WIN_RELEASE)
 			jackpot.open(outcome.net, GameState.auto_spin_enabled)
 
 
@@ -865,12 +871,14 @@ func _on_ending_credits_ready() -> void:
 	ending_credits.visible = true
 	ending_credits.refresh()
 	ending_credits.focus_continue()
+	AudioManager.play_music("bgm_credits")
 
 
 func _on_ending_continue_pressed() -> void:
 	ending_credits.visible = false
 	EndingService.enter_infinite_mode()
 	SaveManager.save_game()
+	_play_floor_music(GameState.floor_index)
 
 
 # ── 오토 스핀(6단계, M1) ────────────────────────────────

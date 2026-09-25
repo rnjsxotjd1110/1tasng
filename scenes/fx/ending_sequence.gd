@@ -74,6 +74,7 @@ func play() -> void:
 	visible = true
 	_dim.color = Palette.with_alpha(Palette.VOID, 0.0)
 	AudioManager.play_sfx("bass_drop")
+	AudioManager.play_music("bgm_ending")
 	_set_phase(Phase.DIM_IN)
 
 

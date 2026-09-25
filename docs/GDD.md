@@ -543,3 +543,45 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 | 1회성 신규 기능 팁 | 첫 대출(`debt_changed` + `STAT_LOANS_TAKEN>=1`)·첫 층 이동(`floor_changed(1)`)·황금 포켓 해금(`floor_changed(>=2)`) 은 `TutorialGuide` 의 활성 여부와 무관하게 항상 검사하고, `GameState.tutorial_tips_seen`(Array[String], 저장됨) 으로 한 번만 띄운다. `SettingsManager.tutorial_enabled` 로만 전부 끌 수 있다 | 튜토리얼 6단계가 끝난 뒤에도(또는 튜토리얼을 꺼도) 새로 나타나는 기능은 계속 짧게 짚어줘야 한다는 요청 명세 반영 |
 | 설정 "다시 보기" | `SettingsManager.tutorial_enabled`(bool, 체크박스) + "다시 보기" 버튼이 `GameState.tutorial_step=0`, `tutorial_tips_seen=[]` 로 리셋하고 `EventBus.tutorial_reset_requested` 를 발행, `TutorialGuide.restart()` 가 받아 처음부터 재생한다 | 요청 명세대로 튜토리얼을 끄거나 다시 볼 수 있게 했다 |
 
+## 20. 8단계 3/N 에서 정한 세부 규칙 (음악·사운드 최종화)
+
+### 20-1. 음악 소싱 — 진행 중(사용자 승인 대기)
+
+사용자가 "CC0/무료 음원 제안" 방식을 선택했으나, 이 클라우드 컨테이너의 네트워크 정책이 incompetech.com·
+opengameart.org·freesound.org 등 후보 사이트 접속을 막고 있어(egress 차단) 실제로 후보를 듣고 내려받을 수
+없었다. 사용자에게 네트워크 허용 범위 확장을 요청했다 — **`assets/audio/music/*.ogg` 파일은 아직 하나도 없다.**
+필요한 트랙 id(전부 `FloorDef.music_id`/코드에 이미 슬롯이 있다): `bgm_title`(타이틀), `bgm_b1`/`bgm_1f`/`bgm_2f`/
+`bgm_3f`/`bgm_ph`(층별 5종, 위로 갈수록 화려하게), `bgm_fever_layer`(피버 중 층 BGM 위에 겹치는 레이어),
+`bgm_ending`(엔딩 컷신), `bgm_credits`(엔딩 크레딧). 승인된 트랙이 오면 `assets/audio/music/<id>.ogg`(또는
+`.wav`, `AudioManager._music_stream()` 이 `.ogg` 를 먼저 찾고 없으면 `.wav` 로 대체)로 넣기만 하면 아래 재생·
+믹싱 로직이 그대로 동작한다(파일이 없는 동안은 경고만 남기고 조용히 무시하도록 미리 만들어 뒀다).
+
+### 20-2. AudioManager.play_music() — 크로스페이드·믹싱
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 크로스페이드 | 음악용 `AudioStreamPlayer` 두 개(`_music`/`_music_b`)를 번갈아 "현재"로 써서 겹쳐 페이드(기본 1.5초). 같은 id 가 이미 재생 중이면 아무것도 안 함 | 끊김 없이 층·화면이 바뀔 때 음악이 자연스럽게 넘어가야 한다 |
+| 기준 볼륨 | `MUSIC_BASE_VOLUME_DB = -12.0` | 요청 명세("음악은 -12dB 기준")를 그대로 상수화 |
+| 빅윈 duck | `SpinOutcome.Tier.BIG`/`JACKPOT` 적중 시 `duck_music(-6dB, attack 0.1s, hold 0.4s, release 0.8s)` | 당첨 SFX·연출이 도드라지게 순간적으로 음악을 낮췄다가 되돌린다 |
+| 파산 duck | `BaronLoanSequence.play()`(대출·상환 공용, `bass_drop` 재생과 같은 시점)에서 `duck_music(-14dB, 0.2s, 1.6s, 1.2s)` | 5단계에서 "음악 시스템이 없어 스킵"했던 항목(GDD 17장 "범위에서 뺀 것")을 이번에 채웠다 |
+| 피버 레이어 | `set_fever_layer(true/false)` 가 `bgm_fever_layer` 를 층 BGM 위에 겹쳐 0.6초로 페이드 인/아웃. `_on_penalty_buff_started/_ended("fever", ...)` 가 `wheel.set_rainbow_mode()`/`fever_start`·`fever_end` SFX 와 나란히 호출 | 피버는 "층 음악 위에 얹는 두 번째 레이어"로 설계(레이어 자체를 다른 곡으로 완전히 바꾸지 않음 — 크로스페이드 중 피버가 겹치는 경우를 단순하게 유지) |
+| 오토 스핀 감쇠 | 오토 스핀 중엔 음악 `AUTO_SPIN_MUSIC_ATTEN_DB = -3dB`, SFX 표에서 `jitter=true`(반복음)로 표시된 항목은 재생마다 `AUTO_SPIN_SFX_ATTEN_DB = -4dB` 추가 감쇠 | `VisualSettings.auto_spin_effects_reduced`(오토 스핀 중 약한 등급 연출 생략)와 같은 결로, 이미 있던 `jitter` 플래그가 "흔한/반복 소리"를 정확히 가리키고 있어 그대로 재사용했다 — 별도 시간 누적형 "피로도" 타이머는 만들지 않았다(요청한 결과와 같은 체감 효과를 훨씬 적은 코드로 얻는다) |
+| 파일 없을 때 | `_music_stream()`/`play_music()`/`set_fever_layer()` 모두 `ResourceLoader.exists()` 로 확인하고, 없으면 `push_warning` 만 남기고 기존 상태를 그대로 둔다(재생 시도·크래시 없음) | 20-1 의 음원 승인 전에도 나머지 게임 로직·테스트가 전혀 영향받지 않게 한다 |
+| 헤드리스 테스트 | `AudioManager.enabled=false`(헤드리스) 인 동안 `play_music()`/`set_fever_layer()` 는 상태(  `_music_id`  등)만 즉시 반영하고 트윈 대신 값을 바로 대입한다. `duck_music()` 도 `!enabled` 면 트윈 없이 `_set_duck_offset()` 을 즉시 한 번만 부른다(release 로 돌아오는 건 실제 재생 환경에서만) | 7단계까지 정착된 "트윈은 헤드리스 테스트에서 흐르지 않는다" 제약(GDD 18장)과 같은 이유 — 로직 자체(오프셋 계산·상태 전이)는 헤드리스에서도 검증 가능해야 한다 |
+
+### 20-3. SFX 감사 — 빠진 두 곳 발견·수정
+
+`AudioManager.SFX` 설정 딕셔너리(48개 id, 전부 `tools/audio/gen_sfx.py` 로 생성된 실제 파일이 있음을 확인)를
+실제 `assets/audio/sfx/*.wav` 파일 목록과 대사창 화자 표(`DialogueBox.SPEAKERS`)의 `voice` id 와 교차 검사해
+두 개의 공백을 찾았다(둘 다 소리가 "안 나는" 게 아니라 표에 없어 기본값(bus=SFX, 0dB, max=3)으로 재생되던
+것 — 다른 항목과 어울리지 않는 볼륨으로 재생되고 있었다):
+
+| id | 문제 | 수정 |
+|---|---|---|
+| `dialogue_blip_velvet` | 마담 벨벳 대사 타이핑 블립(`DialogueBox._voice_id`)이 `dialogue_blip_baron`/`_lucy` 와 같은 자리에서 쓰이는데 표에는 없었다(7단계에서 벨벳 추가 시 누락) | `dialogue_blip_baron`/`_lucy` 와 똑같이 `{bus: UI, volume_db: -10, max: 4, jitter: false}` 추가 |
+| `achievement_unlock` | `AchievementToast` 가 업적 해금마다 재생하는데(7단계) 표에 없었다 | `clover_get`/`piggy_break` 와 비슷한 축하 사운드로 `{bus: SFX, volume_db: -2, max: 1, jitter: false}` 추가 |
+
+그 외 46개 id 는 전부 표와 실제 파일이 일치했다(빠진 파일 0개). 표 전체는 `scripts/autoload/audio_manager.gd`
+의 `SFX` 딕셔너리 자체가 최신 출처이므로 이 문서에 다시 옮겨 적지 않는다(중복 유지 비용 방지) — 항목을
+추가·수정할 때는 그 파일만 고치면 된다.
+

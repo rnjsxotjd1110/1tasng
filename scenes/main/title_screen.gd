@@ -65,6 +65,7 @@ func _ready() -> void:
 	_build_marquee()
 	_build_menu()
 	_build_overlays()
+	AudioManager.play_music("bgm_title")
 
 
 func _build_background() -> void:

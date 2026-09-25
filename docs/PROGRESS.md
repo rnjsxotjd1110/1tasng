@@ -73,7 +73,8 @@
 ### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비 (진행 중)
 - [x] 부팅 순서(스플래시→타이틀→인트로 컷신→메인), 이어하기/새 게임, "저장 후 타이틀로" 활성화 (1/N)
 - [x] 루시 튜토리얼(6단계 안내, 저장 재개, 설정 끄기/다시 보기, 1회성 신규 기능 팁 3종) (2/N)
-- [ ] 효과음·음악(AudioManager)
+- [ ] 효과음·음악(AudioManager) — 크로스페이드·덕킹·피버 레이어·SFX 감사 완료, **실제 음악 파일은 네트워크
+  허용 확장 대기 중**이라 미완 (3/N)
 - [ ] 폴리시 패스, 내보내기 프리셋(Windows), 스팀 빌드 준비
 
 ### 9단계 — 밸런스 시뮬레이션·최종 QA
@@ -859,3 +860,61 @@
   임의로 추가하지 말 것).
 - 튜토리얼 대사가 열려 있는 동안은 `_stop_auto_spin("AUTO_STOP_DIALOGUE")` 가 이미 자동 스핀을 멈춘다 — 음악
   페이드/덕킹을 붙일 때 대사 시작·종료 시점(`_npc_dialogue` 의 열림/닫힘)을 참고할 수 있다.
+
+### 8단계 진행 중 (2026-09-25) — 3/N: 음악·사운드 최종화 (부분 진행 — 음원 승인 대기 중)
+
+**막힌 부분(사용자 확인 필요)**: 사용자가 "CC0/무료 음원 제안" 방식을 선택했으나, 이 클라우드 컨테이너의
+네트워크 정책이 incompetech.com·opengameart.org·freesound.org·freemusicarchive.org 접속을 막고 있어(egress
+차단) 실제로 후보 트랙을 듣거나 내려받을 수 없었다. 사용자에게 클라우드 환경 설정에서 이 도메인들을 허용
+목록에 추가해 달라고 요청했다(진행 중) — 허용되면 실제 CC0 후보를 조사해 라이선스와 함께 제시하고 승인받은
+뒤 `assets/audio/music/*.ogg` 로 넣는 작업을 이어간다. **그 전까지는 배경음악 파일이 하나도 없다**(재생
+인프라만 완성).
+
+**한 일 (음원 없이도 가능한 부분)**
+- `AudioManager.play_music(id, fade_seconds)`: 스텁을 실제 크로스페이드로 구현. 두 `AudioStreamPlayer`
+  (`_music`/`_music_b`) 를 번갈아 "현재"로 써서 겹쳐 페이드(기본 1.5초), 같은 곡이 이미 재생 중이면 무시.
+  기준 볼륨 `MUSIC_BASE_VOLUME_DB = -12dB`(요청 명세). 음원 파일이 없는 id 는 `_music_stream()` 이
+  `ResourceLoader.exists()` 로 확인해 경고만 남기고 조용히 무시(크래시·부작용 없음) — `.ogg` 우선,
+  없으면 `.wav` 대체.
+  `TitleScreen`(`bgm_title`)·`Main._play_floor_music()`(층별, 7단계부터 이미 있던 슬롯)·`EndingSequence`
+  (`bgm_ending`)·엔딩 크레딧(`bgm_credits`, `_on_ending_credits_ready()`)에 연결.
+- `AudioManager.duck_music(amount_db, attack, hold, release)`: 빅윈(`Tier.BIG`/`JACKPOT`, -6dB)과
+  파산·상환(`BaronLoanSequence.play()`, -14dB — GDD 17장에서 "음악 시스템이 없어 스킵"했던 항목을 이번에 채움)
+  에 연결.
+- `AudioManager.set_fever_layer(bool)`: 피버 중 층 BGM 위에 겹치는 두 번째 레이어(`bgm_fever_layer`,
+  0.6초 페이드). `_on_penalty_buff_started/_ended("fever")` 에서 기존 `fever_start`/`fever_end` SFX와
+  나란히 호출.
+- 오토 스핀 중 음악 -3dB, SFX 표의 `jitter=true`(반복음) 항목은 재생마다 -4dB 추가 감쇠. 기존
+  `VisualSettings.auto_spin_effects_reduced`(연출 절제)와 같은 결로, 새 타이머 없이 이미 있던 `jitter`
+  플래그를 재사용해 구현(GDD 20장에 "왜 시간 누적형 피로도 타이머를 안 만들었는지" 근거 남김).
+- **SFX 감사**: `AudioManager.SFX`(48개)를 실제 `.wav` 파일 100개(재생용 48 + `.import` 52)와 대사창
+  화자 표(`voice` id)에 교차 검사해 두 개의 누락을 발견·수정: `dialogue_blip_velvet`(마담 벨벳 대사
+  블립 — 7단계에서 라이언·루시만 넣고 벨벳을 빠뜨렸었다), `achievement_unlock`(업적 토스트가 재생하는데
+  표에 없어 기본값(0dB)으로 나가고 있었다). 나머지 46개는 파일·설정 모두 정상이었다.
+- 테스트 신규: `tests/test_audio_manager.gd`(6개 — 음원 없을 때 안전한 무시, duck 오프셋, 오토 스핀
+  음악/SFX 감쇠 계산, 피버 레이어 안전한 무시, stop_all 상태 초기화).
+- 전체 **393 tests, 8963 checks, 0 failures**.
+
+**버그 한 건(심각도 높음, 커밋 전에 잡음)**
+- `_music_stream()` 에서 `for ext in [".ogg", ".wav"]:` 처럼 배열 리터럴의 원소 타입을 명시하지 않고
+  `var path := MUSIC_DIR + id + ext` 로 타입을 추론시키려 하면 GDScript 정적 타입 검사가 "path 의 타입을
+  추론할 수 없음" 파스 오류를 낸다. **오토로드 스크립트 자체가 컴파일에 실패하면 `AudioManager` 싱글톤이
+  통째로 생성되지 않고**, 이후 `AudioManager.play_sfx(...)` 를 부르는 모든 화면에서 "Nonexistent function
+  in base 'Nil'" 오류가 연쇄적으로 쏟아지며 헤드리스 테스트가 사실상 멈춘 것처럼 보일 정도로 느려졌다(관련
+  없어 보이는 test_achievement_toast·test_baron_loan_sequence·test_upgrade_panel 등 수십 개 테스트가 전부
+  실패로 보임). `for ext: String in [...]`/`var path: String = ...` 로 타입을 명시해 해결. **교훈**: 오토로드
+  스크립트를 고칠 때는 반드시 전체 헤드리스 테스트를 한 번 돌려 "그 오토로드 자체가 인스턴스화됐는지"까지
+  확인할 것 — 실패 로그가 무관한 파일들에 흩어져 나오면 가장 먼저 오토로드 컴파일 오류를 의심한다.
+
+**남은 이슈**
+- 배경음악 파일 전부 없음(위 "막힌 부분" 참고). 사용자가 네트워크 허용을 확장하면 CC0 후보를 조사해
+  라이선스와 함께 제시 → 승인 → `assets/audio/music/` 에 추가하는 순서로 이어간다.
+- SFX 자체의 "공백"(소리가 아예 안 나는 상호작용)은 이번 감사에서 못 찾았다(toast·엘리베이터·저장 등
+  주요 지점은 이미 다 연결돼 있었다) — 있다면 4/N 폴리시 패스(전체 화면 순회) 중에 다시 확인.
+- 피버 레이어는 층 BGM과 별도 루프를 단순히 겹치는 방식이라, 두 트랙의 박자가 안 맞을 수 있다(실제 음원이
+  들어오면 확인 필요 — 안 맞으면 피버 전용 풀 트랙으로 바꾸는 것도 고려).
+
+**다음 작업(4/N — 폴리시 감사)이 알아야 할 것**
+- 음악 파일이 승인·추가되기 전까지는 게임이 무음 배경음악으로 정상 동작한다(경고 로그만 남음) — 4/N 진행에
+  지장 없음. 다만 폴리시 체크리스트에 "배경음악 재생 확인"을 넣을 때는 음원이 들어온 뒤에나 체크 가능하다는
+  점을 표시해 둘 것.

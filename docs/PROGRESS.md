@@ -77,7 +77,9 @@
   허용 확장 대기 중**이라 미완 (3/N)
 - [x] 전체 폴리시 감사 — `docs/POLISH_CHECKLIST.md` 참고. 커스텀 커서·게임패드·최소화 프레임 제한 신규,
   일부 항목(레터박싱 무늬·저사양 성능·실기기 확인)은 이 환경 한계로 다음 담당자에게 이관 (4/N)
-- [ ] 내보내기 프리셋(Windows), 스팀 빌드 준비
+- [x] 내보내기 프리셋(Windows), 스팀 빌드 준비 — `docs/STEAM.md` 참고. SteamService·아이콘·export_presets.cfg
+  (실제 .exe 빌드로 검증)·스토어 스크린샷 10장+투명 로고·크래시 로그 완료. Steamworks 계정·CC0 음원·정식
+  스튜디오명은 사용자가 할 일로 이관 (5/N)
 
 ### 9단계 — 밸런스 시뮬레이션·최종 QA
 - [ ] tools/sim 헤드리스 시뮬레이터로 목표 도달 시간(1F 0:30, 2F 1:30, 3F 2:45, PH 4:00, 엔딩 5:00) 맞추기
@@ -962,3 +964,51 @@
 - 커서·게임패드·프레임 제한은 전부 헤드리스에서도 안전하게 동작하도록 만들어 테스트에 지장 없다.
 - Windows 내보내기 프리셋을 만들 때 회사명은 `Economy.STUDIO_NAME`(현재 임시 "HOUSE EDGE")을 그대로 쓸 것
   (1/N 기록 참고 — 정식 이름이 정해지면 그 상수만 바꾸면 된다).
+
+### 8단계 진행 중 (2026-09-25) — 5/N: 스팀 출시 준비
+
+**한 일**: `docs/STEAM.md`(신규)에 자세한 내용·사용자가 할 일을 정리했다. 요약:
+- `SteamService`(신규 오토로드, GodotSteam 선택 의존성 — 없으면 전부 무동작). 업적 id → 스팀 API 이름
+  규칙(`"ACH_" + id.to_upper()`), `EventBus.achievement_unlocked` 를 구독해 있을 때만 `setAchievement`.
+- `assets/icon.png`/`icon.ico`(16~256px, `tools/art/gen_app_icon.py` — 타이틀의 미니 휠 그림 재사용,
+  ART_BIBLE 17장), `project.godot` 의 `application/config/icon` 에 연결.
+- `export_presets.cfg`(신규) — Windows Desktop 프리셋. **실제로 검증**: 이 컨테이너에 없던 Godot 4.3
+  내보내기 템플릿을 GitHub 릴리스에서 받아 설치하고(`~/.local/share/godot/export_templates/4.3.stable/`,
+  약 1GB), `--export-release`/`--export-debug` 로 진짜 `.exe` 를 뽑아 콘솔 래퍼(디버그만 있음)까지 확인했다.
+  아이콘 리소스 삽입에 필요한 `rcedit` 은 이 리눅스 컨테이너에 없어 경고만 남고(`.exe` 자체는 정상), 실제
+  아이콘 확인은 Windows(또는 rcedit 연결 환경)에서 다시 내보내야 한다.
+- 스토어 스크린샷 10장(1920×1080, `tools/capture/store_assets/`, gitignore 추가) + 투명 배경 로고
+  (`tools/capture/gen_store_logo.gd` 신규 — 실제 `NeonText` 컴포넌트를 투명 SubViewport 에 그려서 뽑음,
+  파이썬으로 네온 발광을 다시 구현하지 않았다).
+- `debug/file_logging/enable_file_logging=true` — `user://logs/godot.log` 로그(최근 10개 롤링). "예외 시
+  저장"은 GDScript 에 예외가 없어 대신 이미 4~7단계부터 있던 여러 저장 시점(업그레이드·층 이동·창 닫기·
+  포커스 잃음)이 크래시 손실을 줄여준다는 점을 STEAM.md 에 문서화(새로 안 만들었다).
+- 크레딧 화면은 이미 1/N에 개발사명·Godot·Galmuri 줄이 있었다 — 추가 변경 없음(음악 크레딧은 3/N 음원이
+  승인된 뒤에 채운다).
+- 테스트 신규: `tests/test_steam_service.gd`(3개).
+- 전체 **401 tests, 8982 checks, 0 failures**.
+
+**버그 한 건(캡처로 발견, 수정) — 8단계 2/N 이 만든 회귀**
+- 스토어 스크린샷을 찍다가 `idle`/`jackpot` 등 일반 시나리오에 튜토리얼 스포트라이트·대사가 겹쳐 나오는
+  것을 발견했다. 2/N 에서 튜토리얼을 추가한 뒤로 `tools/capture/capture.gd` 의 "새 게임" 시나리오는 전부
+  (idle 부터 jackpot 까지 약 90개) 항상 튜토리얼이 자동 시작되면서 이 문제를 안고 있었다(게임 자체는
+  버그가 아니다 — 새 플레이어에게 튜토리얼이 뜨는 게 맞다. 캡처 도구의 "새 게임 = 깨끗한 화면" 전제가
+  낡은 것뿐). `_fresh(keep_tutorial: bool = false)` 로 고쳐 `tutorial_*` 시나리오만 원래 동작을 켜 두고
+  나머지는 캡처 전에 `SettingsManager.tutorial_enabled=false` 로 꺼서 원래처럼 깨끗하게 나오게 했다
+  (GDD 22장). **주의**: 9단계에서 스크린샷을 다시 찍을 일이 있으면 이 수정이 이미 적용된 상태이므로
+  추가 조치가 필요 없다.
+
+**남은 이슈**
+- `jackpot` 스토어 스크린샷에 "클로버 하나로 문을 여셨네요..." 대사가 같이 뜬다(이 시나리오 설정이
+  부수적으로 첫 클로버 획득도 발동시킴, 튜토리얼과 무관·6단계부터 있던 동작) — 더 깨끗한 샷이 필요하면
+  캡처 전에 클로버를 미리 만들어두고 다시 찍을 것(STEAM.md 3장에 방법 남김).
+- Windows 아이콘이 실제 탐색기에 보이는지는 rcedit 부재로 이 컨테이너에서 확인 못 했다 — Windows 에서
+  다시 내보내 확인 필요.
+- 영어 스토어 스크린샷은 안 찍었다(`lang=en` 으로 같은 명령 다시 돌리면 됨).
+
+**다음 작업(마무리)이 알아야 할 것**
+- 전체 401 tests 가 이 시점 기준 전부 통과. `docs/PROGRESS.md`·`docs/POLISH_CHECKLIST.md`·`docs/STEAM.md`
+  전부 최신 상태.
+- 사용자가 직접 준비해야 할 것들이 여러 문서에 흩어져 있다 — 마무리 단계에서 하나의 한국어 보고로
+  모아서 전달할 것(3/N: CC0 음원 네트워크 허용/승인, 5/N: Steamworks 계정·App ID·GodotSteam 애드온·
+  Windows 실기기 확인, 1/N: 정식 스튜디오명).

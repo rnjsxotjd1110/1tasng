@@ -14,6 +14,7 @@ config/name="HOUSE EDGE"
 config/description="1인용 방치형 픽셀아트 룰렛 게임"
 run/main_scene="res://scenes/main/SplashScreen.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://assets/icon.png"
 
 [autoload]
 
@@ -24,6 +25,13 @@ GameState="*res://scripts/autoload/game_state.gd"
 SaveManager="*res://scripts/autoload/save_manager.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 SettingsManager="*res://scripts/autoload/settings_manager.gd"
+SteamService="*res://scripts/autoload/steam_service.gd"
+
+[debug]
+
+file_logging/enable_file_logging=true
+file_logging/log_path="user://logs/godot.log"
+file_logging/max_log_files=10
 
 [display]
 

@@ -119,12 +119,17 @@ func _wait_seconds(seconds: float) -> void:
 	await create_timer(seconds).timeout
 
 
-func _fresh() -> void:
+## keep_tutorial 가 false(기본)면 루시 튜토리얼이 이 화면 위에 겹쳐 보이지 않게 미리 꺼 둔다 —
+## 8단계 2/N 이전에 만들어진 대부분의 시나리오는 "새 게임 = 깨끗한 화면"을 전제로 하는데, 새 게임마다
+## 튜토리얼이 자동으로 시작되면서 스포트라이트·대사가 엉뚱하게 겹쳐 보이는 회귀가 생겼다(캡처로 발견).
+## tutorial_* 시나리오만 true 로 불러 원래 동작(자동 시작)을 그대로 쓴다.
+func _fresh(keep_tutorial: bool = false) -> void:
 	if main != null:
 		main.queue_free()
 		await process_frame
 	game_state.call("reset")
 	rng_service.call("set_seed", SEED)
+	root.get_node("SettingsManager").set("tutorial_enabled", keep_tutorial)
 	# 컨테이너에 실제 save.json 이 남아있으면(이전 시나리오가 debt_changed 등으로 자동 저장했거나,
 	# 이 도구를 오래 전에 한 번 돌린 적이 있으면) Main._ready() 의 load_game() 이 그걸 그대로 불러와
 	# 복귀 팝업·미완료 남작 컷신이 엉뚱하게 겹쳐 보인다(tests/lib/test_case.gd 와 같은 이유로 방어).
@@ -281,7 +286,7 @@ func _capture(scenario: String, lang: String) -> void:
 	if TITLE_SCENARIOS.has(scenario):
 		await _capture_title_flow(scenario, lang)
 		return
-	await _fresh()
+	await _fresh(scenario.begins_with("tutorial_"))
 	match scenario:
 		"idle":
 			await _wait_seconds(0.6)

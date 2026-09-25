@@ -778,3 +778,11 @@ fx_id 의미: glint = 가끔 1px 하이라이트가 스쳐 지나감, sparkle = 
   각각 `CURSOR_ARROW`/`CURSOR_POINTING_HAND`/`CURSOR_FORBIDDEN` 에 등록하고, 이후 새로 추가되는 모든
   `BaseButton` 에 `disabled` 여부에 따라 손가락/금지 커서를 자동으로 붙인다(이미 다른 모양을 정한 버튼은
   그대로 둔다).
+
+## 17. 앱 아이콘 (8단계 5/N)
+
+- `assets/icon.png`(256×256)·`assets/icon.ico`(16/32/48/64/128/256px, `tools/art/gen_app_icon.py`):
+  타이틀의 미니 룰렛 휠(`gen_title.py::_wheel_frame`, 16×16 원본)을 그대로 재사용해 정수 16배로 키웠다 —
+  새 그림을 그리지 않고 이미 검증된 그림을 재사용, 정수 배율 규칙도 그대로 지킨다.
+- `project.godot` 의 `application/config/icon`(에디터·파일 탐색기용)과 Windows 내보내기 프리셋의
+  `application/icon`(실행 파일 아이콘, docs/STEAM.md 2장) 이 각각 `.png`/`.ico` 를 가리킨다.

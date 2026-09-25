@@ -59,7 +59,7 @@ res://
   tools/       art/(gen_*.py, pixlib.py, build_theme.gd) audio/(gen_sfx.py) capture/(capture.gd, marble_sheet.gd) sim/ data/, setup_godot.sh
 ```
 
-오토로드 순서(project.godot): EventBus → Economy → RngService → GameState → SaveManager → AudioManager → SettingsManager.
+오토로드 순서(project.godot): EventBus → Economy → RngService → GameState → SaveManager → AudioManager → SettingsManager → SteamService.
 
 - `tools/art/*.py`·`tools/audio/gen_sfx.py` 는 Python 3 + `numpy` + `Pillow` 가 필요하다. 클라우드 컨테이너에 없으면
   `pip install numpy pillow` 로 한 번 설치한다(Godot 설치와 달리 재생성용 도구일 뿐이라 게임 실행엔 필요 없음).

@@ -1,8 +1,8 @@
 extends "res://tests/lib/test_case.gd"
-## AudioManager(8단계 3/N): 음악 크로스페이드·duck·피버 레이어·오토 스핀 감쇠.
-## 실제 음원 파일(assets/audio/music/*.ogg)은 아직 없다(CC0 후보 승인 전) — 여기서는 "파일이 없을 때
-## 안전하게 무시하는지"와 "상태 계산 로직 자체"만 검사한다. 헤드리스에서는 AudioManager.enabled 가 false 라
-## 실제 재생(player.play())에 의존하는 부분(예: play_sfx 의 volume_db)은 그때만 enabled 를 잠깐 켜서 본다.
+## AudioManager(8단계 3/N, 마무리에서 실제 배경음악 9곡 반입): 음악 크로스페이드·duck·피버 레이어·
+## 오토 스핀 감쇠. 실제 음원 파일(assets/audio/music/*.mp3)이 이제 있으므로 "정상 재생"과 "존재하지 않는
+## id 는 안전하게 무시" 둘 다 검사한다. 헤드리스에서는 AudioManager.enabled 가 false 라 실제 재생
+## (player.play())에 의존하는 부분(예: play_sfx 의 volume_db)은 그때만 enabled 를 잠깐 켜서 본다.
 
 func after_each() -> void:
 	super.after_each()
@@ -11,8 +11,13 @@ func after_each() -> void:
 
 
 func test_play_music_missing_file_is_safe_noop() -> void:
+	AudioManager.play_music("bgm_does_not_exist")
+	check_eq(AudioManager._music_id, "", "존재하지 않는 id 면 _music_id 가 바뀌지 않는다")
+
+
+func test_play_music_existing_file_sets_music_id() -> void:
 	AudioManager.play_music("bgm_b1")
-	check_eq(AudioManager._music_id, "", "음원이 아직 없으면 _music_id 가 바뀌지 않는다")
+	check_eq(AudioManager._music_id, "bgm_b1", "실제 파일이 있으면 재생 상태로 바뀐다")
 
 
 func test_duck_music_sets_offset_in_headless() -> void:
@@ -55,9 +60,9 @@ func _find_active_player(id: String) -> AudioStreamPlayer:
 	return actives.back() if not actives.is_empty() else null
 
 
-func test_set_fever_layer_missing_file_is_safe_noop() -> void:
+func test_set_fever_layer_activates_when_file_exists() -> void:
 	AudioManager.set_fever_layer(true)
-	check_eq(AudioManager._fever_active, false, "피버 레이어 음원이 없으면 활성화되지 않는다")
+	check_eq(AudioManager._fever_active, true, "피버 레이어 음원(bgm_fever_layer)이 있으면 활성화된다")
 
 
 func test_stop_all_resets_music_state() -> void:

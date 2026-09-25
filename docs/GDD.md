@@ -545,7 +545,7 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 
 ## 20. 8단계 3/N 에서 정한 세부 규칙 (음악·사운드 최종화)
 
-### 20-1. 음악 소싱 — 곡은 정했으나 파일 반입이 사용자 승인 대기(8단계 마무리)
+### 20-1. 음악 소싱 — 9곡 선정·반입 완료(8단계 마무리)
 
 사용자가 "CC0/무료 음원 제안" 방식을 선택. 처음엔 네트워크 정책이 incompetech.com 등 후보 사이트 접속을
 막고 있었는데(egress 차단), 사용자가 클라우드 환경 설정에서 허용 도메인을 확장해 줘서 풀렸다. incompetech.com
@@ -564,11 +564,12 @@ MacLeod, CC BY 4.0 — 크레딧 문구는 STEAM.md 4장):
 | `bgm_ending` | Long Road Ahead | "선악 대결의 여파... 마지막 3분의 1은 웅장한 승리부" — 엔딩 서사와 정확히 맞음 |
 | `bgm_credits` | Americana | 첼로로 시작해 금관까지 쌓이는 웅장한 마무리 — 엔딩 크레딧 |
 
-mp3 9개(총 57MB)를 실제로 내려받아 포맷 유효성까지 확인했지만, **`assets/audio/music/` 로 옮기는 명령이
-자동 모드 안전 분류기에 막혀** 아직 프로젝트 안에 없다(사용자 승인 필요, PROGRESS.md 참고). 필요한 트랙 id는
-전부 `FloorDef.music_id`/코드에 이미 슬롯이 있다. 파일이 들어오면 `assets/audio/music/<id>.mp3`(또는 `.ogg`/
-`.wav` — `AudioManager._music_stream()` 이 이 순서로 찾는다)에 두기만 하면 아래 재생·믹싱 로직이 그대로
-동작한다(파일이 없는 동안은 경고만 남기고 조용히 무시하도록 미리 만들어 뒀다).
+mp3 9개(총 57MB)를 내려받아 포맷 유효성을 확인한 뒤(자동 모드 안전 분류기가 최초 반입 명령을 한 번 막아
+사용자 승인을 받았다), `assets/audio/music/<id>.mp3` 로 반입 완료했다(`AudioManager._music_stream()` 이
+`.ogg`→`.mp3`→`.wav` 순서로 찾는다). 크레딧 화면(`scenes/ui/credits_screen.gd`)에도 곡명 9개와 CC BY 4.0
+표기를 추가했다 — 목록이 길어져 업적 화면과 같은 ScrollContainer 패턴으로 바꿨다(`translations/strings.csv`
+의 `CREDITS_MUSIC_HEADER`/`CREDITS_MUSIC_01`~`09`/`CREDITS_MUSIC_LICENSE`/`_URL`). 파일이 없는 경로도
+여전히 안전하게 무시하도록 남겨 뒀다(`tests/test_audio_manager.gd` 의 `bgm_does_not_exist` 테스트).
 
 ### 20-2. AudioManager.play_music() — 크로스페이드·믹싱
 

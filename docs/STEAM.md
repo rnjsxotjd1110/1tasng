@@ -103,23 +103,15 @@ xvfb-run -a -s "-screen 0 640x360x24" godot --rendering-driver opengl3 -s tools/
 
 ## 4. 크레딧
 
-`scenes/ui/credits_screen.gd`(1/N 작성)가 이미 개발사명(`Economy.STUDIO_NAME`)·Godot 엔진(MIT)·Galmuri
-폰트(SIL OFL 1.1) 줄을 보여준다. 음악·효과음 출처 줄(`CREDITS_MUSIC_PENDING`)은 아직 "다음 업데이트에서
-추가됩니다" 상태다. SFX(48종)는 전부 `tools/audio/gen_sfx.py` 로 직접 합성한 것이라 별도 크레딧이 필요
-없다.
+`scenes/ui/credits_screen.gd`(1/N 작성, 8단계 마무리에서 스크롤 목록으로 재작성)가 개발사명
+(`Economy.STUDIO_NAME`)·Godot 엔진(MIT)·Galmuri 폰트(SIL OFL 1.1)·배경음악 9곡 크레딧을 전부 보여준다.
+SFX(48종)는 전부 `tools/audio/gen_sfx.py` 로 직접 합성한 것이라 별도 크레딧이 필요 없다.
 
-**배경음악 9곡을 골랐다**(GDD 20-1장에 선정 이유) — 전부 incompetech.com, Kevin MacLeod, CC BY 4.0.
-파일 반입이 사용자 승인 대기 중이라(PROGRESS.md 참고) 아직 크레딧 화면에 반영 안 했다. 승인되면
-`translations/strings.csv` 의 `CREDITS_MUSIC_PENDING` 자리에 아래 형식으로(incompetech.com 이 요구하는
-정확한 표기) 9줄을 넣을 것:
-
-```
-<곡명> — Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0 (creativecommons.org/licenses/by/4.0/)
-```
-
-곡명 9개: Walking Along, Deadly Roulette, Hard Boiled, Backbay Lounge, Ultralounge,
-Grand Dark Waltz Allegro, Vegas Glitz, Long Road Ahead, Americana.
+**배경음악 9곡을 반입 완료했다**(GDD 20-1장에 선정 이유, `assets/audio/music/bgm_*.mp3`) — 전부
+incompetech.com, Kevin MacLeod, CC BY 4.0. 크레딧 화면에 곡명 9개(`CREDITS_MUSIC_01`~`09`)와 라이선스
+표기(`CREDITS_MUSIC_HEADER`/`LICENSE`/`LICENSE_URL`)를 넣었다 — 목록이 길어져 패널 안에 스크롤 목록으로
+넣었다(업적 화면과 같은 ScrollContainer 패턴). 곡명 9개: Walking Along, Deadly Roulette, Hard Boiled,
+Backbay Lounge, Ultralounge, Grand Dark Waltz Allegro, Vegas Glitz, Long Road Ahead, Americana.
 
 ## 5. 크래시 안전성
 
@@ -140,5 +132,4 @@ GDScript 에는 try/catch 가 없어 "예외를 잡아서 저장"이라는 개�
 - Steamworks App ID, 스토어 페이지 문구(설명·태그·시스템 요구사항).
 - 정식 스튜디오/개발자 이름(지금은 가제 "HOUSE EDGE" — 정해지면 `Economy.STUDIO_NAME` 등 3곳을 함께 바꿀 것,
   1단계 기록 참고).
-- CC0/라이선스 배경음악 승인(3/N, 네트워크 허용 대기 중).
 - 영어 스토어 자산(스크린샷 10장은 `lang=en` 으로 다시 찍기만 하면 됨).

@@ -70,16 +70,16 @@
 - [x] 층별 배경 4종·휠 스킨 5종·엘리베이터 UI·컷신 (2/N)
 - [x] 마담 벨벳·최후의 스핀·크레딧·업적 토스트/목록 화면 (3/N)
 
-### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비 (1/2/4/5 완료, 3 은 음악 파일 승인 대기로 부분 완료)
+### 8단계 — 타이틀·튜토리얼·사운드·폴리시·출시 준비 (전체 완료)
 - [x] 부팅 순서(스플래시→타이틀→인트로 컷신→메인), 이어하기/새 게임, "저장 후 타이틀로" 활성화 (1/N)
 - [x] 루시 튜토리얼(6단계 안내, 저장 재개, 설정 끄기/다시 보기, 1회성 신규 기능 팁 3종) (2/N)
-- [ ] 효과음·음악(AudioManager) — 크로스페이드·덕킹·피버 레이어·SFX 감사 완료, **실제 음악 파일은 네트워크
-  허용 확장 대기 중**이라 미완 (3/N)
+- [x] 효과음·음악(AudioManager) — 크로스페이드·덕킹·피버 레이어·SFX 감사 완료. 배경음악 9곡(Kevin MacLeod/
+  incompetech.com, CC BY 4.0)도 마무리 단계에서 반입·크레딧 반영까지 완료 (3/N)
 - [x] 전체 폴리시 감사 — `docs/POLISH_CHECKLIST.md` 참고. 커스텀 커서·게임패드·최소화 프레임 제한·다크
   테이블 레터박싱(마무리 단계에서 재시도해 완성) 신규, 저사양 성능·실기기 확인은 사용자 환경에서 필요 (4/N)
 - [x] 내보내기 프리셋(Windows), 스팀 빌드 준비 — `docs/STEAM.md` 참고. SteamService·아이콘·export_presets.cfg
-  (실제 .exe 빌드로 검증)·스토어 스크린샷 10장+투명 로고·크래시 로그 완료. Steamworks 계정·CC0 음원·정식
-  스튜디오명은 사용자가 할 일로 이관 (5/N)
+  (실제 .exe 빌드로 검증)·스토어 스크린샷 10장+투명 로고·크래시 로그 완료. Steamworks 계정·정식 스튜디오명은
+  사용자가 할 일로 이관 (5/N)
 
 ### 9단계 — 밸런스 시뮬레이션·최종 QA
 - [ ] tools/sim 헤드리스 시뮬레이터로 목표 도달 시간(1F 0:30, 2F 1:30, 3F 2:45, PH 4:00, 엔딩 5:00) 맞추기
@@ -1013,7 +1013,7 @@
   모아서 전달할 것(3/N: CC0 음원 네트워크 허용/승인, 5/N: Steamworks 계정·App ID·GodotSteam 애드온·
   Windows 실기기 확인, 1/N: 정식 스튜디오명).
 
-### 8단계 마무리 (2026-09-25): 다크 테이블 레터박싱 완성 + CC0 음원 선정(승인 대기)
+### 8단계 마무리 (2026-09-25): 다크 테이블 레터박싱 완성 + CC0 음원 선정·반입 완료
 
 사용자가 5/N 보고에서 남긴 항목들을 처리해 달라고 요청. 네트워크 허용 도메인을 확장해 줘서 음원 조사는
 풀렸지만, 실제 파일을 프로젝트에 넣는 작업이 자동 모드 안전 분류기에 막혔다(아래 참고). 레터박싱은
@@ -1040,18 +1040,31 @@
   `bgm_credits`="Americana". mp3 9개(총 57MB)를 내려받아 유효성(파일 포맷)까지 확인했다.
 - 전체 **407 tests, 8997 checks, 0 failures**.
 
-**막힌 부분(사용자 확인 필요) — 중요**
-- 내려받은 음원 9개를 `assets/audio/music/` 로 복사하는 명령이 **자동 모드 안전 분류기에 의해 차단**됐다
-  (외부에서 받은 콘텐츠를 대량으로 자산 폴더에 넣는 작업이라 승인이 필요한 것으로 보인다). 다른 도구로
-  우회하지 않고 그대로 멈췄다 — 사용자가 직접 승인하거나, 파일을 넣어 달라고 명시적으로 요청해야 다음
-  세션에서 진행할 수 있다. 선곡 근거·라이선스 표기 문구(Kevin MacLeod (incompetech.com), CC BY 4.0)는
-  `docs/STEAM.md`/`docs/GDD.md` 20장에 이미 정리돼 있어, 파일만 들어오면 크레딧 반영까지 바로 이어갈 수 있다.
+**막힌 부분 → 해결됨**
+- 내려받은 음원 9개를 `assets/audio/music/` 로 복사하는 명령이 자동 모드 안전 분류기에 한 번 막혔으나,
+  사용자가 "복사해도 된다"고 명시적으로 승인해 이어서 반입을 마쳤다(아래 참고).
+
+**후속 작업 완료 (같은 날 이어서)**
+- mp3 9개를 `assets/audio/music/bgm_*.mp3` 로 반입. `AudioManager._music_stream()` 은 이미 `.ogg`→`.mp3`→
+  `.wav` 순서로 찾도록 돼 있어 추가 코드 변경 없이 바로 로드됨을 확인.
+- `translations/strings.csv` 의 `CREDITS_MUSIC_PENDING` 을 지우고 `CREDITS_MUSIC_HEADER`·
+  `CREDITS_MUSIC_01`~`09`(곡명)·`CREDITS_MUSIC_LICENSE`·`CREDITS_MUSIC_LICENSE_URL` 로 교체.
+- `scenes/ui/credits_screen.gd` 를 고정 위치 라벨 나열 방식에서 `ScrollContainer`+`VBoxContainer`(업적
+  화면과 같은 패턴)로 다시 작성 — 곡 9개 목록이 길어져 고정 한 줄짜리 행으로는 패널을 넘쳤다. 처음엔
+  라이선스 줄을 "표기 — URL" 한 줄로 합쳐 뒀더니 `lang=en` 캡처에서 단어 중간(`4.0/`)이 잘려 보여서,
+  표기와 URL 을 별도 두 줄(`CREDITS_MUSIC_LICENSE`/`_URL`)로 나눠 자연스러운 행 경계에서 스크롤되게
+  고쳤다(ko/en 둘 다 `title_credits` 캡처로 재확인, 스크롤바로 나머지는 내려서 볼 수 있음).
+- `tests/test_audio_manager.gd` 의 두 테스트가 "파일이 없으면 무시" 전제였는데 이제 `bgm_b1`/
+  `bgm_fever_layer` 파일이 실제로 있어 전제가 깨졌다 — `bgm_does_not_exist`(존재하지 않는 가짜 id)로
+  "없으면 무시" 테스트를 유지하고, `bgm_b1`/`bgm_fever_layer` 는 "파일이 있으면 정상 재생·활성화"로
+  검증 방향을 바꿨다(각각 `test_play_music_existing_file_sets_music_id`,
+  `test_set_fever_layer_activates_when_file_exists` 신규).
+- `docs/STEAM.md`·`docs/GDD.md`(20-1)·`docs/POLISH_CHECKLIST.md`·`docs/PROGRESS.md`(위 8단계 체크리스트)
+  를 전부 "승인 대기" → "완료"로 갱신.
+- 전체 **408 tests, 9042 checks, 0 failures**.
 
 **남은 이슈**
-- 위 음원 파일 복사 승인이 나면: `assets/audio/music/*.mp3` 로 넣고 → `AudioManager._music_stream()` 이
-  이미 `.mp3` 확장자까지 시도하는지 확인(현재는 `.ogg`/`.wav` 만 시도 — `.mp3` 추가 필요) → `CreditsScreen`
-  의 `CREDITS_MUSIC_PENDING` 문구를 9곡 크레딧으로 교체 → 헤드리스 테스트 재확인.
-- `JackpotOverlay` 의 world-위-디밍 버그는 여전히 미해결(spawn_task 로 제안됨).
+- `JackpotOverlay` 의 world-위-디밍 버그는 여전히 미해결(spawn_task 로 제안됨, task_02aff305).
 
 **다음 작업(9단계)이 알아야 할 것**
 - 레터박싱 이후 마우스 좌표는 `_gui_input`(자동 로컬 변환)에 의존한다 — 새 입력 코드를 짤 때

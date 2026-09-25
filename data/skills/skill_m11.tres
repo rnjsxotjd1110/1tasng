@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_2ibt7"]
+
+[resource]
+script = ExtResource("1_2ibt7")
+id = "m11"
+name_key = "SKILL_M11"
+desc_key = "SKILL_M11_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m11.png"
+branch = 2
+ring = 3
+position = Vector2i(146, -35)
+costs = Array[int]([3, 3])
+prerequisites = Array[String](["m9"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 0.1,
+"stat": "offline_efficiency"
+}, {
+"op": 0,
+"per_level": 2.0,
+"stat": "offline_cap_hours"
+}])
+feature_id = ""
+is_ultimate = false

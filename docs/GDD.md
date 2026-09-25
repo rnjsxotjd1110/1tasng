@@ -106,8 +106,8 @@
 | 최소 베팅액 | 최대 베팅액 × 0.1 | Economy.min_bet |
 | 칩 크기 | 최대 베팅액 × {0.1, 0.5, 1.0} | Economy.chip_amount |
 | 업그레이드 비용 | base × growth^level × upgrade_cost_mult | Economy.upgrade_cost |
-| 광택 배율 | 1.25^광택 단계 (0~5) | Economy.polish_mult |
-| 광택 비용 | polish_base_cost × 2^현재 단계 × upgrade_cost_mult (초안) | Economy.polish_cost |
+| 광택 배율 | 1.25^광택 단계 (0~5) | upgrade:marble_polish 수정자 |
+| 광택 비용 | 현재 재질 polish_base_cost(= 재질 비용 × 0.08) × 1.7^현재 단계 × upgrade_cost_mult | UpgradeService.cost_at |
 | 스핀 시간 | max(1.5, 6.0 × 0.9^(휠 속도 레벨) × spin_duration_mult) 초 | Economy.spin_duration |
 | 파산 | 보유 칩 < 최소 베팅액 **이고** 진행 중인 스핀이 없음 | Economy.is_bankrupt |
 
@@ -119,7 +119,7 @@
 
 ```
 반환 = 베팅액 × (배당+1)
-     × marble_mult        (base = 재질 배율 × 광택 배율, 구슬 수정자 적용)
+     × marble_mult        (base 1 × upgrade:marble_tier(재질 배율) × upgrade:marble_polish(1.25^광택) × 그 외 수정자)
      × floor_mult         (base = 층 payout_mult)
      × payout_mult_all
      × { RED/BLACK: payout_mult_color | ODD/EVEN: payout_mult_parity | STRAIGHT: 1 + straight_payout_bonus }
@@ -130,13 +130,16 @@
 
 ### 4-2. 연출 등급 판정 (SpinOutcome.Tier)
 
-배율 = 순이익 ÷ 총 베팅액.
+배율 = 순이익 ÷ 총 베팅액. BIG·JACKPOT 은 배율이 아니라 **같은 개별숫자에 몰아 건 구슬 수**로 정한다(9단계
+변경 — 이유는 24장 "BIG/JACKPOT 재설계" 참고. 층 배율이 커질수록 색·홀짝 베팅도 쉽게 배율 임계값을 넘어
+BIG/JACKPOT 이 너무 자주 나온다는 문제가 있었다).
 
 | 등급 | 조건 (위에서부터 먼저 맞는 것) |
 |---|---|
-| JACKPOT | 배율 ≥ 100 또는 개별숫자 적중 2건 이상 |
-| BIG | 배율 ≥ 20 또는 개별숫자 적중 1건 |
-| GOOD | 배율 ≥ 5 |
+| JACKPOT | 같은 개별숫자에 구슬 3개 이상을 걸어 다 같이 적중 |
+| BIG | 같은 개별숫자에 구슬 2개를 걸어 다 같이 적중 |
+| GOOD | 배율 ≥ 5(개별숫자를 몰아 걸지 않았어도, 즉 구슬 1개짜리 개별숫자 적중이나 색·홀짝 대박도 배율만
+  넘으면 GOOD 까지는 간다) |
 | NORMAL | 당첨이 1개 이상 (순손실이어도 당첨이 있으면 NORMAL) |
 | LOSS | 당첨 없음 |
 
@@ -144,18 +147,23 @@
 
 ---
 
-## 5. 업그레이드 (구현은 3단계, 데이터는 1단계에서 초안 작성)
+## 5. 업그레이드 (3단계 구현. 수치는 초안, 9단계에서 조정)
 
-| id | 이름 | 효과 | 상한 | 데이터(초안) |
-|---|---|---|---|---|
-| (별도) | 구슬 재질 | 15단계, 아래 표 | 층별 상한 | `data/marbles/*.tres` |
-| (별도) | 광택 | 재질마다 0~5단계, 단계당 ×1.25. **재질이 오르면 0으로 초기화** | 5 | MarbleDef.polish_base_cost |
-| bet_limit | 베팅 한도 | 최대 베팅액 ×1.35/레벨 (max_bet_mult MULT 1.35) | 무제한 | base 25, growth 1.55 |
-| marble_count | 구슬 개수 | 구슬 +1/레벨 (marble_slots_bonus ADD 1) | 7레벨(=8개) | base 100, growth 12 |
-| wheel_speed | 휠 속도 | 스핀 시간 ×0.9/레벨 (spin_duration_mult MULT 0.9), 최소 1.5초 | 13레벨 | base 40, growth 2.2 |
-| golden_pocket | 황금 포켓 | 황금 포켓 +1/레벨. 결과가 황금 포켓이면 모든 당첨 ×3 | 5 | base 5000, growth 40, 1F부터 |
+구매 규칙은 `UpgradeService`(scripts/core), 데이터는 `data/upgrades/*.tres`(UpgradeDef). 효과는 전부 StatModifiers 수정자(source `upgrade:<id>`), 비용에는 모두 `upgrade_cost_mult` 가 곱해진다.
 
-- 황금 포켓 위치: 개수가 늘 때 아직 황금이 아닌 포켓 중 무작위(RngService misc). 0번 포함 가능.
+| id (카드 순서) | 이름 | 효과 | 상한 | 비용 | 조건 |
+|---|---|---|---|---|---|
+| marble_tier | 구슬 재질 | 다음 재질로 교체. marble_mult MULT = 재질 배율 | 14(코스믹), **현재 층 marble_tier_cap** 까지 | 다음 재질 `MarbleDef.cost` | 한 번에 한 단계(승급 연출) |
+| marble_polish | 광택 | marble_mult MULT 1.25/레벨. **재질이 오르면 0** | 5 | 현재 재질 비용 × 0.08 × 1.7^레벨 (`polish_base_cost`) | 돌 구슬부터(required_marble_tier 1) |
+| bet_limit | 베팅 한도 | max_bet_mult MULT 1.35/레벨 | 무제한 | 20 × 3.0^레벨(9단계 튜닝, 24장) | |
+| marble_count | 구슬 개수 | marble_slots_bonus ADD 1 (최대 8개) | 7 | 300 × 22^(개수−1) | |
+| spin_speed | 휠 속도 | spin_duration_mult MULT 0.9/레벨 (최소 1.5초) | 13 | 150 × 3.2^레벨 | |
+| golden_pocket | 황금 포켓 | golden_pocket_count ADD 1. 결과가 황금 포켓이면 모든 당첨 ×3 | 5 | 50K × 800^레벨 | required_floor 2 (2F 에서 해금, 7단계 `FloorService` 로 실제 이동 가능) |
+
+- **구매 수량**: ×1 / ×10 / MAX. ×10 은 남은 레벨이 적으면 그만큼만. MAX 는 등비수열 합 `base·g^L·(g^n − 1)/(g − 1)` 을 역산한 최대 n(부동소수 오차는 ±1 로 보정)이고, 한 레벨도 못 사면 1레벨 비용을 보여 준다. 재질은 수량과 무관하게 한 단계.
+- **연속 구매**: 버튼을 누르고 있으면 0.4초 뒤부터 0.18초 간격으로 반복, 간격은 매번 ×0.85(최소 0.04초).
+- **재질 상한**: `FloorDef.marble_tier_cap`(B1 철, 1F 금, 2F 루비, 3F 흑요석, PH 코스믹, 7단계에서 조정 — 7장 참고). 상한에 닿으면 카드에 "다음 재질은 1F에서".
+- 황금 포켓 위치: 개수가 늘 때 아직 황금이 아닌 포켓 중 무작위(RngService misc). 0번 포함 가능. 새 포켓은 `EventBus.golden_pockets_added` 로 알린다.
 
 ### 5-1. 구슬 재질 15단계
 
@@ -169,13 +177,13 @@
 | 3 | 철 | ×100 | 320K | B1 |
 | 4 | 은 | ×900 | 25.6M | 1F |
 | 5 | 금 | ×8K | 2.05B | 1F |
-| 6 | 옥 | ×70K | 164B | 1F |
+| 6 | 옥 | ×70K | 164B | 2F |
 | 7 | 루비 | ×800K | 13.1T | 2F |
-| 8 | 사파이어 | ×1.2B | 1.05Qa | 2F |
-| 9 | 에메랄드 | ×15B | 83.9Qa | 2F |
+| 8 | 사파이어 | ×1.2B | 1.05Qa | 3F |
+| 9 | 에메랄드 | ×15B | 83.9Qa | 3F |
 | 10 | 다이아몬드 | ×200B | 6.71Qi | 3F |
 | 11 | 흑요석 | ×3T | 537Qi | 3F |
-| 12 | 별빛 | ×50T | 42.9Sx | 3F |
+| 12 | 별빛 | ×50T | 42.9Sx | PH |
 | 13 | 공허 | ×800T | 3.44Sp | PH |
 | 14 | 코스믹 | ×15Qa | 275Sp | PH |
 
@@ -183,33 +191,69 @@
 
 ---
 
-## 6. 스킬트리 (구현·세부 정의는 6단계)
+## 6. 스킬트리 (6단계 구현)
 
-- 중앙 **"도박꾼의 심장"** 에서 4갈래로 뻗는다.
-  - 북 **FORTUNE** (배당): 색·홀짝·개별숫자 배당, 황금 포켓 배율
-  - 동 **MACHINE** (자동화): 자동 스핀, 스핀 간격, 휠 속도, 자동 베팅 패턴
-  - 남 **ECONOMY** (경제): 업그레이드 할인, 캐시백, 오프라인 수익, 빚 조건
-  - 서 **MYSTIC** (특수 기능): 예지(다음 결과 미리 보기, `RngService.peek_next`), 더블 볼(`extra_balls`), 딜러 고용(루시), 구슬 추가(`marble_slots_bonus`, 최대 +4)
-- **고리 3개 + 갈래별 궁극기, 노드 57개**, 총비용 269 클로버.
-- 데이터: `SkillNodeDef` (branch, ring, position, costs[], prerequisites[], effect_stat/op/per_level 또는 feature_id).
-- 효과는 `StatModifiers` 수정자(source `skill:<id>`)로 적용.
+- 중앙 **"도박꾼의 심장"**(`heart`, 처음부터 레벨 1 보유, 구매 불가)에서 4갈래로 뻗는다.
+  - 북 **FORTUNE**(-90°, 배당): 색·홀짝·개별숫자 배당, 황금 포켓 배율, 핫 넘버, 럭키 세븐, 잭팟 체인
+  - 동 **MACHINE**(0°, 자동화): 오토 스핀, 스마트 베팅, 오토 업그레이드, 오프라인·휴식 보상, 딜러 고용
+  - 남 **ECONOMY**(90°, 경제): 업그레이드 할인, 캐시백, 비상금, 투자 수익, 빚 조건, 황금 저금통, 복리
+  - 서 **MYSTIC**(180°, 특수 기능): 제로 가드, 예지·천리안, 미러, 피버 타임, 더블 볼, 황금 폭풍, 운명 뒤집기, 운명의 휠
+- **고리 3개(반지름 55/105/150) + 갈래별 궁극기(반지름 185), 노드 57개**(갈래당 1링 4·2링 5·3링 4·궁극기 1 = 14, ×4 + HEART = 57), **총비용 269 클로버**(`tools/data/generate_skill_data.gd` 가 생성 시 코드로 검증, `test_skill_service.gd::test_57_nodes_and_total_cost_269` 로 회귀 고정).
+- 노드 위치는 갈래 중심각 ±40° 안에서 고리별 개수만큼 균등 분포(같은 링 안에서 서로를 선행조건으로 삼는 경우도 있다 — 링은 "선행조건 단계"가 아니라 "시각적 반지름"이다).
+- 데이터: `SkillNodeDef`(branch, ring, position, costs[]=레벨별 클로버, prerequisites[]+prerequisite_mode(ALL/ANY), effects[]={stat,op,per_level} 배열(노드 하나가 여러 스탯에 동시에 영향 가능), feature_id, is_ultimate). 전체 노드 정의는 `data/skills/*.tres`(원본은 `tools/data/generate_skill_data.gd`).
+- 효과는 `StatModifiers` 수정자(source `skill:<id>`)로 적용(`GameState.set_skill_level`/`rebuild_skill_modifiers`, `UpgradeService`/`GameState.set_upgrade_level` 와 동형). 스탯이 아닌 기능 해금(오토 스핀 등)은 `feature_id` 로 표시하고 `SkillService.feature_level(id)`/`has_feature(id)` 로 조회한다.
+- 구매: `SkillService.purchase(id)`. 클로버 부족·잠김(선행조건 미충족)·최대 레벨이면 실패(-1). 재분배(리셋) 없음.
+
+### 6-1. 효과 수치 표기 규칙(6단계에서 정함)
+
+GDD 원문의 "+X%/Lv"·"×N/Lv"·"+N" 표기를 아래 규칙으로 기계적으로 변환했다(전부 초안, 9단계에서 재조정):
+
+| 원문 표기 | 변환 | 예 |
+|---|---|---|
+| "×N/Lv" 또는 "×N (곱)" | `MULT`, per_level=N(복리, `pow(N, level)`) | F12 ×1.5/Lv → `payout_mult_all` MULT 1.5 |
+| "+X%/Lv"·"−X%/Lv"·"X% 감면" | `MULT`, per_level=1±X/100(복리) | F1 +15%/Lv → `payout_mult_color` MULT 1.15 |
+| 베이스가 0인 스탯(캐시백·확률 등)의 "+X%/Lv" | `ADD`, per_level=X/100(0에 곱연산은 의미가 없어 예외) | E2 캐시백 5%/Lv → `cashback_rate` ADD 0.05 |
+| 베이스와 반대 방향(간격 vs 빈도)인 경우 | 역수로 변환(예외, 주석으로 표시) | E7 "빈도 −25%/Lv" → `penalty_interval_mult` MULT 4/3 |
+| 절대값 "+N"(단위 있음: 초·시간·개수 등) | `ADD`, per_level=N | M4 오프라인 +2시간/Lv → `offline_cap_hours` ADD 2.0 |
+| 배당 배수로 환산해야 하는 "+N"(개별숫자 배당) | `ADD`, per_level=N/36(35:1 을 (1+bonus) 곱셈 체계로 환산) | F3 +2/Lv → `straight_payout_bonus` ADD 2/36 |
+
+### 6-2. 새 스탯·조건부 효과 처리(`SpinContext`/`RouletteRules`/`SpinController`)
+
+- 결정론적(순수) 조건부 효과는 `SpinContext` 필드로 `RouletteRules.resolve()` 안에서 처리한다: `zero_guard`(Y1, 0이면 색·홀짝 반환), `cashback_rate`(E2), `hot_numbers`+`hot_number_straight_mult`(F6), `lucky_seven_mult`(F9), `zero_straight_mult`(Y7), `multi_hit_bonus`(F8).
+- RNG 가 필요한 재판정·확률형 효과는 `RouletteRules` 를 순수하게 유지하기 위해 `SpinController._resolve_with_specials()`(운명 뒤집기 Y8, RngService misc 스트림으로 재판정 뒤 유리할 때만 채택)와 `_apply_mirror()`(미러 Y3, 진 베팅마다 확률로 무승부)로 분리했다.
+- 스핀마다 반복되는 효과(VIP 컴프 E3, 보너스 칩 E9, 잭팟 체인 F14 충전·소모, 황금 폭풍 Y12, 피버 타임 Y5, 황금 저금통 E13)는 `SpinController._apply_outcome()` 뒤에 붙는 전용 `_apply_*()` 함수로 처리한다.
+- 연승 보너스(F5+F11)·복리의 마법(E14)처럼 "현재 상태(연승 수·칩 자릿수)에 비례"하는 효과는 `GameState.build_spin_context()` 에서 직접 계산해 `payout_mult_all` 에 곱해 넣는다(별도 StatModifiers 항목이 아니라 매 스핀 재계산).
+- 시간제(초) 버프는 전부 `GameState.add_buff()` 를 거치며, `skill:y13`(시간 왜곡)의 `buff_duration_mult` 스탯이 자동으로 곱해진다. 잭팟 체인·피버는 이 버프 체계를 그대로 써서 저장/복원과 `buff_started`/`buff_ended` 신호를 공짜로 얻는다.
 
 ---
 
-## 7. 층 (구현은 7단계, 데이터는 1단계 초안)
+## 7. 층 (7단계 구현)
 
 B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하우스 인수)
 
-| index | 층 | 이동 비용 | 당첨 배율(초안) | 베팅 배율(초안) | 구슬 상한 tier | 클로버 | 목표 도달 |
-|---|---|---|---|---|---|---|---|
-| 0 | B1 | — | ×1 | ×1 | 3 (철) | — | 0:00 |
-| 1 | 1F | 1M | ×2 | ×100 | 6 (옥) | +10 | 0:30 |
-| 2 | 2F | 1T | ×4 | ×10K | 9 (에메랄드) | +10 | 1:30 |
-| 3 | 3F | 1Sx | ×8 | ×1M | 12 (별빛) | +10 | 2:45 |
-| 4 | PH | 1No | ×16 | ×100M | 14 (코스믹) | +10 | 4:00 |
-| — | 엔딩 | 1Dc | | | | | 5:00 |
+| index | 층 | 이동 비용 | 당첨 배율 | 베팅 배율 | 해금 | 구슬 상한 tier | 클로버 | 목표 도달 |
+|---|---|---|---|---|---|---|---|---|
+| 0 | B1 | — | ×1 | ×1 | 기본 | 3 (철) | — | 0:00 |
+| 1 | 1F | 1M | ×10 | ×100 | — | 5 (금) | +10 | 0:30 |
+| 2 | 2F | 1T | ×30 | ×300 | 황금 포켓(`golden_pocket` 업그레이드) | 7 (루비) | +10 | 1:30 |
+| 3 | 3F | 1Sx | ×90 | ×900 | — | 11 (흑요석) | +10 | 2:45 |
+| 4 | PH | 1No | ×270 | ×2700 | — | 14 (코스믹) | +10 | 4:00 |
+| — | 엔딩 | 1Dc | | | | | | 5:00 |
 
-- 층 이동은 칩을 지불한다. **리셋 없음**(업그레이드·구슬·스킬 유지). 배율 상승, 클로버 +10.
+9단계 재설계(24장 "BIG/JACKPOT 재설계" 옆 "층 배율 재설계" 참고): 원래 값은 층마다 ×100~×100 씩(당첨
+1→10→1K→100K→10M, 베팅 1→100→10K→1M→100M) 뛰어 1F 를 넘는 순간부터 구슬 재질·베팅 한도에 이미 쌓인
+배율과 겹겹이 곱해져 2F~엔딩을 몇 분 안에 다 지나가 버렸다(9단계 시뮬레이터로 발견). 1F 이후는 층마다
+×3(당첨)·×3(베팅)만 뛰도록 완만하게 바꿔 3F·PH 도달 시간을 목표에 훨씬 가깝게 맞췄다. **다만 1F→2F,
+PH→엔딩 두 구간은 여전히 목표보다 훨씬 빠르다** — 배율표를 더 완만하게 바꿔도 거의 그대로였다(직접
+실측). 원인은 배율표가 아니라 두 구간의 **비용 격차 자체가 작다**(1F→2F 도 B1→1F 와 같은 1M×1e6 배지만
+B1→1F 는 처음부터 쌓아야 하고 1F→2F 는 이미 쌓인 구슬 재질·베팅 한도로 시작하고, PH→엔딩은 1No→1Dc
+가 이름 체계상 원래 한 단계 차이(×1,000)뿐이다) — 구슬 재질 비용 배율을 훨씬 늘려도(150배로 실측)
+거의 안 바뀔 만큼 구조적이다. 층 이동 비용(1M/1T/1Sx/1No/1Dc)은 "숫자 표기 단위를 밟고 올라간다"는
+서사 장치라 손대지 않았다. 자세한 실측 기록은 `tools/sim/sim_runner.gd` 머리말과 PROGRESS.md 참고.
+
+- 층 이동은 칩을 지불한다. **리셋 없음**(업그레이드·구슬·스킬 유지). 배율 상승, 클로버 +10. `FloorService.move_to_next()`.
+- 재질 상한에 닿으면(`UpgradeService.Status.CAPPED_BY_FLOOR`) 구슬 재질 카드에 "다음 층에서 해금"이 뜬다(`UpgradeService.floor_for_marble_tier`, 3단계부터 이미 구현돼 있었다).
+- 배율(payout_mult)·구슬 상한은 7단계에서 1단계 초안을 다시 조정했다(17장 참고). 이동 비용(1M/1T/1Sx/1No/1Dc)·베팅 배율·클로버 보상은 1단계 값 그대로.
 
 ---
 
@@ -232,7 +276,8 @@ B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하�
 - **상환액** = 대출액 × 2 (`debt_repay_mult` 스탯으로 조정 가능)
 - 당첨금의 25%가 자동 상환되고, 수동 상환도 가능. 완납 시 클로버 +2.
 - 동시 대출 최대 3건. 4번째는 가장 큰 빚에 합산.
-- 빚이 있는 동안 60~120초마다(`penalty_interval_mult`) 랜덤 패널티(20~30초 지속):
+- 빚이 있는 동안 랜덤 패널티(20~30초 지속, 직전과 같은 종류 연속 금지)가 걸린다. 간격은 대출 건수가 늘수록 짧아진다
+  (`penalty_interval_mult` 로 추가 조정): 1건 60~120초 / 2건 45~90초 / 3건 30~60초.
 
 | 패널티 | 효과 | 수정자 |
 |---|---|---|
@@ -248,9 +293,35 @@ B1(시작) → 1F(1M) → 2F(1T) → 3F(1Sx) → PH(1No) → 엔딩(1Dc로 하�
 
 ---
 
-## 10. 엔딩
+## 10. 엔딩과 업적 (7단계 구현)
 
-PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 확정) → 크레딧·통계 → **무한 모드**(계속 플레이, 스킬트리 완성 가능).
+### 10-1. 엔딩 시퀀스
+
+PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마담 벨벳의 "마지막 한 판" 대사 → **최후의 스핀**(8초, 오직 연출용 — `RngService.*_misc()` 로 뽑은 결과를 `wheel.play_spin()` 에 직접 넘기고 `SpinController`/경제 정산은 전혀 거치지 않는다) → 착지 효과(화면 흔들림·플래시·코인 파티클) → 골드 웨이브(휠 위에 금색 원호가 한 바퀴 돈다) → 양도 증서 서명(`ContractPopup.open_custom()` 으로 5단계 계약서 컴포넌트를 재사용, 서명·도장 메커니즘 동일) → 에필로그(벨벳→루시→남작 순서로 대사, 남작이 남은 빚 탕감을 언급) → 네온 간판 "HOUSE EDGE" 점등(`NeonText` 재사용, `NEON_CHARS` 에 H·S·D 3글자 추가) → 크레딧(`EndingCredits`).
+`EndingService.can_trigger()` 는 PH(마지막 층)이고 보유 칩이 `ENDING_COST` 이상이며 아직 엔딩을 안 봤을 때만 true. `trigger()` 는 칩을 낸 뒤 `GameState.ending_reached=true` 로 표시하고 남은 빚을 전부 탕감(`GameState.forgive_debt(1.0)`)한 뒤 `EventBus.ending_triggered()` 를 발행한다(실제 컷신은 `EndingSequence.play()` 가 재생 — `AcquisitionButton` 을 누르면 `Main._on_acquisition_pressed()` 가 `trigger()` 와 `play()` 를 함께 부른다).
+`EndingSequence` 는 `wheel`·`shaker`·`flash` 를 Main 이 소유한 화면 요소로 직접 참조 주입받는다(다른 컷신은 `signed()`/`finished()` 신호로 Main 에 되돌리지만, 이 연출은 사실상 화면 전체를 쓰는 이펙트라 직접 참조가 더 단순하다는 판단, 17장 참고).
+
+### 10-2. 무한 모드
+
+엔딩 크레딧(`EndingCredits`: 플레이 시간·총 스핀·최대 당첨금·최대 연승·대출 횟수·최다 출현 숫자·최종 구슬 통계 카드) 뒤 "계속하기"를 누르면 `Main._on_ending_continue_pressed()` 가 `EndingService.enter_infinite_mode()` 를 불러 `GameState.infinite_mode=true` 로 표시하고 영구 수정자 `ending:owner_mode`(`payout_mult_all` MULT `Economy.OWNER_MODE_PAYOUT_MULT`=2.0, 오너 모드 "수익 ×2")를 건다. 불러오기 뒤에는 `GameState.rebuild_ending_modifiers()` 가 `infinite_mode` 값을 보고 이 수정자를 다시 건다(`rebuild_upgrade_modifiers`/`rebuild_skill_modifiers` 와 같은 패턴). 상단 바 오른쪽(클로버 옆)에 작은 금색 왕관 아이콘이 뜬다(`TopBar._draw_crown()`, 절차적 드로잉이라 새 스프라이트 없음).
+
+### 10-3. 업적
+
+- `data/achievements.json`(표시용 메타데이터: id·category·name_key·desc_key·icon·hidden) + `AchievementData`(정적 로더, `DialogueData` 와 동형) + `AchievementManager`(`GameState.achievement_manager` 가 소유, `PenaltyManager` 와 동형인 RefCounted — `attach()` 로 필요한 `EventBus` 신호를 구독해 조건을 판정하고, 시간 기반 조건(1시간 무파산)만 `process(delta)` 로 잰다).
+- 조건 판정은 데이터가 아니라 코드(`AchievementManager._on_*`)로 한다 — 30개 안팎의 대부분이 한 번뿐인 개별 조건이라 범용 규칙 엔진보다 명시적 분기가 더 읽기 쉽다(6단계 특수 기능과 같은 판단).
+- 해금되면 `GameState.unlocked_achievements`(Array[String], 저장됨)에 추가하고 `EventBus.achievement_unlocked(id)` 를 발행한다. `AchievementToast`(화면 우하단, `BadgeGolden` 패널, 0.3초 슬라이드인·4초 유지·0.2초 슬라이드아웃, 여러 개는 큐에 쌓아 순서대로) 와 일시정지 메뉴의 `AchievementScreen`(카테고리별 아이콘 그리드, 달성=원색 아이콘, 미달성=실루엣, 숨김+미달성="???")이 이 신호와 `GameState.unlocked_achievements` 를 그대로 읽어 그린다.
+- 아이콘 30종+숨김용 1종은 `tools/art/gen_achievements.py` 가 `gen_skills.py` 의 배지+글리프 조합 방식을 재사용해 24px 로 그린다(카테고리별 5색 램프, 달성/실루엣/숨김 세 버전).
+- 숨김 업적(벨벳 대사 전부 보기)은 `GameState.achievement_dialogue_seen`(저장됨, `{대사 키: {변형 인덱스: true}}`)에 `AchievementManager.mark_dialogue_seen()` 으로 기록하다가 한 키의 모든 변형을 다 보면 해금된다. 호출부는 `Main._show_velvet_periodic_line()`(벨벳의 주기 대사 `ph_periodic` 키 — 대사 자체가 랜덤 변형을 도는 유일한 키라 이 업적에 쓸 수 있는 키다. `DialogueData.pick()` 은 내부에서 무작위로 골라 인덱스를 감추므로, 인덱스가 필요한 이 호출부만 별도로 둔 `DialogueData.variant_at()` 을 쓴다).
+- 목록: 30개 요청 중 "누적 스핀 1000/10000"은 2개로 센다. 명시된 항목을 모두 헤아리면 27개라, 진행·기능 카테고리에 3개(2F 도달·3F 도달·첫 황금 포켓 적중)를 채워 30개를 맞췄다.
+
+### 10-4. 마담 벨벳
+
+펜트하우스 전용 월드 액터(`MadameVelvet`, `Lucy`/`Baron` 과 동형인 순수 연출 클래스 — idle/wine/gesture/clap 4가지 애니메이션). PH 에 있을 때만 보이고(`Main._refresh_velvet()`), 다른 층으로 가면 주기 대사 타이머가 꺼진다.
+- **첫 방문**: `GameState.velvet_intro_seen`(저장됨) 이 false 면 도착 즉시 소개 대사(`ph_first_visit`, 3줄)를 보여주고 true 로 바꾼다.
+- **주기 대사**: PH 에 있는 동안 5~8분(`Main.VELVET_PERIODIC_MIN/MAX`)마다 `ph_periodic`(변형 4개) 중 하나를 무작위로 말한다.
+- **엔딩 대사**: 하우스 인수 버튼을 누르면 `velvet_last_hand`(마지막 한 판 요구), 서명 뒤에는 `velvet_epilogue`.
+- 루시·벨벳 모두 같은 대사창(`DialogueBox`, `_npc_dialogue`)을 공유해 화면에 한 번에 하나만 뜬다. 엔딩이 시작되면 마침 떠 있던 주변 대사(`_npc_dialogue`)를 먼저 숨긴다(엔딩 전용 대사창과 자리가 겹치므로).
+- 초상화·월드 스프라이트는 `tools/art/gen_velvet.py`(은발 올림머리·짙은 빨강 드레스·진주 목걸이, `gen_lucy.py` 와 같은 골격 재사용).
 
 ---
 
@@ -281,34 +352,53 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | `spin_resolved(outcome: SpinOutcome)` | 정산 완료 |
 | `bankrupt()` | 파산 조건 성립 |
 | `debt_changed()` | 빚 변화 (5단계) |
-| `upgrade_purchased(id: String, level: int)` | 업그레이드 구매 (3단계) |
+| `upgrade_purchased(id: String, level: int)` | 업그레이드 구매 완료(구매 후 레벨, 여러 레벨을 한 번에 사도 1회) |
+| `golden_pockets_added(numbers: Array[int])` | 황금 포켓이 새로 생김(빛줄기·베팅칸 금 테두리 연출) |
 | `skill_purchased(id: String, level: int)` | 스킬 구매 (6단계) |
 | `floor_changed(floor_index: int)` | 층 이동 (7단계) |
 | `milestone_reached(suffix_index: int)` | 새 칩 단위 첫 도달 |
 | `buff_started(id: String, duration: float)` | 시간제 버프·패널티 시작 |
-| `buff_ended(id: String)` | 시간제 버프·패널티 종료 |
+| `buff_ended(id: String)` | 시간제 버프·패널티 종료(소모형 패널티는 charges 가 0 이 될 때도 발행) |
+| `penalty_triggered(id: String, duration: float)` | 패널티 발동(5단계, 토스트 표시용 — `buff_started` 와 별개로 즉시·소모형 패널티도 받는다) |
 | `toast_requested(text: String, icon: String)` | 알림 요청 |
+| `save_started()` | 저장 시작(4단계). TopBar 가 구석에 칩 회전 아이콘을 0.8초 보여준다 |
+| `save_finished(ok: bool)` | 저장 끝(저장은 동기 처리라 save_started 와 거의 동시) |
+| `piggy_bank_broken(amount: float)` | 황금 저금통(E13)이 100스핀마다 깨지며 칩 지급(6단계) |
+| `wheel_of_fortune_ready()` | 운명의 휠(Y14) 등장 시각. `GameState.wheel_of_fortune_consumed()` 로 다음 주기 시작 |
+| `golden_storm_triggered(spins: int)` | 황금 폭풍(Y12) 발동 |
+| `destiny_flip(from_number: int, to_number: int)` | 운명 뒤집기(Y8) 재판정 발생 |
+| `auto_spin_stopped(reason: String)` | 오토 스핀이 자동으로 꺼짐(칩 부족·베팅 없음·대화 시작·파산) |
+| `streak_clover_earned(count: int)` | 5연승 클로버 지급(연출용, 클로버 자체는 `clovers_changed` 로도 옴) |
+| `first_clover_earned()` | 살면서 처음 클로버 획득 — 스킬트리 탭 자물쇠 해제 + 루시 대사 트리거 |
+| `achievement_unlocked(id: String)` | 업적 해금(7단계). `AchievementData` 로 이름·아이콘 조회 |
+| `ending_triggered()` | PH 에서 1Dc 를 내고 하우스 인수 확정(7단계, 엔딩 컷신 시작 신호) |
+| `infinite_mode_started()` | 엔딩 크레딧 뒤 "계속하기"로 무한 모드(오너 모드) 진입 |
+| `tutorial_reset_requested()` | 설정 화면의 튜토리얼 "다시 보기"(8단계 2/N). `TutorialGuide.restart()` 가 이 신호를 구독해 1단계부터 다시 시작한다 |
 
 ### 11-3. GameState
 
-- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), golden_pockets, highest_milestone, spin_in_progress, modifiers(StatModifiers)
-- stats: total_spins(총 스핀), biggest_win(최대 당첨=한 스핀 최대 반환액), best_streak(최대 연승), play_time(초), loans_taken(대출 횟수), straight_hits(적중 숫자 수), total_earned(누적 획득 칩 = 당첨 반환액 합계, 대출금 제외)
+- 필드: chips(시작 100), clovers, floor_index, upgrade_levels, skill_levels, marble_tier, polish_level, current_bets(Array[Bet]), last_bets, chip_size_mode, debts, win_streak, result_history(최근 100), number_frequency(포켓 번호 → 누적 출현 횟수, 통계용), golden_pockets, highest_milestone, spin_in_progress, pending_spin_bets/pending_spin_results(스핀 도중 저장용 스냅샷, 4단계), auto_spin_enabled(6단계 자동 스핀. 해금 수단이 없어 지금은 항상 false), last_income_per_second(마지막 저장 시점 초당 순수익, 오프라인 수익 계산용), modifiers(StatModifiers), income_tracker(IncomeTracker, 최근 Economy.LOAN_INCOME_WINDOW(5분) 이동평균, 오프라인 수익·5단계 대출액 계산에 공용), unlocked_achievements(Array[String], 7단계), achievement_dialogue_seen(Dictionary, 7단계 숨김 업적용), achievement_manager(AchievementManager, 7단계), ending_reached/infinite_mode/velvet_intro_seen(bool, 7단계)
+- stats: total_spins(총 스핀), total_wins(당첨 스핀 수, 승률 계산용), biggest_win(최대 당첨=한 스핀 최대 반환액), best_streak(최대 연승), play_time(초), loans_taken(대출 횟수), straight_hits(적중 숫자 수), total_earned(누적 획득 칩 = 당첨 반환액 합계, 대출금·오프라인 수익 제외)
 - `add_chips()/spend_chips()` 는 음수·NaN·INF 를 거부하고(경고 로그) false 를 돌려준다. spend 는 잔액 부족도 거부.
+- `to_dict()/from_dict()`(4단계): SaveManager 가 쓴다. `from_dict()` 호출 뒤에는 반드시 `rebuild_upgrade_modifiers()`(영구 수정자 재구성)를 불러야 한다(SaveManager.load_game() 은 이미 그렇게 한다). 시간제(`buff:`) 수정자만 함께 저장/복원하고, 영구 수정자는 upgrade_levels/skill_levels 에서 다시 만든다.
 
 ### 11-4. StatModifiers
 
-- 수정자: `{source_id, stat, op(ADD/MULT), value, duration(PERMANENT=-1)}`
+- 수정자: `{source_id, stat, op(ADD/MULT), value, duration(PERMANENT=-1), charges(5단계, -1=무제한)}`
 - `get_stat(key, base) = (base + ADD 합) × MULT 곱`. 스탯별 캐시, 변경 시 무효화.
 - 같은 source_id + stat 으로 다시 추가하면 **교체**(업그레이드 레벨 갱신에 사용).
-- `tick(delta)`: 시간제 수정자 만료 → source 의 수정자가 모두 사라지면 `source_expired` → GameState 가 `buff:` 접두어면 `EventBus.buff_ended` 로 전달.
+- `tick(delta)`: 시간제 수정자 만료 → source 의 수정자가 모두 사라지면 `source_expired` → GameState 가 `buff:`/`penalty:` 접두어면 `EventBus.buff_ended` 로 전달.
+- `consume_charges(source_id, amount=1)`(5단계): 시간이 아니라 "횟수"로 소모되는 수정자(압류=스핀 1회, 클로버 수수료=클로버 획득 1회)를
+  줄이고, 0 이하가 되면 duration 과 마찬가지로 제거·`source_expired` 발행.
 - `remove_source(source_id)`: 일괄 제거.
-- 스탯 키(`StatModifiers.ALL_STATS`): payout_mult_all, payout_mult_color, payout_mult_parity, straight_payout_bonus, marble_mult, floor_mult, golden_pocket_count, golden_pocket_mult, max_bet_mult, marble_slots_bonus, locked_marbles, extra_balls, spin_duration_mult, spin_delay, upgrade_cost_mult, cashback_rate, offline_efficiency, offline_cap_hours, clover_gain_mult, debt_repay_mult, penalty_interval_mult
+- 스탯 키(`StatModifiers.ALL_STATS`, 1~5단계): payout_mult_all, payout_mult_color, payout_mult_parity, straight_payout_bonus, marble_mult, floor_mult, golden_pocket_count, golden_pocket_mult, max_bet_mult, marble_slots_bonus, locked_marbles, extra_balls, spin_duration_mult, spin_delay, upgrade_cost_mult, cashback_rate, offline_efficiency, offline_cap_hours, clover_gain_mult, debt_repay_mult, penalty_interval_mult, debt_paid_clover_bonus
+- 6단계 추가 스탯: clover_bonus_chance(F4), streak_bonus_per_win/streak_bonus_cap(F5·F11), hot_number_straight_mult(F6), multi_hit_bonus(F8), lucky_seven_mult(F9), milestone_clover_bonus(F13), smart_betting_bonus(M12), min_spin_duration_stat(M10), vip_comp_rate(E3), investment_rate(E5), marble_cost_mult(E8), bonus_chip_per_hit(E9), upgrade_growth_mult(E12), piggy_bank_rate(E13), compound_interest_per_digit(E14), mirror_chance(Y3), zero_straight_mult(Y7), destiny_flip_chance(Y8), fever_period_reduction/fever_duration_bonus(Y11), golden_storm_chance(Y12), buff_duration_mult(Y13). 전체 정의는 `scripts/core/stat_modifiers.gd` 참고.
 
 ### 11-5. RngService
 
 - 스핀 결과(outcome 스트림)와 그 외(misc 스트림)를 분리 → 연출·패널티 난수가 결과를 바꾸지 않는다.
 - `peek_next(n)`: 다음 n개 결과를 소비하지 않고 본다. 이후 `consume_next()` 는 반드시 그 결과를 낸다(예지 스킬).
-- `get_state()/set_state()`: 저장용(4단계).
+- `get_state()/set_state()`: 저장용. SaveManager 가 save 데이터의 `"rng"` 필드로 함께 저장·복원한다.
 
 ---
 
@@ -325,4 +415,333 @@ PH 에서 1Dc 지불 → 마담 벨벳과 **최후의 스핀**(연출, 승리 �
 | straight_payout_bonus | 개별숫자 당첨 × (1 + 값), base 0 | 다른 배율과 같은 곱셈 체계 |
 | 황금 포켓 위치 | 개수가 늘 때 무작위 추가(0 포함) | 3단계에서 재배치 기능 추가 가능 |
 | 스핀 시간 최소값 | 모든 배율 적용 후 1.5초로 제한 | 연출 가독성 |
-| 광택 비용 | polish_base_cost × 2^단계 (나무 10, 그 외 재질 비용 × 0.5) | 초안, 3단계에서 조정 |
+| 광택 비용 | ~~polish_base_cost × 2^단계~~ → 3단계에서 재질 비용 × 0.08 × 1.7^단계로 변경(14장) | 초안 |
+
+---
+
+## 13. 2단계에서 정한 세부 규칙 (메인 화면·스핀 연출)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 스핀 중 베팅 | 휠이 도는 동안 베팅창 잠금(클릭 시 거부음) | 판 위 구슬이 "걸린 구슬"로 보이게. `BetBoard.locked` |
+| 스킵 | 스핀 중 SPIN·Space·휠 클릭 → 남은 연출을 0.3초로 감음 | `RouletteWheel.skip()` |
+| 다음 스핀 | 정산 직후 바로 가능, 당첨 연출은 겹쳐서 계속된다. JACKPOT 만 클릭 대기, 오토 중엔 3초 뒤 자동으로 닫힘 | 방치 흐름 유지. `GameState.auto_spin_enabled`(4단계에서 GameState 로 옮김, 6단계에서 실제 자동 스핀 루프가 채운다) |
+| SPIN 활성 | 칩 부족(자동 축소해도 최소 베팅 미만)이면 비활성 + 칩 카운터가 빨갛게 1회 흔들림. 베팅이 없으면 활성이지만 누르면 안내 툴팁 | 원인이 다른 두 상황을 구분 |
+| 다시 걸기 | 직전 스핀의 칸 배치를 복원(`GameState.restore_last_bets`). 베팅이 이미 같으면 비활성 | 베팅이 스핀 후에도 남으므로 "초기화 뒤 복구" 용도 |
+| 드래그 이동 | 칸 → 칸 은 `GameState.replace_bet_at`(구슬 수 불변), 칸 → 바깥은 회수 | 베팅 변경은 GameState 로만 |
+| 초당 수익 | 스핀 순이익을 최근 60초 창으로 합산 ÷ min(60, 경과 시간[최소 10초]) | `IncomeTracker`. 초반 과소평가 방지 |
+| 핫/콜드 | 최근 100 결과에서 많이 나온 3개(동률 → 최근), 적게 나온 3개(0회 포함, 동률 → 오래 안 나온 것 → 작은 숫자) | `HistoryStats` |
+| 착지 보정 | 목표 포켓과의 차이를 먼저 전체 속도 배율(±12%, 발사 세기 차이로만 보임)로 흡수하고 나머지만 B 구간 창에 분산 | 짧은 스핀에서도 B 구간 속도 변화가 눈에 띄지 않게. `SpinChoreography` |
+| 당첨 칩 표시 | 정산 즉시 GameState 에는 더해지지만, 상단 카운터는 날아온 칩 하나당 (반환액 ÷ 칩 수)만큼 올라간다 | "칩이 날아와 쌓이는" 연출. `TopBar.hold_payout()` |
+| 날아가는 칩 수 | NORMAL 5 · GOOD 10 · BIG 16 · JACKPOT 24 | `Main.CHIP_FLIGHTS` |
+| 새 게임 공 위치 | 기록이 없으면 0번 포켓에 공 | 휠에 항상 공이 보이게 |
+| 연출 난수 | 휠 궤적 씨앗·불꽃·흔들림·피치는 `RngService` misc 스트림 | 결과 스트림을 건드리지 않음 |
+| 결과 강제 | `RngService.force_next()` 는 테스트·캡처 도구 전용 | 게임 코드에서 쓰지 않는다 |
+| 헤드리스 소리 | 헤드리스에서는 AudioManager 가 재생하지 않음(`enabled`) | 출력 장치 없음, 종료 시 누수 경고 방지 |
+| 흔들림·번쩍임 설정 | `VisualSettings.screen_shake`, `reduce_flashing`(4단계 설정 화면이 바꿈) | ART_BIBLE 7장 |
+
+---
+
+## 14. 3단계에서 정한 세부 규칙 (업그레이드·구슬 재질)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 업그레이드 id | `wheel_speed` → `spin_speed`, 재질·광택도 업그레이드(`marble_tier`, `marble_polish`)로 통일 | 요청 명세. 모든 효과를 `upgrade:<id>` 수정자로 |
+| 재질 배율 | marble_mult 의 base 는 1, 재질 배율은 `upgrade:marble_tier` MULT(나무 레벨 0 도 ×1 로 건다), 광택은 `upgrade:marble_polish` | "효과는 전부 StatModifiers" 규칙. `GameState.marble_tier/polish_level` 은 읽기용 사본 |
+| 광택 초기화 | 재질 구매 시 `UpgradeService.purchase` 가 광택을 0 으로(`set_upgrade_level` 자체는 초기화하지 않음) | 불러오기(4단계)에서 레벨을 다시 걸 때 광택이 지워지지 않게 |
+| 나무 구슬 광택 | 불가(돌부터). 광택 5 나무(×3.05)가 돌(×1.5)보다 높아 돌 구매가 손해가 되는 역전 방지 | "첫 업그레이드 = 돌" 전환점 유지 |
+| 재질 구매 수량 | ×10·MAX 여도 한 단계 | 단계마다 승급 연출 |
+| MAX 표시 | 살 수 있는 수량을 버튼에 "×37" 로, 0 이면 "×1" + 1레벨 비용 + 부족분 진행 바 | 요청 명세 |
+| 효과 표시 | 재질: 재질 배율(광택 제외) / 광택: 광택 배율 / 베팅 한도: 한도 배율 / 구슬: 보유 개수 / 휠: 스핀 초 / 황금: 개수. MAX·×10 이면 "다음" 은 그 수량 뒤의 값 | `UpgradeService.display_value` |
+| 탭 빨간 점 | 1레벨이라도 살 수 있는 업그레이드가 있으면. 업그레이드창을 연 동안은 숨김 | 이미 보고 있는 화면에 알림을 겹치지 않게 |
+| 승급 적용 시점 | 재질은 구매 즉시 GameState·당첨금에 반영, 화면의 구슬 모양은 승급 연출에서 구슬이 목적지(베팅창 트레이 또는 재질 카드)에 닿는 순간 한꺼번에 바뀐다. 클릭·Space 로 건너뛰면 즉시 | "모든 구슬이 새 재질로 바뀐다" 연출. `MarbleSprite.sync_shared` |
+| 새 슬롯 연출 | 구슬 개수 구매 시 베팅창이 보일 때 재생(업그레이드창에서 샀으면 돌아왔을 때) | 보이지 않는 곳에서 끝나 버리지 않게 |
+| 황금 포켓 표시 | 빛줄기가 포켓에 닿는 순간(0.46초) 휠 포켓이 금색, 베팅칸 금 테두리도 같은 시각 | 요청 명세 |
+| 숫자 표기 | 배율 `format_mult`("×1.25", 1000 미만도 유효숫자 3자리), 초 `format_seconds`, 백분율 `format_percent`. 번역 문자열의 숫자 자리는 `%s` + NumberFormat(%d 금지, 테스트로 검사) | 전수 점검 |
+| 0 과 O | 큰 숫자 폰트(num14)의 0 가운데에 점 | 단위 Oc·Ocd 의 O 와 구분 |
+| 디버그 패널 | F9, 개발 빌드(`OS.is_debug_build()`)에서만 Main 이 `scenes/debug/debug_panel.gd` 를 동적 로드 | 내보내기 빌드에는 붙지 않음 |
+
+---
+
+## 15. 4단계에서 정한 세부 규칙 (저장·오프라인 수익·설정·일시정지·통계)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 저장 형식 | `{"version","saved_at","checksum","data"}`, `data` 는 (객체가 아니라) `JSON.stringify()` 한 **문자열**을 한 번 더 담는다 | Godot 의 JSON 숫자 파서가 1e250 급 극단적으로 큰 실수를 다시 읽을 때 마지막 몇 비트가 흔들리는 것을 실측 확인. `data` 를 객체로 두면 "체크섬 검증"이 재직렬화 과정에서 그 흔들림 때문에 정상 파일을 손상으로 오검출할 수 있다. 문자열로 감싸면 체크섬은 항상 원문 바이트를 그대로 비교하므로 안전하다. 값 자체의 오차는 상대오차 1e-9 이내로, `NumberFormat` 표시 정밀도(3자리)에는 전혀 영향 없다(`check_rel` 로 테스트) |
+| 원자적 저장 | `save.tmp` 에 쓰고 다시 읽어 JSON 파싱까지 확인 → 기존 `save.json` 이 있으면 `save.bak` 으로 교체 → `save.tmp` 를 `save.json` 으로 교체(둘 다 `DirAccess.rename_absolute`, 대상이 있으면 먼저 지움 — Windows 호환) | 쓰다가 중단돼도 `save.json` 은 항상 이전 버전이거나 완전한 새 버전만 있다 |
+| 손상 복구 | `save.json` 체크섬이 안 맞으면 `save.bak` 을 시도. 그것도 실패하면 토스트로 알리고 새 게임처럼 시작(되돌릴 수 없음) | 요청 명세 |
+| 마이그레이션 | `SaveManager._migrate(data, from_version)`: `match from_version` 에 케이스를 추가하는 구조만 미리 만들어 둠(지금은 버전 1뿐이라 실제 변환은 없음) | 5단계 이후 세이브 필드가 늘 때를 위한 틀 |
+| 스핀 도중 저장 | `SpinController.start_spin()` 이 `GameState.pending_spin_bets/pending_spin_results` 에 스냅샷을 남기고(`spin_in_progress=true`), `finish_spin()` 이 정상 종료되면 비운다. 불러온 뒤 `spin_in_progress` 가 true 면 `SpinController.settle_pending_spin()` 이 연출 없이 즉시 정산(Main 이 UI 를 만들기 전에 호출) | GameState 만 보고도 SaveManager 가 스핀 상태를 저장·복원할 수 있게(core 레이어 안에서 해결) |
+| 오프라인 수익 분기 | `OfflineIncome.compute()`: 오토 스핀 해금 전(`GameState.auto_spin_unlocked()`, 6단계 전엔 항상 false) → 항상 "팁" 모드(효율 5%). 해금 후 오토가 켜져 있었으면 "전체"(기본 30%). 해금 후 꺼져 있었으면 "없음"(0) | 요청 명세. 6단계가 `auto_spin_unlocked()` 를 실제 스킬 조건으로 바꾸고 `GameState.auto_spin_enabled` 를 실제 토글에 연결하면 그대로 동작한다 |
+| 오프라인 수익 상한 | `Economy.offline_income(초당수익, 경과초, cap_hours, efficiency)`: `min(경과, cap_hours×3600) × efficiency`. 경과가 음수(시계 조작)거나 60초(`Economy.OFFLINE_MIN_ELAPSED`) 미만이면 계산 자체를 하지 않음(팝업도 없음) | 요청 명세 |
+| 초당 수익 공용화 | `GameState.income_tracker`(`IncomeTracker`, 창 `Economy.LOAN_INCOME_WINDOW`=5분)를 스핀마다 `SpinController._apply_outcome` 이 채운다. 저장 시점 값을 `income_per_second_at_save` 로 저장 | GDD 9장 "대출액" 공식도 "최근 5분 평균 초당 순수익" 을 쓰므로 5단계가 같은 트래커를 그대로 쓸 수 있다. TopBar 의 60초 창 트래커(2단계, 화면 표시용)와는 별개 |
+| offline_efficiency 기본값 | 1단계 초안 0.25 → 요청 명세대로 **0.3** 으로 조정(`Economy.OFFLINE_EFFICIENCY`) | 초안 수치를 확정 명세로 |
+| 설정 파일 | `user://settings.cfg`(ConfigFile), 세이브(`save.json`)와 완전히 분리. `SettingsManager` 오토로드가 필드를 갖고, 화면은 필드를 직접 바꾼 뒤 `commit()`(적용+저장)만 부른다 | 개별 setter 를 필드마다 만들지 않아도 됨(요청 규모 대비 최소 구현) |
+| 스핀 연출 속도 | `SettingsManager.spin_visual_speed`(보통/빠름/최고속, ×1/×1.5/×2)는 `Main._on_spin_started` 가 `wheel.play_spin` 에 넘기는 duration 에만 곱한다 | `GameState.spin_duration()`(경제 공식)·`Economy` 는 그대로 — "연출"이라는 이름대로 scenes 레이어에서만 적용. `SpinChoreography` 는 이미 다양한 duration 에 적응하므로 추가 변경 없이 동작 |
+| 큰 당첨/오토 연출 간략화 | `VisualSettings.full_effects(tier, is_auto_spin)`: 오토 스핀 중이고 "오토 연출 줄이기" 켜져 있으면 BIG 미만은 파티클·흔들림 생략. "큰 당첨 연출 간략" 이면 BIG·JACKPOT 도 배너·플래시·흔들림 생략. 두 경우 모두 떠오르는 텍스트·소리·클로버 비행은 그대로 | 요청 명세. `auto_spin_enabled` 가 실제로 true 가 되는 건 6단계부터라 지금은 이 분기가 항상 "전체 연출" 쪽으로만 간다 |
+| 색약 보조 | 새 텍스처 없이 프로시저럴로: 휠은 빨강 포켓 채우기 위에 아이보리 점 2개(`RouletteWheel._draw_colorblind_dots`), 베팅판은 숫자 칸 토큰·바깥 R 칸에 같은 방식(`BetBoard._draw_colorblind_dots`) | 새 팔레트 확인이 필요한 에셋을 늘리지 않음 |
+| 일시정지 시간 흐름 | 기본은 "흐름"(옵션 꺼짐, `SettingsManager.pause_time_flows=true`) → `get_tree().paused` 를 건드리지 않는다. 옵션을 켜면(흐름 끔) 일시정지 메뉴·통계 화면이 열려 있는 동안만 `get_tree().paused=true`. `PauseMenu`·`StatsScreen` 은 `process_mode=PROCESS_MODE_ALWAYS` 라 멈춰 있어도 자기 자신은 계속 동작(Esc 로 닫기 포함) | 방치형 기본 정체성(항상 진행)은 지키면서 원하면 완전히 멈출 수 있게. `Main._update_pause_freeze()` |
+| Esc 우선순위 | 통계 → 설정 → 스킬트리 → 일시정지 메뉴 순으로 열려 있는 것부터 닫고, 아무것도 없으면 일시정지 메뉴를 연다. 일시정지 메뉴가 열려 있을 때 닫는 것은 `PauseMenu` 자신의 `_unhandled_input` 이 맡는다(Main 은 `pause_menu.visible` 이면 그 branch 를 건너뛴다) | `Main` 은 `PROCESS_MODE_ALWAYS` 가 아니라 tree 가 paused 면 입력을 못 받으므로, "멈춰 있을 때도 Esc 로 닫기"는 항상 동작하는 PauseMenu 쪽이 책임진다 |
+| 통계 신규 항목 | `GameState.stats["total_wins"]`(당첨 스핀 수, 승률=`total_wins/total_spins`), `GameState.number_frequency`(포켓 번호 → 누적 횟수, `most_frequent_number()`) 를 4단계에서 추가 | 승률·최다 출현 숫자는 기존 필드로 계산할 수 없었음 |
+| 복귀 팝업 | 딜러 루시 초상화가 없으면(`assets/sprites/npc/lucy_portrait.png` 존재 여부로 자동 판단) `icon_vault.png`. [받기] 를 누르면 `GameState.add_chips(income, count_as_earned=false)` | 오프라인 수익은 "당첨 반환액"이 아니므로 `total_earned` 통계에는 넣지 않는다(GDD 11-3 정의 유지). 8단계에서 초상화 파일만 추가하면 자동으로 바뀐다 |
+| auto_spin 이동 | `Main.auto_spin`(항상 false 였던 6단계용 자리) 를 `GameState.auto_spin_enabled` 로 옮김 | 오프라인 수익·저장이 필요로 하는 값이라 GameState 소유가 맞음. `SpinControls.auto_locked` 는 여전히 true(6단계에서 스킬로 해금) |
+| 테스트 격리 | `tests/lib/test_case.gd` 의 공용 `before_each()` 가 `save.json/.tmp/.bak` 을 먼저 지운다 | `Main._ready()` 가 이제 `SaveManager.load_game()` 을 부르므로, 컨테이너에 실제로 남은 저장 파일이 있으면 Main 을 새로 만드는 모든 테스트가 그 값을 그대로 불러와 버린다(실제로 겪은 문제) |
+
+---
+
+## 16. 5단계에서 정한 세부 규칙 (빚·래칫 남작·대화·패널티)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 4번째 대출(합산) | 새 항목을 만들지 않고 **잔액이 가장 큰 기존 빚**에 원금·잔액을 그대로 더한다(`DebtService.take_loan`). 전용 대사(`loan_overflow`, "장부가 꽉 찼는데… 뭐, 한 줄 더 쓰지.") 로 표시 | "최대 3건" 규칙을 넘지 않으면서도 "빚이 하나 더 늘었다"는 사실 자체는 서사적으로 살려야 했다 |
+| 자동 상환 순서 | 여러 건일 때 **오래된 순**(배열 인덱스 순)으로 갚고, 한 건을 다 갚고 남은 초과분은 다음 빚으로 넘어간다(`DebtService.apply_auto_repay`) | 어느 빚부터 갚을지 원 설계에 명시가 없어 "먼저 진 빚부터"를 기본으로 정함 |
+| 완납 컷신 발동 조건 | 개별 대출이 0 이 되는 시점이 아니라 **총 빚(모든 대출 합)이 0** 이 되는 순간에만 발동(`GameState._repay_debt` 가 합계를 확인) | 여러 건 중 하나만 갚아도 매번 남작이 등장하면 과하다. "빚에서 완전히 벗어났다"는 순간만 컷신으로 축하 |
+| 수동 상환 버튼 의미 | `DebtPanel` 의 [전액 상환]=그 건의 **잔액 전부**, [절반 상환]=그 건의 **잔액의 50%**(원금 기준 아님, 매번 그 시점 잔액 기준) | 명세에 정확한 산식이 없어 "지금 남은 만큼"을 기준으로 통일. 둘 다 보유 칩으로 한도를 건다 |
+| 컷신 중단 후 재개 | 저장 시점에 아직 못 본 컷신은 `GameState.pending_baron_event` 에 남고, 다음 로드 때 **처음부터 다시 재생**한다(중간 지점 재현 아님) | 대출/완납으로 인한 실제 수치 변화(칩·debts 배열)는 파산·완납 감지 즉시 동기적으로 끝내고, 컷신은 그 결과를 보여주기만 하는 연출이다(스핀 도중 저장을 연출 없이 즉시 정산하는 4단계 패턴과 동일). 그래서 수치는 항상 정확하고 연출만 다시 보여주면 안전하다 |
+| 클로버 최소 1 | `GameState.add_clovers()`: 배율이 0 보다 크고 원래 수량도 0 보다 크면 결과가 최소 1 이 되도록 보정 | 클로버 수수료 패널티 전용 분기가 아니라 **일반 규칙**으로 넣었다 — 나중에 다른 배율 디버프가 추가돼도 "클로버 획득이 통째로 0" 이 되는 극단은 항상 막힌다 |
+| 소모형(charges) 수정자 | `StatModifiers.Modifier` 에 시간(`duration`)과 별개로 `charges` 축을 추가, `consume_charges()` 로 소모 | 압류(스핀 1회)·클로버 수수료(획득 1회)처럼 "시간"이 아니라 "횟수"로 끝나는 효과가 1단계부터 표현할 수단이 없었던 이슈를 최소 확장으로 해결 |
+| 패널티도 버프 체계 재사용 | 시간제 패널티(감시하는 부하·흐려진 구슬·시가 연기)는 `buff:` 가 아니라 `penalty:` 접두어만 다르고 나머지는 기존 시간제 수정자·`buff_started`/`buff_ended` 신호를 그대로 쓴다. 새 시그널은 토스트 표시에 필요한 `penalty_triggered(id, duration)` 1개뿐 | 이미 있는 시간제 만료·저장/복원 체계를 그대로 재사용해 중복 구현을 피함 |
+| 소매치기만 별도 방어 | `steal = min(chips × rate, max(0, chips − 최소베팅×3))` | 6종 중 유일하게 "즉시 차감"형이라 패널티 자체가 파산을 유발할 수 있는 경로였다. 나머지 5종은 배율·소모형 수정자라 애초에 칩을 직접 줄이지 않는다 |
+| 범위에서 뺀 것 | (1) BIG 이상 당첨 연출·오토스핀 중 패널티 억제는 `PenaltyManager.suppressed` 를 대화창·계약서 팝업 동안만 실제로 세운다(BIG+ 연출 중 억제는 발생 빈도가 낮아 이번 범위에서 제외). (2) 남작 컷신 중 음악 볼륨 덕킹은 음악 시스템 자체가 아직 없어(8단계 예정) 스킵 — 대신 `bass_drop` 효과음 한 번으로 파산 순간을 표현 | 명세의 핵심(대출·상환·패널티·컷신)에 집중하고, 아직 없는 시스템에 의존하는 디테일은 다음 단계로 미룸 |
+
+---
+
+## 17. 7단계에서 정한 세부 규칙 (층 진행·엔딩·업적)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 층 배율·구슬 상한 재조정 | 1단계 초안(payout_mult ×2/×4/×8/×16, 1F/2F/3F 구슬 상한 옥/에메랄드/별빛)을 이번 단계 요청 명세(×10/×1K/×100K/×10M, 상한 금/루비/흑요석)로 교체. 이동 비용(1M/1T/1Sx/1No)·베팅 배율(×100/×10K/×1M/×100M)·클로버 보상(+10)·PH 구슬 상한(코스믹)은 요청과 1단계 값이 이미 같아 그대로 뒀다. 황금 포켓 업그레이드의 `required_floor=2`(2F)도 1단계부터 이미 요청과 일치했다 | "초안 — 9단계에서 조정" 이라 명시된 값이라 최신 요청을 그대로 반영. `test_data.gd::test_floors()` 는 배율 단조증가·PH 전체 재질만 검사해 구체적 수치 변경에 영향받지 않는다 |
+| 층 이동 로직 위치 | `FloorService`(신규, `UpgradeService` 와 동형인 static 클래스): `next_floor_def/is_max_floor/progress/can_move/move_to_next`. `move_to_next()` 가 `spend_chips`→`floor_index` 갱신→`add_clovers`→`EventBus.floor_changed` 순서로 처리 | 기존 "Service = 상태 없는 판정·구매" 패턴을 그대로 따름(구매 성격의 동작이라 `GameState` 에 새 메서드를 얹지 않음) |
+| "다음 층에서 해금" 표시 | 이미 3단계 `UpgradeService.floor_for_marble_tier()` + `UpgradeCard._lock_text()` 가 구현돼 있었다 — 이번 단계는 손대지 않음 | 요청 명세를 살펴보니 설계·구현 모두 이미 끝나 있었다(3단계 작업 범위가 앞서 여기까지 포함) |
+| 업적 조건 판정 방식 | `data/achievements.json` 은 표시 메타데이터만(id·category·name_key·desc_key·icon·hidden), 조건은 `AchievementManager` 코드에서 `EventBus` 구독으로 판정 | 30개 중 다수가 "한 번만 있는" 개별 조건이라 범용 규칙 엔진을 만드는 비용이 이득보다 크다(6단계 특수 기능과 같은 결정) |
+| 더블 볼 "둘 다 적중" 판정 | 결과 배열의 두 숫자 각각에 대해 `RouletteRules.bet_wins(bet, number)` 를 현재 베팅들로 다시 계산해 "그 공 결과 하나만으로 이기는 베팅이 있는가"로 판정(`SpinOutcome.BetResult.hit_count` 는 공 두 개를 합산해 버려서 공별로 못 나눈다) | 기존 순수 함수(`bet_wins`)를 재사용해 새 상태를 안 늘림 |
+| 오너 모드(무한 모드) 배율 | `payout_mult_all` MULT ×2(`Economy.OWNER_MODE_PAYOUT_MULT`), 영구 수정자 `ending:owner_mode` | "수익 ×2" 를 기존 스킬·버프와 같은 곱연산 체계로 표현. 불러오기 후에는 `GameState.rebuild_ending_modifiers()`(`rebuild_upgrade_modifiers` 와 동형)가 다시 건다 |
+| 업적 수 30개 맞추기 | 요청 명세를 항목별로 세면 27개("누적 스핀 1000/10000"은 2개로 계산해도)라, 진행·기능 카테고리에 "2F 도달"·"3F 도달"·"첫 황금 포켓 적중" 3개를 추가해 30개를 채웠다 | 아이콘·조건 모두 기존 시스템(층 이동·황금 포켓)만으로 구현 가능해 새 의존성이 없다. 원치 않으면 9단계에서 제거 가능 |
+| 벨벳 대사 전부 보기(숨김) | `AchievementManager.mark_dialogue_seen(key, variant_index)` 를 대사 재생부(7단계 3/N, 마담 벨벳 화면)가 호출하는 형태로 인터페이스만 1/N 에서 먼저 만들었다 | 벨벳 대사 자체가 3/N(화면) 작업이라 로직 커밋(1/N)에서는 실제 호출부가 없다 — `test_achievement_manager.gd` 는 직접 호출로 검증 |
+| 층별 휠 스킨 색 표현 | 팔레트에 "마호가니"(1F) 전용 색이 없어 wood 램프를 그대로 쓰고 `gloss`(반사 세기)·`grain_accent`(결 강조색)로 차별화했다. 3F "네온 청록 라인"·PH "보석 8개 순차 반짝임"은 정적 텍스처가 아니라 `RouletteWheel._draw_fx()` 런타임 효과로 구현(회전하지 않는 고정 반지름 애니메이션) | 36색 팔레트 제약 안에서 "재질 교체"라는 형태 그대로(기하 불변) 재질감만 바꾸는 것이 요청 명세("림·트랙·터렛만 교체")에 가장 가까웠다 |
+| UI 패널 프레임 5색 테마 축소 | 오른쪽 패널의 큰 펠트 텍스처(216×328)를 층마다 다시 굽는 대신, `scripts/core/floor_theme.gd`(강조색 표, 순수 표시용)를 만들어 엘리베이터 확인 팝업 썸네일에만 적용했다 | 배경·휠 스킨이 이미 층 구분을 강하게 전달해서, 큰 텍스처 5벌을 더 굽는 비용 대비 이득이 낮다고 판단(2/N 남은 이슈에 기록, 8단계에서 원하면 표를 재사용해 확장 가능) |
+| 최후의 스핀 = 연출 전용 | `EndingSequence` 가 `wheel.play_spin(results, 8.0)` 을 직접 부른다. `results` 는 `RngService.*_misc()` 로 뽑고, `SpinController`/베팅·정산은 전혀 거치지 않는다 | 이 스핀은 승패를 가리는 실제 베팅이 아니라 "승리를 보여주는" 연출이라, 경제 로직을 전혀 안 건드리는 편이 안전하고 `RouletteWheel.play_spin()` 은 애초에 연출·경제를 분리해 만들어져 그대로 재사용 가능했다 |
+| 양도 증서 = 계약서 컴포넌트 재사용 | 5단계 `ContractPopup`(양피지 펼침·서명·도장)에 `open_custom(title, line1, line2, line3)` 을 추가해, 대출 전용이던 `open()` 과 공통 로직(`_open_common()`)만 공유한다 | 서명·도장 메커니즘이 대출과 완전히 같고, 각 연출이 자기 `ContractPopup` 인스턴스를 새로 만들어 쓰므로 두 진입점이 서로 간섭하지 않는다(대출 계약서의 빨간 상환액 강조색을 증서에서는 `remove_theme_color_override()` 로 끈다) |
+| `EndingSequence` 가 wheel·shaker·flash 를 직접 참조 | 다른 컷신은 `signed()`/`finished()` 신호로 Main 에 되돌려 처리하지만, 엔딩은 화면 전체(휠 스핀·흔들림·플래시·코인비)를 오케스트레이션해야 해서 Main 이 생성 직후 세 참조를 필드로 바로 꽂아준다(`shaker.targets=[...]` 처럼 이미 있던 직접 주입 패턴과 같은 결) | 신호를 늘리는 것보다 참조 주입이 더 단순하고, 세 참조 모두 null 이어도(테스트 환경) 안전하게 동작하도록 각 사용처에 null 체크를 뒀다 |
+| 네온사인 "HOUSE EDGE" | `tools/art/gen_fx.py` 의 `NEON_CHARS` 에 H·S·D 3글자를 추가(폭이 가장 넓은 W 가 이미 있어 아틀라스 셀 크기·기존 글자 좌표는 그대로 유지됨, 재생성 후 바이트 비교로 확인) | 기존 "LUCKY" 간판용 `NeonText`/아틀라스가 완전히 범용이라(트루타입 폰트에서 글리프를 뽑는 방식) 필요한 글자만 추가하면 됐다 |
+| 루시·벨벳 대사창 공유 | `Main._npc_dialogue`(옛 `_lucy_dialogue`, 화자 무관 공용 이름으로 변경)를 두 NPC가 함께 쓴다. 엔딩 시작 시 이 대사창이 열려 있으면 먼저 숨긴다(`_on_acquisition_pressed()`) | `DialogueBox` 는 화면에 하나만 뜨는 고정 위치 UI라, PH 도착 인사 대사와 엔딩 전용 대사창(`EndingSequence.dialogue`, 별도 인스턴스)이 동시에 겹칠 수 있었다(실제로 스크린샷 검수에서 발견). 엔딩 쪽은 독립 인스턴스를 유지하되, 겹치는 원인(주변 대사)만 치우는 쪽이 더 단순했다 |
+| 엔딩 컷신은 스킵 미지원 | 층 이동 컷신과 달리 엔딩은 스킵 버튼이 없다(대사만 클릭으로 넘길 수 있다) | 세이브당 한 번뿐인 축하 이벤트라 반복 스킵 수요가 낮고, 최후의 스핀(8초)·골드 웨이브 등 여러 연출이 서로 다른 방식(휠 애니메이션·파티클·네온)으로 얽혀 있어 범용 스킵 로직을 만드는 비용이 크다고 판단(9단계에서 필요하면 추가) |
+| 크레딧 화면 범위 축소 | "스크롤링 카지노 풍경" 대신 고정 화면(제목+부제+통계 7줄+계속하기 버튼)으로 축소, `StatsScreen` 과 같은 자리·행 구조를 재사용 | 이미 있는 4단계 통계 집계·`CountLabel` 카운트업을 그대로 재사용할 수 있어 새 연출 코드 없이도 "성과를 보여준다"는 목적을 달성한다 |
+| 마담 벨벳 아트 | 은발 올림머리·진한 빨강 드레스(이름 그대로 "벨벳")·팔은 드레스와 같은 색이면 실루엣이 안 보여 대비되는 검은 장갑(`HAIR[0]`)으로 그렸다. 초상화 7프레임(표정 5+입벙긋 2)·월드 스프라이트 48×72×4(idle/wine/gesture/clap) 는 `gen_lucy.py` 골격을 그대로 재사용 | 루시·남작과 같은 절차적 파이프라인을 그대로 쓰되(새 그리기 헬퍼 없음), 옷·머리색만 바꿔 카지노 소유주다운 관록을 표현했다 |
+
+---
+
+## 18. 8단계 1/N 에서 정한 세부 규칙 (부팅·타이틀·인트로 컷신)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 부팅 순서 | `run/main_scene` 을 `Main.tscn` 에서 `SplashScreen.tscn` 으로 바꿨다: 스플래시(개발사 로고, 클릭·아무 키로 스킵) → `TitleScreen.tscn`(이어하기/새 게임/설정/업적/크레딧/종료) → (새 게임이면 `IntroCutscene` 재생 후) `Main.tscn` | 요청 명세대로 부팅→타이틀→게임 흐름을 만들되, `Main._ready()` 의 기존 `SaveManager.load_game()` 호출은 그대로 둬서(4단계부터 있던 동작) 348개 기존 테스트가 전부 그대로 통과하게 했다 |
+| "이어하기" 는 이중 로드 안 함 | `TitleScreen` 은 `SaveManager.load_game()` 을 부르지 않고 `get_tree().change_scene_to_file(Main.tscn)` 만 한다. 대신 저장 요약(층·칩·플레이 시간)은 `SaveManager.peek_summary()`(신규, GameState 를 건드리지 않고 저장 파일만 읽는다)로 미리 보여준다 | Main 이 이미 부팅마다 `load_game()` 을 부르므로 타이틀에서 한 번 더 부르면 이중 로드(효과는 같지만 낭비)가 된다. `peek_summary()` 는 "미리보기"와 "실제 적용"을 분리해 취소 가능한 UI(이어하기 버튼에 요약만 표시)를 만들 수 있게 한다 |
+| "새 게임" | `SaveManager.delete_save()`(신규) 로 기존 저장을 지우고 `GameState.reset()` 을 부른 뒤 `IntroCutscene` 을 재생한다. 기존 저장이 있으면 먼저 확인 팝업("기존 저장 파일을 덮어씁니다")을 보여준다 | 이 게임은 저장 슬롯이 하나뿐이라(4단계) "새 게임 = 기존 저장 덮어쓰기"가 유일한 의미. `GameState.reset()` 은 이미 모든 필드와 수정자를 정확히 초기화하는 함수라(1단계) 그대로 재사용했다 |
+| "저장 후 타이틀로" 활성화 | `PauseMenu` 에 잠겨 있던 버튼을 `title_requested` 신호로 바꾸고, `Main._on_title_requested()` 가 `SaveManager.save_game()` 후 `TitleScreen.tscn` 으로 전환한다 | 이미 저장된 상태로 돌아가므로 확인 팝업이 필요 없다(새 게임과 달리 데이터 손실 위험이 없다) |
+| 인트로 컷신 상태 전이는 델타 누적만 | `IntroCutscene` 의 각 단계(골목→구슬→문→대사) 전환은 전부 `_process(delta)` 안의 `_phase_time` 누적으로만 결정한다. 코스메틱 페이드(디밍 등)는 `create_tween()` 을 써도 되지만 다음 단계로 넘어가는 조건에는 쓰지 않는다 | 7단계 `EndingSequence`/`ElevatorCutscene` 과 같은 이유: 헤드리스 테스트가 `_process(dt)` 를 직접 여러 번 불러 진행 상황을 재현해야 하는데, 트윈은 실제 엔진 프레임 없이는 진행되지 않아 테스트가 불가능해진다 |
+| 헤드리스 테스트는 실제 씬 전환을 부르지 않는다 | `test_splash_screen.gd`/`test_title_screen.gd` 는 `get_tree().change_scene_to_file()` 로 이어지는 경로(이어하기 클릭, 인트로 완주)를 직접 실행하지 않고, 그 앞 단계의 상태(비활성 여부·요약 문구·리셋 여부)만 검사한다 | `-s tests/run_tests.gd` 는 모든 테스트가 하나의 SceneTree 를 공유한다 — 실제 씬 전환이 한 번이라도 일어나면 그 씬의 `_ready()`(예: `Main` 전체 빌드)가 트리에 남아 이후 테스트를 오염시킨다. 전환 자체는 캡처 스크린샷과 수동 실행으로 검증한다 |
+| 개발사 이름 자리표시자 | 정식 이름이 아직 없어 `Economy.STUDIO_NAME = "HOUSE EDGE"` 를 스플래시 로고·크레딧·(5단계) Windows 회사명에 임시로 쓴다. `tools/art/gen_title.py` 의 같은 이름 상수와 반드시 맞춰야 한다 | 나중에 이름이 정해지면 두 상수만 바꾸고 `python3 tools/art/gen_title.py` 를 다시 돌리면 전부 갱신된다 |
+| 네온 로고는 기존 `NeonText` 재사용 | 타이틀의 "HOUSE EDGE" 마퀴는 새 컴포넌트가 아니라 7단계 엔딩 네온사인과 같은 `NeonText`(글자 H·O·U·S·E·D·G 가 이미 `neon_pink.png` 아틀라스에 있다)를 그대로 쓴다. `flicker_on()` 으로 인트로에 지직거리며 켜지고, 이후 `idle_flicker=true` 로 가끔 한 글자가 깜빡인다 | 요청 명세("글자가 하나씩 지직거리며 켜지고, 이후 가끔 한 글자가 깜빡")가 `NeonText` 가 이미 제공하는 기능과 정확히 같다 |
+| 인트로 실루엣은 절차적 도형 | "주인공의 뒷모습"은 새 스프라이트 없이 `IntroCutscene._WalkingFigure`(내부 클래스)가 `_draw()` 로 그리는 단순 도형(머리 원 + 몸통 사각형)이다. 처음에는 `void` 하나로만 채웠더니 어두운 배경(디밍 알파 0.75)에 완전히 묻혀 안 보였다 — `ink` 바탕 + `mist` 테두리(빗물에 젖어 반짝이는 느낌)로 바꿔 실루엣이 또렷이 보이게 했다(캡처로 발견) | 이름 없는 주인공의 얼굴·표정이 필요 없는 장면이라(요청 명세도 "뒷모습"만 요구) 전용 캐릭터 시트를 만드는 비용이 이득보다 크다고 판단. 대신 대비색 실루엣으로 "빗속의 사람" 인상은 충분히 전달한다 |
+
+## 19. 8단계 2/N 에서 정한 세부 규칙 (튜토리얼)
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 튜토리얼 진행 방식 | `scenes/fx/tutorial_guide.gd`(`TutorialGuide`, `Main` 의 fx 레이어에 상주) 가 `enum Step { PLACE_BET, SPIN, RESULT, UPGRADE_TAB, UPGRADE_BUY, CLOVER, SKILLTREE, DONE }` 을 실제 `EventBus` 이벤트(`bets_changed`/`spin_resolved`/`tab_pressed`/`upgrade_purchased`/`first_clover_earned`)로만 전진시킨다. 진행 값은 `GameState.tutorial_step`(저장됨) | 요청 명세("각 단계는 실제 게임 이벤트가 조건을 채우면 넘어간다")를 그대로 구현. 저장에 포함시켜 중간에 끄고 켜도 이어서 진행된다 |
+| 대상 강조 방식 | 화면을 덮는 4조각 `ColorRect`(대상 위/아래/좌/우를 뺀 "구멍" 모양)로 어둡게 하고, 대상 둘레에 금테 4조각(`Palette.GOLD_HL`)을 두른다. 입력은 막지 않는다(`mouse_filter = IGNORE`) — 대사를 닫지 않고도 실제 칸을 클릭·탭을 누르는 등 진짜 조작을 할 수 있다 | 요청 명세("자연스럽게 녹인다")대로 별도 확인 버튼이나 입력 차단 레이어 없이 실제 UI를 그대로 조작하게 했다 |
+| **알파 블렌딩 렌더링 버그(중요)** | `DIM_ALPHA` 를 처음엔 `JackpotOverlay` 와 같은 0.85 로 맞췄지만, 스크린샷 픽셀 비교로 "world(휠·배경, Node2D)" 위에서는 알파값과 무관하게 반투명 `ColorRect` 가 전혀 합성되지 않는 것을 발견했다(같은 fx_layer 의 UI 패널 위에서는 정상 동작). 완전 불투명(`DIM_ALPHA := 1.0`)으로 바꾸니 블렌딩이 필요 없어져 문제가 사라졌다. **기존 `JackpotOverlay`(DIM_ALPHA=0.85)도 같은 증상**(잭팟이 터져도 휠 자체는 안 어두워짐)임을 확인해 별도 작업(spawn_task)으로 보고했다 | 이 프로젝트 렌더러 조합(gl_compatibility, 소프트웨어 Mesa llvmpipe)의 환경 특성으로 보인다. 근본 원인은 못 찾았지만 완전 불투명이 확실한 우회책이라 채택했다 — 앞으로 반투명 오버레이가 휠/배경 같은 world 콘텐츠를 덮어야 할 때는 이 문제를 먼저 의심할 것 |
+| **대사 강제 교체(중요)** | `Main._say_npc_entry()` 에 `force: bool` 매개변수를 추가했다. 기존에는 "대사창이 이미 열려 있으면 무시"했는데, 튜토리얼은 플레이어가 대사를 안 닫고 바로 다음 행동(베팅·탭 클릭)을 할 수 있으므로 이전 단계 대사가 안 지워지고 그대로 남는 버그가 있었다(캡처로 발견 — SPIN 단계인데 "판 위의 칸을 하나" PLACE_BET 문구가 그대로 보였다). `TutorialGuide._show_step_line()` 은 항상 `force=true` 로 부른다 | 대사 표시 자체를 담당하는 `_say_npc_entry` 는 그대로 두고(다른 호출자는 기존처럼 "말하는 중이면 무시"), 튜토리얼만 강제 교체하도록 최소로 고쳤다 |
+| SPIN 단계에서 대사창이 SPIN 버튼을 가림 | `DialogueBox`(y=268~352) 와 SPIN 버튼(전역 좌표 y=318~352)이 원래 겹치는 레이아웃이다(대사가 있으면 항상 이렇다 — 튜토리얼만의 문제가 아니다). 플레이어가 대사를 한 번 닫으면 버튼과 스포트라이트가 드러난다 | 기존 레이아웃 관례를 그대로 따랐다. 별도 재배치는 이번 단계 범위 밖으로 판단(대사를 읽고 닫으면 정상적으로 보인다) |
+| 1회성 신규 기능 팁 | 첫 대출(`debt_changed` + `STAT_LOANS_TAKEN>=1`)·첫 층 이동(`floor_changed(1)`)·황금 포켓 해금(`floor_changed(>=2)`) 은 `TutorialGuide` 의 활성 여부와 무관하게 항상 검사하고, `GameState.tutorial_tips_seen`(Array[String], 저장됨) 으로 한 번만 띄운다. `SettingsManager.tutorial_enabled` 로만 전부 끌 수 있다 | 튜토리얼 6단계가 끝난 뒤에도(또는 튜토리얼을 꺼도) 새로 나타나는 기능은 계속 짧게 짚어줘야 한다는 요청 명세 반영 |
+| 설정 "다시 보기" | `SettingsManager.tutorial_enabled`(bool, 체크박스) + "다시 보기" 버튼이 `GameState.tutorial_step=0`, `tutorial_tips_seen=[]` 로 리셋하고 `EventBus.tutorial_reset_requested` 를 발행, `TutorialGuide.restart()` 가 받아 처음부터 재생한다 | 요청 명세대로 튜토리얼을 끄거나 다시 볼 수 있게 했다 |
+
+## 20. 8단계 3/N 에서 정한 세부 규칙 (음악·사운드 최종화)
+
+### 20-1. 음악 소싱 — 9곡 선정·반입 완료(8단계 마무리)
+
+사용자가 "CC0/무료 음원 제안" 방식을 선택. 처음엔 네트워크 정책이 incompetech.com 등 후보 사이트 접속을
+막고 있었는데(egress 차단), 사용자가 클라우드 환경 설정에서 허용 도메인을 확장해 줘서 풀렸다. incompetech.com
+의 공개 카탈로그(`pieces.json`, ~1400곡, 장르·무드·bpm 메타데이터 포함)를 받아 아래 9곡을 골랐다(전부 Kevin
+MacLeod, CC BY 4.0 — 크레딧 문구는 STEAM.md 4장):
+
+| id | 곡 | 선정 이유 |
+|---|---|---|
+| `bgm_title` | Walking Along | Dark·Mysterious·Relaxed, 브러시드 킷+베이스+바이브스 — 비 내리는 타이틀 분위기 |
+| `bgm_b1` | Deadly Roulette | 재즈, Dark·Grooving — 이름부터 완벽한 우연, 가장 허름한 층 |
+| `bgm_1f` | Hard Boiled | 재즈, Mysterious·Grooving — 필름누아르 탐정 느낌, B1 보다 한 단계 위 |
+| `bgm_2f` | Backbay Lounge | 재즈, Bright·Grooving — 더 세련된 라운지 |
+| `bgm_3f` | Ultralounge | 재즈, Grooving·Relaxed, 5분대 — 한층 더 고급스러운 라운지 |
+| `bgm_ph` | Grand Dark Waltz Allegro | 오케스트라 왈츠, 어둡고 웅장 — 펜트하우스의 화려함 |
+| `bgm_fever_layer` | Vegas Glitz | 재즈, Bouncy·Humorous, 51초 — 짧고 흥겨운 베가스풍, 층 BGM 위에 겹치는 레이어용 |
+| `bgm_ending` | Long Road Ahead | "선악 대결의 여파... 마지막 3분의 1은 웅장한 승리부" — 엔딩 서사와 정확히 맞음 |
+| `bgm_credits` | Americana | 첼로로 시작해 금관까지 쌓이는 웅장한 마무리 — 엔딩 크레딧 |
+
+mp3 9개(총 57MB)를 내려받아 포맷 유효성을 확인한 뒤(자동 모드 안전 분류기가 최초 반입 명령을 한 번 막아
+사용자 승인을 받았다), `assets/audio/music/<id>.mp3` 로 반입 완료했다(`AudioManager._music_stream()` 이
+`.ogg`→`.mp3`→`.wav` 순서로 찾는다). 크레딧 화면(`scenes/ui/credits_screen.gd`)에도 곡명 9개와 CC BY 4.0
+표기를 추가했다 — 목록이 길어져 업적 화면과 같은 ScrollContainer 패턴으로 바꿨다(`translations/strings.csv`
+의 `CREDITS_MUSIC_HEADER`/`CREDITS_MUSIC_01`~`09`/`CREDITS_MUSIC_LICENSE`/`_URL`). 파일이 없는 경로도
+여전히 안전하게 무시하도록 남겨 뒀다(`tests/test_audio_manager.gd` 의 `bgm_does_not_exist` 테스트).
+
+### 20-2. AudioManager.play_music() — 크로스페이드·믹싱
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 크로스페이드 | 음악용 `AudioStreamPlayer` 두 개(`_music`/`_music_b`)를 번갈아 "현재"로 써서 겹쳐 페이드(기본 1.5초). 같은 id 가 이미 재생 중이면 아무것도 안 함 | 끊김 없이 층·화면이 바뀔 때 음악이 자연스럽게 넘어가야 한다 |
+| 기준 볼륨 | `MUSIC_BASE_VOLUME_DB = -12.0` | 요청 명세("음악은 -12dB 기준")를 그대로 상수화 |
+| 빅윈 duck | `SpinOutcome.Tier.BIG`/`JACKPOT` 적중 시 `duck_music(-6dB, attack 0.1s, hold 0.4s, release 0.8s)` | 당첨 SFX·연출이 도드라지게 순간적으로 음악을 낮췄다가 되돌린다 |
+| 파산 duck | `BaronLoanSequence.play()`(대출·상환 공용, `bass_drop` 재생과 같은 시점)에서 `duck_music(-14dB, 0.2s, 1.6s, 1.2s)` | 5단계에서 "음악 시스템이 없어 스킵"했던 항목(GDD 17장 "범위에서 뺀 것")을 이번에 채웠다 |
+| 피버 레이어 | `set_fever_layer(true/false)` 가 `bgm_fever_layer` 를 층 BGM 위에 겹쳐 0.6초로 페이드 인/아웃. `_on_penalty_buff_started/_ended("fever", ...)` 가 `wheel.set_rainbow_mode()`/`fever_start`·`fever_end` SFX 와 나란히 호출 | 피버는 "층 음악 위에 얹는 두 번째 레이어"로 설계(레이어 자체를 다른 곡으로 완전히 바꾸지 않음 — 크로스페이드 중 피버가 겹치는 경우를 단순하게 유지) |
+| 오토 스핀 감쇠 | 오토 스핀 중엔 음악 `AUTO_SPIN_MUSIC_ATTEN_DB = -3dB`, SFX 표에서 `jitter=true`(반복음)로 표시된 항목은 재생마다 `AUTO_SPIN_SFX_ATTEN_DB = -4dB` 추가 감쇠 | `VisualSettings.auto_spin_effects_reduced`(오토 스핀 중 약한 등급 연출 생략)와 같은 결로, 이미 있던 `jitter` 플래그가 "흔한/반복 소리"를 정확히 가리키고 있어 그대로 재사용했다 — 별도 시간 누적형 "피로도" 타이머는 만들지 않았다(요청한 결과와 같은 체감 효과를 훨씬 적은 코드로 얻는다) |
+| 파일 없을 때 | `_music_stream()`/`play_music()`/`set_fever_layer()` 모두 `ResourceLoader.exists()` 로 확인하고, 없으면 `push_warning` 만 남기고 기존 상태를 그대로 둔다(재생 시도·크래시 없음) | 20-1 의 음원 승인 전에도 나머지 게임 로직·테스트가 전혀 영향받지 않게 한다 |
+| 헤드리스 테스트 | `AudioManager.enabled=false`(헤드리스) 인 동안 `play_music()`/`set_fever_layer()` 는 상태(  `_music_id`  등)만 즉시 반영하고 트윈 대신 값을 바로 대입한다. `duck_music()` 도 `!enabled` 면 트윈 없이 `_set_duck_offset()` 을 즉시 한 번만 부른다(release 로 돌아오는 건 실제 재생 환경에서만) | 7단계까지 정착된 "트윈은 헤드리스 테스트에서 흐르지 않는다" 제약(GDD 18장)과 같은 이유 — 로직 자체(오프셋 계산·상태 전이)는 헤드리스에서도 검증 가능해야 한다 |
+
+### 20-3. SFX 감사 — 빠진 두 곳 발견·수정
+
+`AudioManager.SFX` 설정 딕셔너리(48개 id, 전부 `tools/audio/gen_sfx.py` 로 생성된 실제 파일이 있음을 확인)를
+실제 `assets/audio/sfx/*.wav` 파일 목록과 대사창 화자 표(`DialogueBox.SPEAKERS`)의 `voice` id 와 교차 검사해
+두 개의 공백을 찾았다(둘 다 소리가 "안 나는" 게 아니라 표에 없어 기본값(bus=SFX, 0dB, max=3)으로 재생되던
+것 — 다른 항목과 어울리지 않는 볼륨으로 재생되고 있었다):
+
+| id | 문제 | 수정 |
+|---|---|---|
+| `dialogue_blip_velvet` | 마담 벨벳 대사 타이핑 블립(`DialogueBox._voice_id`)이 `dialogue_blip_baron`/`_lucy` 와 같은 자리에서 쓰이는데 표에는 없었다(7단계에서 벨벳 추가 시 누락) | `dialogue_blip_baron`/`_lucy` 와 똑같이 `{bus: UI, volume_db: -10, max: 4, jitter: false}` 추가 |
+| `achievement_unlock` | `AchievementToast` 가 업적 해금마다 재생하는데(7단계) 표에 없었다 | `clover_get`/`piggy_break` 와 비슷한 축하 사운드로 `{bus: SFX, volume_db: -2, max: 1, jitter: false}` 추가 |
+
+그 외 46개 id 는 전부 표와 실제 파일이 일치했다(빠진 파일 0개). 표 전체는 `scripts/autoload/audio_manager.gd`
+의 `SFX` 딕셔너리 자체가 최신 출처이므로 이 문서에 다시 옮겨 적지 않는다(중복 유지 비용 방지) — 항목을
+추가·수정할 때는 그 파일만 고치면 된다.
+
+## 21. 8단계 4/N 에서 정한 세부 규칙 (전체 폴리시 감사)
+
+`docs/POLISH_CHECKLIST.md` 에 전체 항목과 상태를 정리했다. 여기서는 새로 만든 시스템의 설계만 남긴다.
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 커스텀 커서 | `CursorTheme.apply(tree)`(신규, `scenes/fx/cursor_theme.gd`) — 3종(ART_BIBLE 16장) 등록 + 새 `BaseButton` 마다 자동으로 커서 모양(`disabled` 여부에 따라 손가락/금지)을 붙인다 | `AudioManager._on_node_added`(호버·클릭음 자동 연결)와 같은 "새 버튼마다 자동으로 뭔가 붙인다" 패턴이지만, 오디오와 커서는 관심사가 달라 AudioManager 에 얹지 않고 같은 `node_added` 신호에 별도 리스너를 하나 더 건다(SceneTree 신호는 여러 구독자를 허용한다) |
+| 게임패드 내비게이션 | `project.godot` 의 커스텀 액션 5개에 조이패드 버튼을 추가: `spin`→A(0), `toggle_auto`→X(2), `open_skilltree`→Y(3), `switch_panel`→오른쪽 범퍼(10), `pause`→Start(6). `ui_accept`/`ui_cancel`/`ui_up`/`ui_down`/`ui_left`/`ui_right` 등 Godot 기본 액션은 이미 기본 조이패드 바인딩이 있어 손대지 않음(버튼 포커스 이동은 그대로 작동) | 방향키 하나 없이도 주요 동작을 전부 게임패드 버튼 하나로 누를 수 있어야 한다는 요청 명세. `toggle_fullscreen` 은 데스크톱 전용 개념이라 게임패드 바인딩을 일부러 안 붙였다 |
+| 최소화 창 프레임 제한 | `SettingsManager._notification()` 이 `NOTIFICATION_APPLICATION_FOCUS_OUT`/`_IN`(최소화도 이 알림을 받는다)에 반응해 `Engine.max_fps` 를 `BACKGROUND_FPS=10` 으로 낮췄다가 돌아오면 설정값으로 복귀 | 이미 `SettingsManager` 가 `Engine.max_fps` 를 관리하고 있어(4단계) 같은 자리에 얹는 게 가장 자연스러웠다. 포커스를 잃는 모든 경우(최소화 포함, 다른 창 클릭도 포함)를 다뤄 요청 범위보다 오히려 넓게 커버한다 |
+| 유휴 동작 반복 억제 | 새로 만들지 않고 기존 패턴을 감사만 했다: `NeonText.idle_flicker`(불규칙 간격, `RngService.randf_range_misc`), 마담 벨벳 주기 대사(5~8분 무작위 간격 **+** 여러 변형 중 무작위 선택, 7단계)가 이미 이 요구를 만족한다 | 새 기능이 아니라 기존 설계가 이미 요청을 충족하는지 확인하는 감사 항목이었다 — 중복 구현을 피했다 |
+| 해상도 지원(1280×720~4K, 울트라와이드) | `window/stretch/mode="viewport"` + `aspect="keep"` + `scale_mode="integer"`(1단계부터) 구조상 창 크기와 무관하게 항상 640×360 을 정수 배율로 확대·중앙 정렬한다 — 어떤 해상도에서도 레이아웃이 깨지지 않는다(내부 640×360 자체는 창 크기를 아예 모른다). 1600×1200(4:3) 창에서 실제 동작 확인(xwd 로 실제 창을 찍어 확인, `root.get_texture()` 캡처는 내부 640×360 만 담겨 이 확인엔 못 쓴다는 것도 함께 확인) | 이 스트레치 모드 자체가 이미 임의 해상도를 안전하게 지원하도록 설계돼 있어(7단계까지 검증됨) 별도 대응이 필요 없었다 |
+| **다크 테이블 무늬 레터박싱 — 1차 시도는 실패, 8단계 마무리에서 재시도해 성공** | 검은 바 대신 펠트 무늬로 채우려고 `rendering/environment/defaults/default_clear_color` 를 펠트색으로 바꿔봤지만, 실제 창을 찍어보니(xwd) 레터박스 바는 여전히 순수 검정이었다 — `viewport` 스트레치 모드의 바깥 여백은 `RenderingServer` 기본 클리어 컬러가 아닌 다른 경로(디스플레이 서버의 블릿 단계)로 채워져 스크립트가 손댈 수 없다. 이때는 변경을 되돌렸다 | 아래에서 예상한 아키텍처 변경(스트레치 모드 자체를 바꾸는 것)을 실제로 시도해 성공했다 — 23장 참고. 이 행은 "클리어 컬러 설정으로는 안 된다"는 실패 기록으로 남겨 둔다(같은 시행착오 반복 방지) |
+| 1시간 소크 테스트·저사양 60fps | 이 클라우드 컨테이너는 소프트웨어 렌더러(Mesa llvmpipe)라 실제 프레임 성능이 사용자 PC와 무관하고, 1시간을 실제로 띄워 두는 것도 이 세션 예산에서 비현실적이다 — 수행하지 못했다 | 사용자 실제 하드웨어(Windows PC)에서 확인이 필요한 항목으로 남겨 `docs/POLISH_CHECKLIST.md` 에 명시 |
+| ko/en 전체 화면 스크린샷 재검수 | 이번 세션에서 바꾼 화면(튜토리얼 5종, 커서·게임패드는 스크린샷으로 안 보임)만 재확인했고, 기존 90여 개 시나리오 전체를 이번에 전부 다시 찍어 눈으로 보진 않았다(맥락 비용이 매우 크다) | 7단계까지 각 단계 종료 시 이미 스크린샷 검수를 거쳤고 그 뒤로 레이아웃에 영향을 주는 변경이 없었다 — 전수 재검수는 9단계 최종 QA 항목으로 남긴다 |
+
+## 22. 8단계 5/N 에서 정한 세부 규칙 (스팀 출시 준비)
+
+`docs/STEAM.md` 에 자세한 내용과 사용자가 할 일을 정리했다. 여기서는 설계 결정만 남긴다.
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| SteamService 는 오토로드, GodotSteam 은 선택 | `Engine.has_singleton("Steam")` 로 애드온 유무를 확인하고 없으면 `is_available=false` 로 모든 메서드가 무동작. 오토로드 순서 맨 끝(SettingsManager 다음)에 추가 | 이 게임은 스팀 없이도(itch.io 등) 완전히 동작해야 한다는 전제 — GodotSteam(수십~수백 MB GDExtension)을 저장소 필수 의존성으로 만들지 않았다 |
+| 업적 id → 스팀 API 이름 | `"ACH_" + id.to_upper()`(예: `first_spin` → `ACH_FIRST_SPIN`) | `data/achievements.json` 의 기존 id 를 그대로 재사용해 별도 매핑 테이블(추가 유지보수 대상)을 안 만들었다 |
+| **캡처 도구 회귀 발견·수정** | 8단계 2/N(튜토리얼) 이후 `tools/capture/capture.gd` 의 거의 모든 "새 게임" 시나리오(idle·betting·jackpot 등 약 90개)가 튜토리얼 스포트라이트·대사를 화면에 겹쳐 보여주고 있었다(캡처로 발견 — 스팀 스토어 스크린샷을 찍다가 알아챘다) — 새 게임은 항상 튜토리얼이 자동 시작되기 때문. `_fresh(keep_tutorial: bool = false)` 로 고쳐 `tutorial_*` 시나리오만 원래 동작(자동 시작)을 켜 두고, 나머지 전부는 캡처 전에 `SettingsManager.tutorial_enabled=false` 로 미리 꺼서 원래처럼 깨끗하게 나오게 했다 | 이 회귀는 게임 자체의 버그가 아니라(새 플레이어에게 튜토리얼이 뜨는 건 의도대로다) 캡처 도구가 "새 게임 = 깨끗한 화면"이라는 8단계 2/N 이전의 전제를 그대로 쓰고 있었던 것뿐이다. 도구만 고치면 되는 문제라 게임 코드는 건드리지 않았다 |
+| 스토어 로고는 엔진 렌더링을 재사용 | `tools/capture/gen_store_logo.gd`(신규) — 투명 배경 `SubViewport` 에 실제 `NeonText` 컴포넌트로 "HOUSE EDGE" 를 그려서 뽑는다. 파이썬으로 네온 발광 합성을 다시 구현하지 않았다 | 타이틀 화면과 완전히 같은 룩을 보장하고, 발광 색상 계산 로직을 두 곳에 중복시키지 않는다 |
+| 스토어 로고를 `assets/` 밖에 둔다 | `tools/capture/store_assets/logo_transparent.png`(신규 폴더, `.gitignore` 추가) | 네온 발광 가장자리의 반투명 혼합색이 `test_ui_assets.gd` 의 "36색 팔레트만 쓰는지" 검사에 걸린다(실제로 이 검사에 한 번 걸려서 발견) — 이 파일은 게임이 불러오는 실제 에셋이 아니라 마케팅 전용이므로 검사 대상 밖에 두는 게 맞다고 판단 |
+| 크래시 안전성 = 로그 + 이미 있던 저장 시점들 | `debug/file_logging/enable_file_logging=true` 로 `user://logs/godot.log` 를 남기고, "예외 시 저장"은 GDScript 에 try/catch 가 없어 대신 4~7단계부터 있던 여러 저장 시점(업그레이드·층 이동·창 닫기·포커스 잃음 등)이 이미 크래시로 인한 손실을 몇 초 이내로 줄여준다는 점을 문서화했다 | 새 저장 로직을 추가로 만들지 않고 기존 안전망이 이미 충분함을 확인·기록하는 쪽을 택했다(중복 구현 방지) |
+| Windows 내보내기 프리셋을 실제로 검증 | 이 컨테이너에 없던 Godot 4.3 내보내기 템플릿을 GitHub 릴리스에서 받아 설치하고, `--export-release`/`--export-debug` 로 실제 `.exe` 를 뽑아 콘솔 래퍼 유무(디버그만 있음)까지 확인했다 | "설정 파일만 손으로 써 두고 동작하는지 모른다"는 상태를 피하려고 실제로 내보내 봤다 — `rcedit` 이 없어 아이콘 리소스 삽입까지는 확인 못 했다(STEAM.md 5장에 남김) |
+
+## 23. 8단계 마무리에서 정한 세부 규칙 (다크 테이블 레터박싱 — 재시도해 성공)
+
+21장에서 "위험 대비 효과가 낮다"고 범위에서 뺐던 항목을 사용자 요청으로 다시 시도했다. 이번엔 실제로
+아키텍처를 바꿔서 성공했다 — 아래는 그 과정에서 확인한 사실과 결정이다(같은 작업을 다시 할 때 시행착오를
+줄이기 위해 자세히 남긴다).
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 스트레치 모드 전환 | `window/stretch/mode` 를 `"viewport"` 에서 `"disabled"` 로 바꿨다(`aspect`/`scale_mode` 는 이제 엔진이 안 써서 같이 지웠다). 대신 `LetterboxFit`(신규, `scenes/fx/letterbox_fit.gd`)이 정수 배율 계산·중앙 정렬·여백 채우기를 코드로 직접 한다 | `"viewport"` 모드의 여백은 디스플레이 서버 블릿 단계라 스크립트가 절대 손댈 수 없음을 21장에서 실측으로 확인했다 — 무늬를 넣으려면 이 근본적인 전환이 필수였다 |
+| `CanvasLayer` 는 부모 Control 의 scale 을 상속하지 않는다(실측 확인, 중요) | `Main` 의 `ui_layer`/`fx_layer`(CanvasLayer) 는 `LetterboxFit.apply(self, [ui_layer, fx_layer])` 처럼 `extra_layers` 로 따로 넘겨, 같은 배율·오프셋을 `CanvasLayer.transform` 에 직접 설정해 맞춘다 | 작은 테스트 씬으로 실측: 부모 Control 의 `scale=2` 를 줘도 자식 `CanvasLayer` 안의 `ColorRect` 는 전혀 스케일되지 않고 원래 좌표 그대로 그려졌다(2배 지점이 아니라 1배 지점에 그려짐). `CanvasLayer.transform` 을 부모와 같은 값으로 직접 설정하면 정확히 맞는 것도 실측 확인했다. 다행히 `CanvasLayer.new()` 를 쓰는 곳이 `main.gd` 하나뿐이라(grep 확인) 범위가 좁았다 |
+| `DisplayServer.window_get_size()` 대신 `get_tree().root.size` | `LetterboxFit._Updater.refresh()` 가 창 크기를 읽을 때 `get_tree().root.size`(Window 노드 자체의 크기)를 쓴다 | `--resolution` 커맨드라인 인자로 띄운 창에서 `DisplayServer.window_get_size()` 가 실제 창 크기(예: 1600×1200)가 아니라 `project.godot` 의 `window_width_override`/`height_override` 값(1920×1080)을 그대로 돌려주는 것을 실측으로 발견했다(여러 프레임을 기다려도 안 바뀜 — 타이밍 문제가 아니라 이 API 자체의 문제로 보인다). `get_tree().root.size` 는 항상 정확했다 |
+| 씬 파일에 박혀 있던 `anchors_preset=15` 도 함께 지움 | `SplashScreen.tscn`/`TitleScreen.tscn`/`Main.tscn` 루트 노드의 `anchors_preset`/`anchor_right`/`anchor_bottom` 을 지웠다(각 `.gd` 의 `_ready()` 에서 `set_anchors_preset()` 호출을 지우고 대신 `size = SCREEN` 을 직접 준다) | `.gd` 스크립트의 `set_anchors_preset()` 호출만 지웠을 때 "Nodes with non-equal opposite anchors will have their size overridden" 경고가 남아 원인을 further 조사했더니, **씬 리소스 자체**(.tscn 파일)에도 같은 프리셋이 저장되어 있어 스크립트와 무관하게 계속 적용되고 있었다 — 에디터로 언젠가 한 번 저장될 때 박힌 것으로 보인다. 리소스 쪽도 함께 지워야 완전히 해결됐다 |
+| 무늬는 절차적 `_draw()`, 새 이미지 없음 | `LetterboxFit._Background`: `Palette.FELT_D` 바탕에 `Palette.WOOD_D` 16px 셀을 5% 확률로 흩뿌린다(고정 시드, 크기 바뀔 때만 다시 계산·캐싱). `felt_panel()`(3단계 베팅창 배경)과 같은 "펠트 + 성긴 노이즈" 결 | 새 텍스처 자산 없이 기존 팔레트만으로 이 프로젝트의 펠트 재질감을 재현했다. 창 크기가 계속 바뀔 수 있어 텍스처가 아닌 절차적 그리기를 택했다(어떤 크기에도 이음매 없이 대응) |
+| 검증 방법 | `xwd`(진짜 창을 그대로 찍는 도구, 5/N 에서 이미 설치)로 1600×1200(4:3, 레터박스)·3440×1440(21:9, 필러박스) 두 비율에서 실제로 펠트 무늬가 나오는지 확인했고, 1920×1080(정확히 3배, 여백 없음)에서는 기존과 완전히 동일하게 보이는지 `tools/capture/capture.gd` 로 재확인했다. 전체 헤드리스 테스트(407개)도 통과 | "설정만 바꾸고 안 찍어봤다"를 반복하지 않으려고 이번에도 실제 픽셀을 확인했다 |
+| `tools/capture/capture.gd` 도 같이 손봄 | `_save_shot()`: 이제 `root.get_texture()` 가 항상 640×360 이 아니라 **실제 창 크기 그대로**(스트레치를 코드가 대신하므로) 나온다 — 이미 1000px 이상이면 추가로 3배를 곱하지 않도록 고쳤다(안 그러면 `_x3.png` 가 5760×3240 처럼 쓸데없이 커진다) | 파일 이름(`_x3.png`) 은 기존 관례·문서를 그대로 유지하되, 실제 내용물이 여전히 "화면에 바로 쓸 수 있는 확대본" 크기가 되도록 계산만 바꿨다 |
+
+**남은 이슈**: 이 방식은 마우스 좌표 자동 변환(Godot Control 의 `_gui_input`)에 의존한다 — 이 프로젝트에서 마우스
+좌표를 직접 읽는 곳은 `bet_board.gd::_gui_input()` 뿐이고(grep 확인), `_gui_input` 은 원래 로컬 좌표를 받으므로
+문제없이 동작함을 스크린샷으로 확인했다. 다만 앞으로 `_unhandled_input`/`_input` 에서 `event.position` 을 직접
+읽는 코드를 새로 추가할 때는 그 값이 "실제 창 픽셀" 기준이라는 점(더 이상 640×360 논리 좌표가 아님)을 주의할 것.
+
+## 24. 9단계에서 정한 세부 규칙 (밸런스 시뮬레이터)
+
+`tools/sim/balance_sim.gd`(진입, SceneTree)+`tools/sim/sim_runner.gd`(실제 로직)를 새로 만들었다. 실제
+`GameState`/`UpgradeService`/`FloorService`/`RouletteRules` 를 그대로 돌려 "성실히 플레이하는 유저"를
+화면 없이 순식간에(수백~수천 스핀을 실시간 대기 없이) 재생시키고, 층 도달 시간·클로버 획득량이 7장 표의
+목표와 맞는지 잰다. `godot --headless -s tools/sim/balance_sim.gd -- runs=5 upgrade_ratio=0.25` 로 실행.
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 진입 스크립트를 실행 로직과 분리 | `balance_sim.gd` 는 인자 파싱·결과 출력만 하고, 오토로드(`GameState` 등)·프로젝트 `class_name` 클래스는 전혀 정적으로 참조하지 않는다. 실제 재생은 `sim_runner.gd`(런타임에 `load().new()`)에서만 한다 | `-s` 진입 스크립트가 오토로드/`class_name` 클래스를 직접 참조하면 오토로드가 준비되기 전에 컴파일되는 문제가 있다(8단계 마무리에서 실측, 23장). `tests/run_tests.gd` 가 `tests/test_*.gd` 를 불러오는 것과 같은 패턴 |
+| "성실한 플레이어" 정책 | 안정 베팅(빨강/검정/홀/짝 순환)으로 감당 가능한 만큼만 구슬을 걸고, 층 비용을 여유 있게 낼 수 있으면 바로 올라가고, 아니면 남는 칩의 일부(기본 25%)로 가장 싼 업그레이드 1개만 산다. 스킬트리는 안 산다 | 클로버 "획득량" 자체의 기준선을 재는 게 목적이라 스킬 보너스를 안 섞는다. 오토 업그레이드(M7)의 "가장 싼 것부터" 규칙을 그대로 재사용해 임의의 새 휴리스틱을 만들지 않았다 |
+| 구슬 수를 자산에 맞춰 줄임(직접 발견한 막힘) | 보유 구슬 수만큼 늘 다 걸면, 베팅 한도가 자산보다 빨리 커질 때 "최소 베팅 1개는 되지만 N개는 안 되는" 상태에서 멈춘다(`GameState.is_bankrupt()` 는 구슬 1개 최소 베팅 기준이라 파산 처리가 안 됨). `chips / min_bet` 로 감당 가능한 구슬 수만 건다 | 실제 플레이어라면 이럴 때 거는 구슬 수를 스스로 줄인다 — 오토 업그레이드가 있는 게 아니라 UI 가 구슬 수 선택을 허용하기 때문에 자연스러운 대응이다 |
+| 층 이동에 안전 여유(1.5배) 요구(직접 발견한 막힘) | 층 비용만 딱 맞춰 올라가면, 새 층은 `bet_mult` 가 즉시 ×100 등으로 뛰어 최소 베팅조차 못 낼 수 있다 — `check_bankruptcy()` 는 스핀이 "끝나야" 도는데 스핀을 아예 시작 못 해 구제도 못 받는다. 층 비용을 내고도 새 층 최소 베팅의 1.5배가 남을 때만 올라가게 했다 | 실제 플레이어라면 빠듯하게 올라가지 않고 여유를 두고 올라간다. 이 조건이 안 되면 이번 스핀은 업그레이드도 사지 않고 그냥 모은다(남는 돈을 업그레이드로 또 까먹으면 다음 스핀에도 여유가 안 생길 수 있어서) |
+| 스핀당 업그레이드 구매를 1회로 제한(직접 발견한 폭주) | 처음엔 예산 안에서 살 수 있는 만큼 계속 사게 했더니, 한 스핀의 큰 승리 직후 예산 전부를 그 자리에서 재투자해(재질→베팅 한도→재질→…) 층 이동 직후 배율이 겹겹이 쌓여 게임 전체가 30여 스핀 만에 끝나 버렸다. 스핀당 1회로 제한했다 | 실제 플레이어(또는 오토 업그레이드)도 한 순간에 그렇게까지 몰아서 사지는 않는다고 보고, 여윳돈이 다음 층 비용으로도 쌓이게 했다 |
+| `bet_limit` 업그레이드 비용 증가율 수정(진짜 버그) | `growth` 를 1.2 → 3.0 으로 올렸다(5장 표·`data/upgrades/bet_limit.tres`). 데이터를 훑어보니 배율형(MULT) 업그레이드는 전부 "비용 증가율 > 효과 증가율"로 스스로 한계가 있는데(예: `marble_polish` 비용 1.7 vs 효과 1.25), `bet_limit` 만 비용 1.2 < 효과 1.35 로 거꾸로였다 — 상한(`max_level=-1`)도 없어 이 업그레이드 하나가 무제한 폭주의 핵심 원인이었다(레벨 190대까지 순식간에 도달) | 다른 배율형 업그레이드와 같은 "스스로 한계가 있는" 곡선으로 맞췄다. 정확한 3.0 이라는 값 자체는 시뮬레이터로 몇 차례 실행해 보고 고른 값이라 절대적이지 않다 — 더 정밀하게 맞추려면 이어서 조정하면 된다 |
+| 층 비용·엔딩 비용(1M/1T/1Sx/1No/1Dc)은 안 건드림 | `data/floors/*.tres` 의 `cost`, `Economy.ENDING_COST` 는 그대로 뒀다(한 번 1e6→5.2e6 처럼 늘렸다가 되돌렸다) | 이 값들은 "숫자 표기 단위를 하나씩 밟고 올라간다"는 서사 장치로 GDD 7장·본문("1Dc 로 하우스를 인수")·크레딧·번역 문자열에 걸쳐 있다. 밸런스만 보고 이 서사적 상수를 깨는 건 GDD 를 다시 쓰는 수준의 결정이라 이번 튜닝 범위 밖으로 남겼다 |
+| **구조적 한계(중요, 미해결)** | B1→1F 는 `upgrade_ratio` 를 조절해 목표(30분)에 근접시켰지만(실행마다 18~95분으로 변동은 크다), 1F 를 넘는 순간부터 2F~엔딩(목표 90/165/240/300분)은 실행마다 거의 몇 분 안에 다 지나가 버린다. `upgrade_ratio` 를 0.15~0.5 사이로 바꿔도 이 뒷부분 압축은 거의 그대로였다 — 층마다 `payout_mult`/`bet_mult` 가 ×10~×10000 씩 뛰는데, 이게 그때까지 쌓인 구슬 배율과 곱해지면서 몇 스핀 만에 다음 층 비용을 넘겨 버리는 **구조적** 결과였다(플레이어 행동 가정 문제가 아니다) | 이 배율 표(7장) 자체를 다시 설계하지 않는 한 이 도구만으로 뒤쪽 목표 시간을 맞출 수 없다. 사용자에게 보고하고 다음 세션 결정으로 남겼다(현재 "느린 초반 그라인드 + 빠른 후반 몰아치기"를 그대로 게임의 맛으로 받아들이거나, 층 배율 표를 손보는 두 선택지) |
+| 클로버 ~230개 목표도 같은 원인으로 미달 | 5회 평균 클로버 획득량 128개(seed 별 124~140) — 목표의 절반 조금 넘는다 | 후반 층에서 보내는 스핀 수 자체가 몇 스핀뿐이라 스트레치·마일스톤 클로버가 쌓일 시간이 없다. 위 구조적 한계와 같은 원인이라 별도로 손대지 않았다 |
+
+**시뮬레이터 사용법**: `runs`(기본 5) `seed`(생략 시 실행마다 다름) `upgrade_ratio`(기본 0.25) `max_hours`(안전장치,
+기본 20) `strategy=stable|aggressive|hot|martingale`(기본 stable) 를 인자로 받는다. 층별·평균 도달 시간과
+클로버 획득량을 표로 출력한다. 앞으로 층 배율 표를 다시 설계하면 같은 명령으로 바로 재검증할 수 있다.
+
+## 25. 9단계 후속: 층 배율 재설계 + 사용자 버그 리포트 5건
+
+사용자가 위 24장의 "구조적 한계"에 대해 (b) "층별 payout_mult/bet_mult 표를 다시 설계"를 선택하고, 실제
+플레이 중 발견한 버그 5건을 함께 요청했다.
+
+### 25-1. 층 배율 재설계 — 3F·PH 는 목표에 근접, 1F→2F·PH→엔딩 두 구간은 구조적으로 미해결
+
+7장 표를 손봤다(값은 위 7장 참고). 시뮬레이터로 여러 조합을 실측하며 배운 것:
+
+| 실측 사실 | 근거 |
+|---|---|
+| **층의 배율은 "다음 층까지 걸리는 시간"만 좌우한다** — 그 층 "도달 시간"은 이전 층의 배율이 정한다 | 예: 2F 도달 시간은 1F 의 배율(도착 즉시 적용)이 정하지 2F 자신의 배율과 무관하다. 2F 배율을 30/300→12/120으로 낮췄는데도 1F→2F 도달 시간은 그대로였고, 대신 그다음 2F→3F 가 146분→716분으로 대폭 느려졌다(2F 자신의 배율이 낮아져서) — 이 인과관계를 착각하고 엉뚱한 층을 조정하느라 시행착오가 컸다 |
+| 1F 이후는 층마다 ×3(당첨)·×3(베팅)만 뛰도록 완만하게 | 3F 도달 146분(목표 165), PH 211분(목표 240) — 원래(×100~×10000 도약)보다 훨씬 목표에 가까워졌다 |
+| **1F→2F, PH→엔딩 두 구간은 배율표를 아무리 손봐도 거의 안 바뀜(구조적)** | 1F 자신의 배율을 10/100→3/15(22배 낮춤)로 낮춰도 1F→2F 소요 시간은 거의 그대로(1~2분, 목표 60분). 구슬 재질 비용 배율을 80배→150배로 올려도(전 티어 비례 재계산) 거의 그대로. 원인: 이 두 구간은 **비용 격차 자체가 작다** — 1F→2F 는 B1→1F 와 똑같이 1e6배지만 B1→1F 는 마블 티어 0·베팅 한도 0 부터 쌓아야 하는데 1F→2F 는 이미 쌓인 상태에서 시작한다. PH→엔딩(1No→1Dc)은 이름 체계상 원래 딱 한 단계(×1,000)뿐이라 더 작다. 두 구간 모두 "이미 궤도에 오른 경제"에는 사실상 문턱이 없는 셈이다 |
+| 구슬 재질 티어 상한 점프(B1 상한 3 → 1F 상한 5)도 원인이 아니었다 | 1F 상한을 3→4(한 단계만 더)로 줄여도 1F→2F 소요 시간은 그대로였다 — 여러 티어를 한꺼번에 여는 것도 진범이 아니었다 |
+| 재투자 비율(`upgrade_ratio`)도 이 두 구간엔 거의 무관 | 0.25→0.15 로 낮추면 **B1→1F** 자체가 468분(목표 30분)까지 느려질 정도로 예민했지만, 그 직후 1F→2F 는 여전히 1.3분 만에 끝났다 |
+
+**결론**: 층 이동 비용(1M/1T/1Sx/1No/1Dc)이 서사 장치라 손 못 대는 한(24장 "층 비용·엔딩 비용은 안
+건드림" 그대로 유지), 1F→2F·PH→엔딩 두 구간을 목표 시간(각 60분)까지 늘리는 확실한 방법을 이번엔
+찾지 못했다. 대신 "PH까지 착실히 그라인드하고 엔딩은 빠른 마무리"로 받아들이는 쪽을 택했다(플레이어가
+그동안 쌓아 온 경제로 통쾌하게 마무리 짓는 흔한 인크리멘탈 게임 패턴과도 맞다). 5회 평균: 1F 35.5분
+(목표 30) · 2F 36.7분(목표 90, 미달) · 3F 146.6분(목표 165) · PH 191.5분(목표 240) · 엔딩 192.3분
+(목표 300, 미달) · 클로버 975개(목표 약 230개, 스핀 수 자체가 원래(30~70회)보다 훨씬 많아져(수천 회)
+같이 늘었다 — 별도 튜닝 필요하면 다음 세션으로).
+
+### 25-2. BIG WIN·JACKPOT 재설계 — 배율이 아니라 "몰아걸기"로 판정
+
+사용자 리포트: "BIG WIN 글씨와 JACKPOT 글씨가 너무 자주 나온다." 원인은 4-2장의 옛 판정(배율 ≥20/100)
+이 층 배율이 커질수록 색·홀짝 베팅도 쉽게 넘겨 버리는 것 — 25-1 에서 배율이 낮아졌어도 근본적으로
+같은 문제였다. `RouletteRules._max_same_number_concentration()`(신규)이 "이긴 개별숫자 중 같은 번호에
+건 구슬 수의 최댓값"을 계산해 `SpinOutcome.classify()` 에 넘긴다 — 2개 이상 몰아 걸어 다 같이 맞히면
+BIG, 3개 이상이면 JACKPOT(더블 볼로 서로 다른 두 번호가 우연히 같이 맞은 건 몰아걸기가 아니므로 제외).
+GOOD 은 그대로 배율 기준(≥5배)을 쓴다 — 색·홀짝 대박이나 개별숫자 1개 적중도 GOOD 까지는 간다. 자세한
+등급표는 4-2장·ART_BIBLE 7장.
+
+### 25-3. bet_limit 로 인한 진행 불가 버그 — 실제 게임 코드에도 있었다
+
+24장의 시뮬레이터 안전장치(구매 되돌리기)는 시뮬레이터 안에서만 막아 뒀을 뿐, **실제 게임에도 같은
+버그가 있었다**: `bet_limit` 는 `min_bet` 자체를 즉시 올리는데, 구매 직후 자산이 새 `min_bet` 밑으로
+떨어지면 스핀을 아예 시작 못 해 `check_bankruptcy()`(스핀이 "끝나야" 도는 로직)로도 구제를 못 받고
+진행이 완전히 막힌다. `UpgradeService.purchase()` 끝에 `GameState.check_bankruptcy()` 를 추가해, 스핀
+뒤와 똑같이 즉시 파산 판정을 돌려 남작의 대출로 구제하게 했다("빚져서라도 계속 굴러간다"는 이 게임의
+기존 철학과 같은 처리). 재현·회귀 테스트: `test_upgrade_service.gd::test_purchase_that_strands_below_min_bet_triggers_loan`.
+
+### 25-4. 대출 계약서 팝업 — 얼룩 색·개수, 서명 모양
+
+- **얼룩이 이상하게 보임(사용자 리포트)**: `ContractPopup._on_draw_parchment()` 가 얼룩 점을 `Palette.WOOD`
+  (진한 적갈색, 고대비)로 찍고 있었는데, ART_BIBLE 11-4 는 원래 `mist`(연한 회보라, 저대비)를 문서화하고
+  있었다 — 구현이 문서와 달랐던 버그. `Palette.MIST` 로 고치고 개수도 14→6개로 줄이고, 글줄이 있는
+  가운데 띠(제목~상환 방식 3줄)는 피하도록 했다(글자 위에 점이 찍히면 얼룩이 아니라 화면이 깨진 것처럼
+  보인다 — 직접 캡처로 확인).
+- **서명이 밋밋하고 글씨처럼 안 보임(사용자 리포트)**: 옛 구현은 사인파 하나로 지그재그만 그려 심전도
+  그래프처럼 보였다. `ContractPopup._signature_points()` 를 다시 짜서, 폭을 3~4 조각으로 나눠 조각마다
+  위/아래로 크게 휘는 획(`_append_hump`)과 이따금 낀 작은 고리(`_append_loop`, 필기체 e·l 처럼)를 잇고,
+  마지막엔 서명 아래로 뚜렷이 처지는 밑줄 획(플로리시)으로 마무리한다. 시드가 같으면 항상 같은 모양이라
+  진행률만큼만 그려도 애니메이션이 떨리지 않는다(기존과 같은 방식). `tools/capture` 의 `stamp` 시나리오로
+  실제 캡처해 확인.
+

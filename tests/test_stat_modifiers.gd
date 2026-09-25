@@ -86,9 +86,37 @@ func test_rejects_invalid_values() -> void:
 	check_eq(mods.count(), 0, "추가 안 됨")
 
 
+func test_charge_based_modifier_consumes_and_expires() -> void:
+	var expired := watch(mods.source_expired)
+	mods.add_modifier("penalty:seize_marble", StatModifiers.LOCKED_MARBLES, StatModifiers.Op.ADD, 1.0, StatModifiers.PERMANENT, 1)
+	check_eq(mods.get_stat(StatModifiers.LOCKED_MARBLES, 0.0), 1.0, "적용됨")
+	check(mods.consume_charges("penalty:seize_marble"), "소모 성공")
+	check_eq(mods.get_stat(StatModifiers.LOCKED_MARBLES, 0.0), 0.0, "소모 후 해제")
+	check_eq(mods.count(), 0, "제거됨")
+	check_eq(expired.size(), 1, "source_expired 발행")
+	check_eq(expired[0][0], "penalty:seize_marble", "id")
+
+
+func test_consume_charges_on_unknown_source_is_noop() -> void:
+	check(not mods.consume_charges("penalty:none"), "없는 source 는 false")
+
+
+func test_charge_based_modifier_survives_multiple_charges() -> void:
+	mods.add_modifier("penalty:double", StatModifiers.CLOVER_GAIN_MULT, StatModifiers.Op.MULT, 0.5, StatModifiers.PERMANENT, 2)
+	mods.consume_charges("penalty:double")
+	check_eq(mods.get_stat(StatModifiers.CLOVER_GAIN_MULT, 1.0), 0.5, "1회 소모 후에도 유지")
+	mods.consume_charges("penalty:double")
+	check_eq(mods.get_stat(StatModifiers.CLOVER_GAIN_MULT, 1.0), 1.0, "2회 소모 후 제거")
+
+
+func test_charge_based_modifier_round_trips_through_dict() -> void:
+	var modifier := mods.add_modifier("penalty:seize_marble", StatModifiers.LOCKED_MARBLES, StatModifiers.Op.ADD, 1.0, StatModifiers.PERMANENT, 1)
+	check_eq(modifier.to_dict()["charges"], 1, "charges 직렬화")
+
+
 func test_upgrade_effect_values() -> void:
 	var bet_limit := GameData.upgrade("bet_limit")
 	check_near(bet_limit.effect_value(3), pow(Economy.BET_LIMIT_GROWTH, 3), 1e-12, "bet_limit 데이터 = Economy.BET_LIMIT_GROWTH")
-	var wheel := GameData.upgrade("wheel_speed")
-	check_near(wheel.effect_value(2), pow(Economy.SPIN_SPEED_FACTOR, 2), 1e-12, "wheel_speed 데이터 = Economy.SPIN_SPEED_FACTOR")
+	var wheel := GameData.upgrade("spin_speed")
+	check_near(wheel.effect_value(2), pow(Economy.SPIN_SPEED_FACTOR, 2), 1e-12, "spin_speed 데이터 = Economy.SPIN_SPEED_FACTOR")
 	check_eq(GameData.upgrade("marble_count").effect_value(3), 3.0, "ADD")

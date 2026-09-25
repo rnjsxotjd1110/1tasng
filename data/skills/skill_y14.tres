@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_d28wm"]
+
+[resource]
+script = ExtResource("1_d28wm")
+id = "y14"
+name_key = "SKILL_Y14"
+desc_key = "SKILL_Y14_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_y14.png"
+branch = 4
+ring = 4
+position = Vector2i(-185, 0)
+costs = Array[int]([10])
+prerequisites = Array[String](["y10", "y12"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = "wheel_of_fortune"
+is_ultimate = true

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_nxdr1"]
+
+[resource]
+script = ExtResource("1_nxdr1")
+id = "y10"
+name_key = "SKILL_Y10"
+desc_key = "SKILL_Y10_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_y10.png"
+branch = 4
+ring = 3
+position = Vector2i(-115, 96)
+costs = Array[int]([5])
+prerequisites = Array[String](["y6", "y8"])
+prerequisite_mode = 1
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 1.0,
+"stat": "extra_balls"
+}])
+feature_id = "double_ball"
+is_ultimate = false

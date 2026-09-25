@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_fmnyx"]
+
+[resource]
+script = ExtResource("1_fmnyx")
+id = "marble_polish"
+name_key = "UPGRADE_MARBLE_POLISH"
+desc_key = "UPGRADE_MARBLE_POLISH_DESC"
+icon_path = "res://assets/sprites/ui/upgrades/icon_marble_polish.png"
+kind = 2
+sort_order = 1
+base_cost = 0.0
+growth = 1.7
+max_level = 5
+effect_stat = "marble_mult"
+effect_op = 1
+effect_per_level = 1.25
+required_floor = 0
+required_marble_tier = 1

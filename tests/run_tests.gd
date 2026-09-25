@@ -53,6 +53,10 @@ func _run_all() -> void:
 		all_failures.append_array(failures)
 		print("%s %-28s %3d tests  %5d ms" % ["FAIL" if not failures.is_empty() else " ok ", file_name, test_count, Time.get_ticks_msec() - file_started])
 	root.get_node("GameState").call("reset")
+	root.get_node("AudioManager").call("stop_all")
+	# 오디오 서버가 멈춘 재생을 정리할 시간을 준다(종료 시 누수 경고 방지).
+	for i in 3:
+		await process_frame
 	print("")
 	for failure in all_failures:
 		print("  ✗ ", failure)

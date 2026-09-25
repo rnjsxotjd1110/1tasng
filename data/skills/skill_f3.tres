@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_ajljy"]
+
+[resource]
+script = ExtResource("1_ajljy")
+id = "f3"
+name_key = "SKILL_F3"
+desc_key = "SKILL_F3_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_f3.png"
+branch = 1
+ring = 1
+position = Vector2i(13, -54)
+costs = Array[int]([1, 1, 1])
+prerequisites = Array[String](["heart"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 0.0555556,
+"stat": "straight_payout_bonus"
+}])
+feature_id = ""
+is_ultimate = false

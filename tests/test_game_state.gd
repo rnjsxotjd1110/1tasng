@@ -94,3 +94,104 @@ func test_reset_clears_modifiers() -> void:
 	check_eq(GameState.max_bet(), 10.0, "수정자 제거")
 	check_eq(GameState.chips, 100.0, "칩 초기화")
 	check_eq(GameState.highest_milestone, 0, "마일스톤 초기화")
+
+
+# ── 빚(5단계) ────────────────────────────────────────────
+
+func test_bankruptcy_grants_loan_immediately() -> void:
+	GameState.chips = 0.0
+	var debt_changes := watch(EventBus.debt_changed)
+	var bankrupt := watch(EventBus.bankrupt)
+	check(GameState.check_bankruptcy(), "파산 판정")
+	check(GameState.has_debt(), "대출로 빚 생김")
+	check(GameState.chips > 0.0, "대출금이 칩으로 지급됨")
+	check_eq(GameState.get_stat_value(GameState.STAT_TOTAL_EARNED), 0.0, "대출금은 누적 획득에 안 들어감")
+	check_eq(GameState.get_stat_value(GameState.STAT_LOANS_TAKEN), 1.0, "대출 횟수 +1")
+	check_eq(GameState.pending_baron_event.get("type"), "loan", "컷신 예약")
+	check_eq(debt_changes.size(), 1, "debt_changed")
+	check_eq(bankrupt.size(), 1, "bankrupt")
+	check(not GameState.is_bankrupt(), "대출 후에는 파산 아님")
+
+
+func test_fourth_bankruptcy_merges_into_biggest_debt() -> void:
+	for i in Economy.MAX_LOANS:
+		GameState.chips = 0.0
+		GameState.check_bankruptcy()
+	check_eq(GameState.debts.size(), Economy.MAX_LOANS, "3건까지만")
+	GameState.chips = 0.0
+	GameState.check_bankruptcy()
+	check_eq(GameState.debts.size(), Economy.MAX_LOANS, "4번째는 합산, 건수 그대로")
+	check_eq(GameState.pending_baron_event.get("merged"), true, "합산 표시")
+
+
+func test_repay_all_pays_full_remaining() -> void:
+	GameState.chips = 1000.0
+	GameState.debts = [{"principal": 50.0, "remaining": 80.0}]
+	var repaid := GameState.repay_all(0)
+	check_eq(repaid, 80.0, "전액 상환")
+	check(GameState.debts.is_empty(), "빚 없음")
+	check_eq(GameState.chips, 920.0, "칩 차감")
+
+
+func test_repay_half_pays_half_remaining() -> void:
+	GameState.chips = 1000.0
+	GameState.debts = [{"principal": 50.0, "remaining": 80.0}]
+	var repaid := GameState.repay_half(0)
+	check_eq(repaid, 40.0, "절반 상환")
+	check_near(float(GameState.debts[0]["remaining"]), 40.0, 1e-9, "남은 절반")
+
+
+func test_repay_all_does_nothing_when_not_affordable() -> void:
+	GameState.chips = 10.0
+	GameState.debts = [{"principal": 50.0, "remaining": 80.0}]
+	var repaid := GameState.repay_all(0)
+	check_eq(repaid, 0.0, "칩 부족이면 상환 없음")
+	check_eq(GameState.chips, 10.0, "칩 그대로")
+	check_near(float(GameState.debts[0]["remaining"]), 80.0, 1e-9, "빚 그대로")
+
+
+func test_paying_off_all_debt_awards_clover_and_baron_event() -> void:
+	GameState.chips = 1000.0
+	GameState.debts = [{"principal": 50.0, "remaining": 30.0}]
+	var before := GameState.clovers
+	GameState.repay_all(0)
+	check_eq(GameState.clovers - before, Economy.CLOVER_PER_DEBT_PAID, "완납 클로버")
+	check_eq(GameState.pending_baron_event.get("type"), "debt_paid", "완납 컷신 예약")
+
+
+func test_paying_off_one_of_several_debts_does_not_trigger_payoff_event() -> void:
+	GameState.chips = 1000.0
+	GameState.debts = [{"principal": 50.0, "remaining": 30.0}, {"principal": 50.0, "remaining": 40.0}]
+	GameState.pending_baron_event = {}
+	GameState.repay_all(0)
+	check_eq(GameState.pending_baron_event, {}, "총 빚이 남아있으면 완납 연출 없음")
+
+
+func test_auto_repay_debt_pays_oldest_first() -> void:
+	GameState.chips = 1000.0
+	GameState.debts = [{"principal": 10.0, "remaining": 10.0}, {"principal": 10.0, "remaining": 100.0}]
+	var repaid := GameState.auto_repay_debt(100.0)
+	check_near(repaid, 25.0, 1e-9, "당첨금 100의 25% 자동 상환")
+	check_eq(GameState.debts.size(), 1, "첫 빚(10)은 완전히 갚여 제거됨")
+	check_near(float(GameState.debts[0]["remaining"]), 85.0, 1e-9, "남은 15가 둘째 빚에 적용(100-15)")
+	check_near(GameState.chips, 975.0, 1e-9, "칩에서 상환액 25 차감")
+
+
+func test_paying_off_debt_clears_active_penalties() -> void:
+	GameState.chips = 1000.0
+	GameState.debts = [{"principal": 50.0, "remaining": 30.0}]
+	GameState.add_penalty_timed("watcher", StatModifiers.SPIN_DURATION_MULT, StatModifiers.Op.MULT, 2.0, 30.0)
+	GameState.add_penalty_charge(GameState.PENALTY_ID_SEIZE_MARBLE, StatModifiers.LOCKED_MARBLES, StatModifiers.Op.ADD, 1.0, 1)
+	var ended := watch(EventBus.buff_ended)
+	GameState.repay_all(0)
+	check(not GameState.modifiers.has_source("penalty:watcher"), "시간제 패널티 해제")
+	check(not GameState.modifiers.has_source("penalty:seize_marble"), "소모형 패널티도 해제")
+	check(ended.size() >= 2, "buff_ended 발행(연출 쪽 정리용)")
+
+
+func test_debt_total_and_has_debt() -> void:
+	check(not GameState.has_debt(), "초기 빚 없음")
+	check_eq(GameState.debt_total(), 0.0, "0")
+	GameState.debts = [{"principal": 10.0, "remaining": 5.0}, {"principal": 10.0, "remaining": 7.0}]
+	check(GameState.has_debt(), "빚 있음")
+	check_eq(GameState.debt_total(), 12.0, "합계")

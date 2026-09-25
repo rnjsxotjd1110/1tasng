@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_vmm7h"]
+
+[resource]
+script = ExtResource("1_vmm7h")
+id = "y12"
+name_key = "SKILL_Y12"
+desc_key = "SKILL_Y12_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_y12.png"
+branch = 4
+ring = 3
+position = Vector2i(-146, -35)
+costs = Array[int]([3, 3])
+prerequisites = Array[String](["y6"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 0.2,
+"stat": "golden_storm_chance"
+}])
+feature_id = ""
+is_ultimate = false

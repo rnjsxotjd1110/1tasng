@@ -22,13 +22,16 @@
 ```bash
 godot --headless --import                 # 새로 클론한 뒤 1회: 클래스 캐시(.godot/)·번역 임포트
 godot -e                                  # 에디터
-godot                                     # 게임 실행(현재 메인 씬: scenes/debug/DebugLogic.tscn, 2단계에서 교체)
+godot                                     # 게임 실행(메인 씬: scenes/main/Main.tscn)
 godot --headless -s tests/run_tests.gd    # 헤드리스 테스트 전체(약 20초, 기대값 100만 스핀 포함)
 godot --headless -s tests/run_tests.gd -- number   # 파일 이름에 'number' 가 들어간 테스트만
 ```
 
 - 테스트 출력에 섞이는 `WARNING/ERROR` 중 테스트가 "정상 출력"이라고 미리 알린 줄은 방어 코드 검증용이다. 마지막 줄 `N tests, M checks, 0 failures` 와 종료 코드 0 이 통과 기준.
-- 클라우드에서 화면을 찍을 때: `xvfb-run -a -s "-screen 0 1920x1080x24" godot --rendering-driver opengl3 ...` (스크린샷 도구 `tools/capture` 는 2단계에서 제작).
+- 스크린샷 검수: `xvfb-run -a -s "-screen 0 1920x1080x24" godot --rendering-driver opengl3 -s tools/capture/capture.gd -- scenario=all lang=both`
+  → `tools/capture/out/<시나리오>_<언어>.png`(640×360) + `_x3.png`. 시나리오 목록은 capture.gd 머리말. Windows 는 xvfb 없이 콘솔 실행 파일로 같은 인자.
+  구슬 재질 15종 비교 시트: `... -s tools/capture/marble_sheet.gd -- lang=ko time=1.3`. 게임 안에서는 F9(개발 빌드)로 칩 1e3/1e15/1e33/1e60·클로버·시간 가속·층·재질을 바꿀 수 있다.
+- 에셋 재생성(Python 3 + Pillow + numpy): `tools/art/gen_*.py`, `tools/audio/gen_sfx.py` → `godot --headless --import` → `godot --headless -s tools/art/build_theme.gd`(테마). 순서는 ART_BIBLE 8장.
 
 ## 폴더 구조
 
@@ -38,19 +41,28 @@ res://
   project.godot
   docs/        GDD.md, ART_BIBLE.md, PROGRESS.md
   scripts/
-    autoload/  event_bus.gd, game_state.gd, economy.gd, rng_service.gd, save_manager.gd(틀), audio_manager.gd(틀)
+    autoload/  event_bus.gd, game_state.gd, economy.gd, rng_service.gd, save_manager.gd, audio_manager.gd,
+               settings_manager.gd(user://settings.cfg, 세이브와 별도)
     core/      roulette_rules.gd, bet.gd, spin_outcome.gd, spin_context.gd, number_format.gd,
-               stat_modifiers.gd, spin_controller.gd, game_data.gd, palette.gd      ← 순수 로직, 연출 없음
+               stat_modifiers.gd, spin_controller.gd, game_data.gd, palette.gd,
+               spin_choreography.gd(스핀 궤적), history_stats.gd, income_tracker.gd, visual_settings.gd,
+               upgrade_service.gd(업그레이드 구매 규칙), offline_income.gd(오프라인 수익 계산)  ← 순수 로직, 연출 없음
     data/      upgrade_def.gd, skill_node_def.gd, floor_def.gd, marble_def.gd  (Resource 클래스)
   data/        upgrades/ skills/ floors/ marbles/ dialogue/   ← 밸런스 수치(.tres)
-  scenes/      main/ roulette/ ui/ skilltree/ npc/ fx/ debug/  ← 연출·화면
-  assets/      sprites/ ui/ fonts/ audio/sfx/ audio/music/ shaders/
+  scenes/      main/(Main.tscn, bg/ 층 배경) roulette/(RouletteWheel, 구슬: marble_sprite·marble_view·marble_fx·void_lens)
+               ui/(상단 바·기록·베팅창·업그레이드창·카드·버튼·툴팁·설정 화면·통계 화면·focus_style)
+               fx/(재사용 연출, 구슬 승급·황금 배지·복귀 팝업) skilltree/ npc/  ← 연출·화면
+               debug/(F9 디버그 패널, 개발 빌드 전용)
+  assets/      sprites/(ui wheel bg/<층> fx) ui/(9-slice, theme_main.tres) fonts/ audio/sfx/ audio/music/ shaders/
   translations/strings.csv   (keys,ko,en)
   tests/       run_tests.gd, lib/test_case.gd, test_*.gd
-  tools/       art/ audio/ sim/ capture/ data/, setup_godot.sh
+  tools/       art/(gen_*.py, pixlib.py, build_theme.gd) audio/(gen_sfx.py) capture/(capture.gd, marble_sheet.gd) sim/ data/, setup_godot.sh
 ```
 
-오토로드 순서(project.godot): EventBus → Economy → RngService → GameState → SaveManager → AudioManager.
+오토로드 순서(project.godot): EventBus → Economy → RngService → GameState → SaveManager → AudioManager → SettingsManager → SteamService.
+
+- `tools/art/*.py`·`tools/audio/gen_sfx.py` 는 Python 3 + `numpy` + `Pillow` 가 필요하다. 클라우드 컨테이너에 없으면
+  `pip install numpy pillow` 로 한 번 설치한다(Godot 설치와 달리 재생성용 도구일 뿐이라 게임 실행엔 필요 없음).
 오토로드 스크립트에는 `class_name` 을 달지 않는다(싱글톤 이름과 충돌).
 
 ## 코드 규칙
@@ -65,8 +77,11 @@ res://
 - 난수는 `RngService` 만 쓴다. 스핀 결과는 `consume_next()`, 연출·패널티 등은 `*_misc()`.
 - **모든 UI 문자열은 `tr("KEY")`** 로 쓰고, `translations/strings.csv` 에 ko·en 을 함께 추가한다(`test_data.gd` 가 누락을 잡는다).
 - **숫자 표시는 반드시 `NumberFormat`** (`format`, `format_signed`, `format_full`)을 쓴다.
+- 구슬을 그리는 CanvasItem 에는 `MarbleSprite.shared_material()`(재질 셰이더)을 걸고 템플릿(7/10/24px)을 그린다. 재질이 바뀌면 `MarbleSprite.sync_shared()` 한 번으로 모든 구슬이 바뀐다(ART_BIBLE 9장).
+- 예외: `scenes/debug/` 는 개발용이라 tr()·품질 기준 예외. 게임 코드에서 참조 금지(단, Main 이 개발 빌드에서만 경로로 동적 로드한다).
 - 새 로직에는 `tests/test_*.gd` 테스트를 함께 추가한다. 테스트는 `extends "res://tests/lib/test_case.gd"`, 함수 이름은 `test_` 로 시작.
-- 예외: `scenes/debug/` 는 개발용이라 tr()·품질 기준 예외. 게임 코드에서 참조 금지.
+- 화면 부품은 직접 좌표로 배치하고(ART_BIBLE 2-2), 글꼴·버튼·패널은 테마 변형(`theme_type_variation`)만 쓴다. 새 변형은 `tools/art/build_theme.gd` 에 추가한다(`test_ui_assets.gd` 가 누락을 잡는다).
+- 모든 버튼의 호버·클릭음은 AudioManager 가 자동으로 붙인다(끄려면 meta `silent_button`).
 
 ## 품질 기준 (Quality Bar) — 스팀 출시 품질이 목표
 

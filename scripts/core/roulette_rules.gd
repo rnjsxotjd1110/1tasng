@@ -12,6 +12,8 @@ const WHEEL_ORDER: Array[int] = [
 	5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
 ]
 const RED_NUMBERS: Array[int] = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
+## 럭키 세븐(F9)이 반응하는 결과 숫자.
+const LUCKY_SEVEN_NUMBERS: Array[int] = [7, 17, 27]
 const DEGREES_PER_POCKET := 360.0 / POCKET_COUNT
 
 ## 배당(원금 제외). 반환액 = 베팅액 × (배당+1).
@@ -112,8 +114,14 @@ static func win_multiplier(bet: Bet, result: int, context: SpinContext) -> float
 		mult *= context.payout_mult_parity
 	else:
 		mult *= 1.0 + context.straight_payout_bonus
+		if context.hot_numbers.has(result):
+			mult *= context.hot_number_straight_mult
+		if result == ZERO:
+			mult *= context.zero_straight_mult
 	if context.is_golden(result):
 		mult *= context.golden_pocket_mult
+	if context.is_lucky_seven(result):
+		mult *= context.lucky_seven_mult
 	return mult
 
 
@@ -145,13 +153,40 @@ static func resolve(bets: Array[Bet], results: Array[int], context: SpinContext 
 				bet_result.payout += value
 				if bet.type == Bet.Type.STRAIGHT:
 					outcome.hit_straights.append(bet.number)
+			elif context.zero_guard and bet.is_outside() and result == ZERO:
+				# 제로 가드(Y1): 0이 나오면 색·홀짝 베팅은 잃지 않고 원금만 돌려받는다(당첨은 아님).
+				bet_result.refunded += bet.amount
+		if not bet_result.won() and bet_result.refunded <= 0.0 and context.cashback_rate > 0.0:
+			# 캐시백(E2): 완전히 진 베팅만 대상(제로 가드로 이미 반환받은 베팅은 제외).
+			bet_result.refunded += bet.amount * context.cashback_rate
 		if bet.type == Bet.Type.STRAIGHT and not bet_result.won():
 			for result in results:
 				if are_neighbors(bet.number, result):
 					bet_result.near_miss = true
 					outcome.near_miss = true
-		outcome.total_return += bet_result.payout
 		outcome.bet_results.append(bet_result)
+	# 이중 적중(F8): 한 스핀에 2개 이상 당첨되면 각 당첨(원금 포함, 반환은 제외)에 보너스가 곱해진다.
+	if context.multi_hit_bonus > 0.0 and outcome.win_count() >= 2:
+		var bonus_mult := 1.0 + context.multi_hit_bonus
+		for bet_result in outcome.bet_results:
+			bet_result.payout *= bonus_mult
+	for bet_result in outcome.bet_results:
+		outcome.total_return += bet_result.payout + bet_result.refunded
 	outcome.net = outcome.total_return - outcome.total_bet
-	outcome.tier = SpinOutcome.classify(outcome.any_win(), outcome.net, outcome.total_bet, outcome.hit_straights.size())
+	outcome.tier = SpinOutcome.classify(outcome.any_win(), outcome.net, outcome.total_bet, _max_same_number_concentration(bets, results))
 	return outcome
+
+
+## 이긴 개별숫자 중, 같은 번호에 건 구슬(베팅) 수의 최댓값. 더블 볼로 공 하나가 같은 번호를 두 번 맞힌
+## 경우는 세지 않는다 — BIG/JACKPOT 은 "몰아 걸어서" 다 같이 맞혔을 때를 위한 것이지 운 좋은 더블히트를
+## 위한 게 아니다(SpinOutcome.BetResult.hit_count 가 그 몫을 이미 담당한다).
+static func _max_same_number_concentration(bets: Array[Bet], results: Array[int]) -> int:
+	var counts: Dictionary = {}
+	for bet in bets:
+		if bet.type == Bet.Type.STRAIGHT:
+			counts[bet.number] = int(counts.get(bet.number, 0)) + 1
+	var max_count := 0
+	for number: int in counts.keys():
+		if results.has(number):
+			max_count = maxi(max_count, int(counts[number]))
+	return max_count

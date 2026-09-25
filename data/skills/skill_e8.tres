@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_3eboy"]
+
+[resource]
+script = ExtResource("1_3eboy")
+id = "e8"
+name_key = "SKILL_E8"
+desc_key = "SKILL_E8_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_e8.png"
+branch = 3
+ring = 2
+position = Vector2i(-36, 99)
+costs = Array[int]([2, 2, 2])
+prerequisites = Array[String](["e1"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 0.92,
+"stat": "marble_cost_mult"
+}])
+feature_id = ""
+is_ultimate = false

@@ -1,17 +1,20 @@
 [gd_resource type="Resource" script_class="UpgradeDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_hn2kp"]
+[ext_resource type="Script" path="res://scripts/data/upgrade_def.gd" id="1_5s1ue"]
 
 [resource]
-script = ExtResource("1_hn2kp")
+script = ExtResource("1_5s1ue")
 id = "golden_pocket"
 name_key = "UPGRADE_GOLDEN_POCKET"
 desc_key = "UPGRADE_GOLDEN_POCKET_DESC"
-icon_path = ""
-base_cost = 5000.0
-growth = 40.0
+icon_path = "res://assets/sprites/ui/upgrades/icon_golden_pocket.png"
+kind = 0
+sort_order = 5
+base_cost = 50000.0
+growth = 800.0
 max_level = 5
 effect_stat = "golden_pocket_count"
 effect_op = 0
 effect_per_level = 1.0
-required_floor = 1
+required_floor = 2
+required_marble_tier = 0

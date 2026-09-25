@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_ng74n"]
+
+[resource]
+script = ExtResource("1_ng74n")
+id = "e6"
+name_key = "SKILL_E6"
+desc_key = "SKILL_E6_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_e6.png"
+branch = 3
+ring = 2
+position = Vector2i(36, 99)
+costs = Array[int]([2, 2])
+prerequisites = Array[String](["e4"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": -0.25,
+"stat": "debt_repay_mult"
+}])
+feature_id = ""
+is_ultimate = false

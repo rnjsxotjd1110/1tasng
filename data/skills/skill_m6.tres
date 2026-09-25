@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_rbcmp"]
+
+[resource]
+script = ExtResource("1_rbcmp")
+id = "m6"
+name_key = "SKILL_M6"
+desc_key = "SKILL_M6_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m6.png"
+branch = 2
+ring = 2
+position = Vector2i(99, -36)
+costs = Array[int]([5])
+prerequisites = Array[String](["m1"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = "smart_betting"
+is_ultimate = false

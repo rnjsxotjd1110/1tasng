@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://bvaermo8agiai"
+path="res://.godot/imported/num14_gold.fnt-565651b7fd783a9b50f7beb9360ceeac.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/num14_gold.fnt"
+dest_files=["res://.godot/imported/num14_gold.fnt-565651b7fd783a9b50f7beb9360ceeac.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

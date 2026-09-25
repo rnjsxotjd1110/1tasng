@@ -1,2 +1,5 @@
 .godot/
 build/
+tools/capture/out/
+tools/capture/store_assets/
+__pycache__/

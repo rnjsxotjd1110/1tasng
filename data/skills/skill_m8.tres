@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_s45r2"]
+
+[resource]
+script = ExtResource("1_s45r2")
+id = "m8"
+name_key = "SKILL_M8"
+desc_key = "SKILL_M8_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m8.png"
+branch = 2
+ring = 2
+position = Vector2i(99, 36)
+costs = Array[int]([2, 2, 2, 2])
+prerequisites = Array[String](["m2"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 1.0,
+"stat": "marble_slots_bonus"
+}])
+feature_id = ""
+is_ultimate = false

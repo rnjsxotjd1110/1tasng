@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_lpq80"]
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_emnjs"]
 
 [resource]
-script = ExtResource("1_lpq80")
+script = ExtResource("1_emnjs")
 tier = 10
 id = "diamond"
 name_key = "MARBLE_DIAMOND"
 mult = 2e+11
 cost = 6.71089e+18
-polish_base_cost = 3.35544e+18
+polish_base_cost = 5.36871e+17
 color_outline = Color(0.105882, 0.227451, 0.360784, 1)
 color_shadow = Color(0.168627, 0.290196, 0.560784, 1)
 color_base = Color(0.721569, 0.698039, 0.768627, 1)

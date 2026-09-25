@@ -95,19 +95,24 @@ func test_near_miss() -> void:
 	check(not _one(Bet.straight(0, 1.0), 0).near_miss, "적중은 아깝다가 아님")
 
 
+## 9단계: BIG/JACKPOT 은 배율이 아니라 "한 번호에 구슬을 몰아 걸어서 다 같이 맞혔는지"로 정한다(배율
+## 임계값이었을 땐 층 배율이 커질수록 색·홀짝 베팅도 쉽게 넘어 버려 너무 자주 나온다는 피드백으로 바꿨다).
 func test_tier_classification() -> void:
 	check_eq(_one(Bet.red(1.0), 2).tier, SpinOutcome.Tier.LOSS, "LOSS")
 	check_eq(_one(Bet.red(1.0), 1).tier, SpinOutcome.Tier.NORMAL, "NORMAL")
 	var context := SpinContext.new()
 	context.marble_mult = 5.0  # 반환 10, 순이익 9 → 9배
 	check_eq(_one(Bet.red(1.0), 1, context).tier, SpinOutcome.Tier.GOOD, "GOOD")
-	context.marble_mult = 15.0  # 순이익 29배
-	check_eq(_one(Bet.red(1.0), 1, context).tier, SpinOutcome.Tier.BIG, "BIG 배율")
-	context.marble_mult = 60.0  # 순이익 119배
-	check_eq(_one(Bet.red(1.0), 1, context).tier, SpinOutcome.Tier.JACKPOT, "JACKPOT 배율")
-	check_eq(_one(Bet.straight(4, 1.0), 4).tier, SpinOutcome.Tier.BIG, "개별숫자 1개 = BIG")
+	context.marble_mult = 60.0  # 순이익 119배 — 색·홀짝은 몰아걸기가 아니므로 배율이 아무리 커도 GOOD 까지만
+	check_eq(_one(Bet.red(1.0), 1, context).tier, SpinOutcome.Tier.GOOD, "색·홀짝은 배율만으론 BIG/JACKPOT 이 안 됨")
+	check_eq(_one(Bet.straight(4, 1.0), 4).tier, SpinOutcome.Tier.GOOD, "개별숫자 1개(몰아걸기 아님)도 배율만으로 GOOD")
 	var two: Array[Bet] = [Bet.straight(4, 1.0), Bet.straight(4, 1.0)]
-	check_eq(RouletteRules.resolve(two, [4] as Array[int]).tier, SpinOutcome.Tier.JACKPOT, "개별숫자 2개 = JACKPOT")
+	check_eq(RouletteRules.resolve(two, [4] as Array[int]).tier, SpinOutcome.Tier.BIG, "같은 번호에 구슬 2개 = BIG")
+	var three: Array[Bet] = [Bet.straight(4, 1.0), Bet.straight(4, 1.0), Bet.straight(4, 1.0)]
+	check_eq(RouletteRules.resolve(three, [4] as Array[int]).tier, SpinOutcome.Tier.JACKPOT, "같은 번호에 구슬 3개 = JACKPOT")
+	var different: Array[Bet] = [Bet.straight(4, 1.0), Bet.straight(7, 1.0)]
+	# 더블 볼로 서로 다른 두 번호가 각각 적중해도 몰아걸기가 아니므로 BIG/JACKPOT 이 아니다.
+	check_eq(RouletteRules.resolve(different, [4, 7] as Array[int]).tier, SpinOutcome.Tier.GOOD, "서로 다른 번호 적중은 몰아걸기가 아님")
 	# 일부만 이겨 순손실이어도 당첨이 있으면 NORMAL
 	var mixed: Array[Bet] = [Bet.red(1.0), Bet.black(1.0), Bet.even(1.0)]
 	var mixed_outcome := RouletteRules.resolve(mixed, [1] as Array[int])

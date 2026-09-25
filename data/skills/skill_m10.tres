@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_kb3r7"]
+
+[resource]
+script = ExtResource("1_kb3r7")
+id = "m10"
+name_key = "SKILL_M10"
+desc_key = "SKILL_M10_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m10.png"
+branch = 2
+ring = 3
+position = Vector2i(115, -96)
+costs = Array[int]([4])
+prerequisites = Array[String](["m7"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": -0.7,
+"stat": "min_spin_duration_stat"
+}])
+feature_id = "turbo_mode"
+is_ultimate = false

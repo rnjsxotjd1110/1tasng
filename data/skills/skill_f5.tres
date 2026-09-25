@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_r5lkk"]
+
+[resource]
+script = ExtResource("1_r5lkk")
+id = "f5"
+name_key = "SKILL_F5"
+desc_key = "SKILL_F5_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_f5.png"
+branch = 1
+ring = 2
+position = Vector2i(-67, -80)
+costs = Array[int]([2, 2, 2])
+prerequisites = Array[String](["f1", "f2"])
+prerequisite_mode = 1
+effects = Array[Dictionary]([{
+"op": 0,
+"per_level": 0.02,
+"stat": "streak_bonus_per_win"
+}])
+feature_id = ""
+is_ultimate = false

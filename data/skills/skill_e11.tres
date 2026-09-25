@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_4ytoo"]
+
+[resource]
+script = ExtResource("1_4ytoo")
+id = "e11"
+name_key = "SKILL_E11"
+desc_key = "SKILL_E11_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_e11.png"
+branch = 3
+ring = 3
+position = Vector2i(35, 146)
+costs = Array[int]([4])
+prerequisites = Array[String](["e6"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 0.8,
+"stat": "debt_repay_mult"
+}, {
+"op": 0,
+"per_level": 2.0,
+"stat": "debt_paid_clover_bonus"
+}])
+feature_id = ""
+is_ultimate = false

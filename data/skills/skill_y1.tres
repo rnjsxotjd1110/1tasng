@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_02yey"]
+
+[resource]
+script = ExtResource("1_02yey")
+id = "y1"
+name_key = "SKILL_Y1"
+desc_key = "SKILL_Y1_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_y1.png"
+branch = 4
+ring = 1
+position = Vector2i(-42, 35)
+costs = Array[int]([1])
+prerequisites = Array[String](["heart"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = "zero_guard"
+is_ultimate = false

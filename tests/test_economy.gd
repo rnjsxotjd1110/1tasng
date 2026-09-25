@@ -35,7 +35,7 @@ func test_upgrade_cost_formula() -> void:
 
 func test_spin_duration() -> void:
 	check_eq(Economy.spin_duration(1.0), 6.0, "기본 6초")
-	GameState.set_upgrade_level("wheel_speed", 5)
+	GameState.set_upgrade_level("spin_speed", 5)
 	check_near(GameState.spin_duration(), 6.0 * pow(0.9, 5), 1e-9, "0.9^5")
 	check_eq(Economy.spin_duration(0.01), 1.5, "최소 1.5초")
 
@@ -44,9 +44,13 @@ func test_polish_and_marble_mult() -> void:
 	check_eq(Economy.polish_mult(0), 1.0, "광택 0")
 	check_near(Economy.polish_mult(5), pow(1.25, 5), 1e-12, "광택 5")
 	check_near(Economy.polish_mult(9), pow(1.25, 5), 1e-12, "광택 상한")
-	GameState.marble_tier = 2
-	GameState.polish_level = 2
+	GameState.set_upgrade_level("marble_tier", 2)
+	GameState.set_upgrade_level("marble_polish", 2)
+	check_eq(GameState.marble_tier, 2, "재질 사본")
+	check_eq(GameState.polish_level, 2, "광택 사본")
 	check_near(GameState.marble_mult(), 12.0 * 1.25 * 1.25, 1e-9, "구리 + 광택 2")
+	check(GameState.modifiers.has_source("upgrade:marble_tier"), "재질은 수정자 upgrade:marble_tier")
+	check(GameState.modifiers.has_source("upgrade:marble_polish"), "광택은 수정자 upgrade:marble_polish")
 
 
 func test_marble_slots() -> void:

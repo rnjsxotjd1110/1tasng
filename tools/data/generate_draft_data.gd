@@ -1,12 +1,14 @@
 extends SceneTree
-## 1단계 초안 데이터(.tres)를 생성하는 1회성 스크립트.
+## 초안 데이터(.tres)를 생성하는 스크립트(1단계 작성, 3단계에서 업그레이드 6종으로 갱신).
 ## 이미 있는 파일은 덮어쓰지 않는다(--force 를 주면 덮어씀). 생성 후에는 .tres 가 원본이다.
 ## 실행: godot --headless -s tools/data/generate_draft_data.gd [-- --force]
 
 const MARBLE_COST_START := 50.0
 const MARBLE_COST_STEP := 80.0
-const POLISH_BASE_RATIO := 0.5
-const WOOD_POLISH_BASE := 10.0
+## 광택 0→1 비용 = 재질 비용 × POLISH_BASE_RATIO (나무는 광택 불가라 돌 기준 값을 넣어 둔다)
+const POLISH_BASE_RATIO := 0.08
+const WOOD_POLISH_BASE := 4.0
+const ICON_DIR := "res://assets/sprites/ui/upgrades/icon_%s.png"
 
 ## [id, 배율, outline, shadow, base, light, shine, fx_id]
 const MARBLES: Array = [
@@ -36,12 +38,14 @@ const FLOORS: Array = [
 	["ph", 1e30, 16.0, 1e8, 10, 14, 240.0],
 ]
 
-## [id, base_cost, growth, max_level, stat, op, per_level, required_floor]
+## [id, kind, sort, base_cost, growth, max_level, stat, op, per_level, required_floor, required_marble_tier]
 const UPGRADES: Array = [
-	["bet_limit", 25.0, 1.55, -1, "max_bet_mult", StatModifiers.Op.MULT, 1.35, 0],
-	["marble_count", 100.0, 12.0, 7, "marble_slots_bonus", StatModifiers.Op.ADD, 1.0, 0],
-	["wheel_speed", 40.0, 2.2, 13, "spin_duration_mult", StatModifiers.Op.MULT, 0.9, 0],
-	["golden_pocket", 5000.0, 40.0, 5, "golden_pocket_count", StatModifiers.Op.ADD, 1.0, 1],
+	["marble_tier", UpgradeDef.Kind.MARBLE_TIER, 0, 0.0, 1.0, 14, "marble_mult", StatModifiers.Op.MULT, 1.0, 0, 0],
+	["marble_polish", UpgradeDef.Kind.MARBLE_POLISH, 1, 0.0, 1.7, 5, "marble_mult", StatModifiers.Op.MULT, 1.25, 0, 1],
+	["bet_limit", UpgradeDef.Kind.STANDARD, 2, 20.0, 1.2, -1, "max_bet_mult", StatModifiers.Op.MULT, 1.35, 0, 0],
+	["marble_count", UpgradeDef.Kind.STANDARD, 3, 300.0, 22.0, 7, "marble_slots_bonus", StatModifiers.Op.ADD, 1.0, 0, 0],
+	["spin_speed", UpgradeDef.Kind.STANDARD, 4, 150.0, 3.2, 13, "spin_duration_mult", StatModifiers.Op.MULT, 0.9, 0, 0],
+	["golden_pocket", UpgradeDef.Kind.STANDARD, 5, 5e4, 800.0, 5, "golden_pocket_count", StatModifiers.Op.ADD, 1.0, 2, 0],
 ]
 
 
@@ -97,13 +101,17 @@ func _make_upgrade(row: Array) -> UpgradeDef:
 	def.id = row[0]
 	def.name_key = "UPGRADE_%s" % String(row[0]).to_upper()
 	def.desc_key = "UPGRADE_%s_DESC" % String(row[0]).to_upper()
-	def.base_cost = row[1]
-	def.growth = row[2]
-	def.max_level = row[3]
-	def.effect_stat = row[4]
-	def.effect_op = row[5]
-	def.effect_per_level = row[6]
-	def.required_floor = row[7]
+	def.icon_path = ICON_DIR % row[0]
+	def.kind = row[1]
+	def.sort_order = row[2]
+	def.base_cost = row[3]
+	def.growth = row[4]
+	def.max_level = row[5]
+	def.effect_stat = row[6]
+	def.effect_op = row[7]
+	def.effect_per_level = row[8]
+	def.required_floor = row[9]
+	def.required_marble_tier = row[10]
 	return def
 
 

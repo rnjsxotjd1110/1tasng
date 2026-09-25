@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_hjwiy"]
+
+[resource]
+script = ExtResource("1_hjwiy")
+id = "e10"
+name_key = "SKILL_E10"
+desc_key = "SKILL_E10_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_e10.png"
+branch = 3
+ring = 3
+position = Vector2i(96, 115)
+costs = Array[int]([3, 3, 3])
+prerequisites = Array[String](["e5", "e8"])
+prerequisite_mode = 1
+effects = Array[Dictionary]([{
+"op": 1,
+"per_level": 2.0,
+"stat": "max_bet_mult"
+}])
+feature_id = ""
+is_ultimate = false

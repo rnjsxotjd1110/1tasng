@@ -21,8 +21,12 @@ signal spin_resolved(outcome: SpinOutcome)
 signal bankrupt()
 @warning_ignore("unused_signal")
 signal debt_changed()
+## 업그레이드 구매 완료(level = 구매 후 레벨, 한 번에 여러 레벨을 사면 한 번만 발행).
 @warning_ignore("unused_signal")
 signal upgrade_purchased(id: String, level: int)
+## 황금 포켓이 새로 생겼다(휠의 빛줄기·베팅창 금 테두리 연출용).
+@warning_ignore("unused_signal")
+signal golden_pockets_added(numbers: Array[int])
 @warning_ignore("unused_signal")
 signal skill_purchased(id: String, level: int)
 @warning_ignore("unused_signal")
@@ -34,6 +38,55 @@ signal milestone_reached(suffix_index: int)
 signal buff_started(id: String, duration: float)
 @warning_ignore("unused_signal")
 signal buff_ended(id: String)
+## 패널티가 새로 발동했다(PenaltyManager, 5단계). duration 은 토스트에 보여줄 표시 시간
+## (시간제 패널티는 실제 지속시간, 즉시·소모형 패널티는 짧은 고정값). buff_started 도 함께 발행된다.
+@warning_ignore("unused_signal")
+signal penalty_triggered(id: String, duration: float)
 ## 화면 구석 알림. text 는 이미 tr() 된 문자열, icon 은 아이콘 id.
 @warning_ignore("unused_signal")
 signal toast_requested(text: String, icon: String)
+## 저장 시작(4단계). TopBar 가 회전 칩 아이콘을 0.8초 보여준다.
+@warning_ignore("unused_signal")
+signal save_started()
+## 저장 끝(성공 여부와 무관하게 바로 발행. 저장은 동기 처리라 시작과 거의 동시).
+@warning_ignore("unused_signal")
+signal save_finished(ok: bool)
+
+# ── 6단계: 스킬트리·자동화·특수 기능 ─────────────────────────
+## 황금 저금통(E13)이 100스핀마다 깨지며 칩을 지급했다.
+@warning_ignore("unused_signal")
+signal piggy_bank_broken(amount: float)
+## 운명의 휠(Y14)이 등장할 시각이 됐다(팝업을 띄울 차례). GameState.wheel_of_fortune_consumed() 로 다음 주기를 시작한다.
+@warning_ignore("unused_signal")
+signal wheel_of_fortune_ready()
+## 황금 폭풍(Y12) 발동: 다음 스핀(들) 동안 모든 포켓이 황금이 된다.
+@warning_ignore("unused_signal")
+signal golden_storm_triggered(spins: int)
+## 운명 뒤집기(Y8): 공이 from_number 에서 to_number 로 튕겨 재판정됐다.
+@warning_ignore("unused_signal")
+signal destiny_flip(from_number: int, to_number: int)
+## 오토 스핀이 자동으로 꺼졌다(칩 부족·베팅 없음 등). reason 은 토스트 문자열 키.
+@warning_ignore("unused_signal")
+signal auto_spin_stopped(reason: String)
+## 연승 보너스로 클로버를 얻었다(GDD 6-1 "5연승 +1"). count 는 이번에 얻은 개수.
+@warning_ignore("unused_signal")
+signal streak_clover_earned(count: int)
+## 살면서 처음으로 클로버를 얻었다. 스킬트리 버튼 자물쇠 해제 연출 + 루시 대사 트리거용.
+@warning_ignore("unused_signal")
+signal first_clover_earned()
+
+# ── 7단계: 층 진행·엔딩·업적 ─────────────────────────────
+## 업적을 새로 얻었다. id 로 AchievementData 에서 이름·아이콘을 찾는다.
+@warning_ignore("unused_signal")
+signal achievement_unlocked(id: String)
+## PH 에서 1Dc 를 내고 하우스 인수를 확정했다(엔딩 컷신 시작 신호).
+@warning_ignore("unused_signal")
+signal ending_triggered()
+## 엔딩 크레딧 이후 "계속하기"로 무한 모드(오너 모드)에 들어갔다.
+@warning_ignore("unused_signal")
+signal infinite_mode_started()
+
+# ── 8단계 2/N: 튜토리얼 ─────────────────────────────────
+## 설정 화면의 "튜토리얼 다시 보기"를 눌렀다. Main 이 살아있으면 TutorialGuide 를 처음부터 재생한다.
+@warning_ignore("unused_signal")
+signal tutorial_reset_requested()

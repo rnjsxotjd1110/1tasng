@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_o58k0"]
+
+[resource]
+script = ExtResource("1_o58k0")
+id = "m1"
+name_key = "SKILL_M1"
+desc_key = "SKILL_M1_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_m1.png"
+branch = 2
+ring = 1
+position = Vector2i(42, -35)
+costs = Array[int]([1])
+prerequisites = Array[String](["heart"])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = "auto_spin"
+is_ultimate = false

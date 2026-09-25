@@ -1,0 +1,39 @@
+{
+  "tutorial_place_bet": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_TUTORIAL_PLACE_BET"]}
+  ],
+  "tutorial_spin": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_TUTORIAL_SPIN"]}
+  ],
+  "tutorial_result": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_TUTORIAL_RESULT"]}
+  ],
+  "tutorial_upgrade_tab": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_TUTORIAL_UPGRADE_TAB"]}
+  ],
+  "tutorial_upgrade_buy": [
+    {"speaker": "NPC_LUCY", "portrait": "wink", "lines": ["LUCY_TUTORIAL_UPGRADE_BUY"]}
+  ],
+  "tutorial_clover": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_TUTORIAL_CLOVER"]}
+  ],
+  "tutorial_skilltree": [
+    {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_TUTORIAL_SKILLTREE"]}
+  ],
+  "intro_greeting": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_INTRO_1", "LUCY_INTRO_2", "LUCY_INTRO_3", "LUCY_INTRO_4"]}
+  ],
+  "skilltree_unlock": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_SKILLTREE_UNLOCK_1"]},
+    {"speaker": "NPC_LUCY", "portrait": "wink", "lines": ["LUCY_SKILLTREE_UNLOCK_2"]},
+    {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_SKILLTREE_UNLOCK_3"]}
+  ],
+  "elevator_ready": [
+    {"speaker": "NPC_LUCY", "portrait": "smile", "lines": ["LUCY_ELEVATOR_READY_1"]},
+    {"speaker": "NPC_LUCY", "portrait": "wink", "lines": ["LUCY_ELEVATOR_READY_2"]},
+    {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_ELEVATOR_READY_3"]}
+  ],
+  "epilogue_lucy": [
+    {"speaker": "NPC_LUCY", "portrait": "laugh", "lines": ["LUCY_EPILOGUE_1"]}
+  ]
+}

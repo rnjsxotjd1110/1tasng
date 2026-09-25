@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillNodeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_node_def.gd" id="1_u3iu8"]
+
+[resource]
+script = ExtResource("1_u3iu8")
+id = "heart"
+name_key = "SKILL_HEART"
+desc_key = "SKILL_HEART_DESC"
+icon_path = "res://assets/sprites/ui/skills/icon_heart.png"
+branch = 0
+ring = 0
+position = Vector2i(0, 0)
+costs = Array[int]([])
+prerequisites = Array[String]([])
+prerequisite_mode = 0
+effects = Array[Dictionary]([])
+feature_id = ""
+is_ultimate = false

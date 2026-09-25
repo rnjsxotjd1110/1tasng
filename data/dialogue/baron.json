@@ -1,0 +1,26 @@
+{
+  "loan_intro": [
+    {"speaker": "NPC_RATCHET", "portrait": "smile", "lines": ["BARON_LOAN_1"]},
+    {"speaker": "NPC_RATCHET", "portrait": "sly", "lines": ["BARON_LOAN_2"]},
+    {"speaker": "NPC_RATCHET", "portrait": "smile", "lines": ["BARON_LOAN_3"]},
+    {"speaker": "NPC_RATCHET", "portrait": "sly", "lines": ["BARON_LOAN_4"]},
+    {"speaker": "NPC_RATCHET", "portrait": "smile", "lines": ["BARON_LOAN_5"]}
+  ],
+  "loan_repeat_2nd": [
+    {"speaker": "NPC_RATCHET", "portrait": "smile", "lines": ["BARON_LOAN_REPEAT_2"]}
+  ],
+  "loan_repeat_3rd": [
+    {"speaker": "NPC_RATCHET", "portrait": "sly", "lines": ["BARON_LOAN_REPEAT_3"]}
+  ],
+  "loan_overflow": [
+    {"speaker": "NPC_RATCHET", "portrait": "sly", "lines": ["BARON_LOAN_OVERFLOW"]}
+  ],
+  "debt_paid": [
+    {"speaker": "NPC_RATCHET", "portrait": "laugh", "lines": ["BARON_PAID_1"]},
+    {"speaker": "NPC_RATCHET", "portrait": "laugh", "lines": ["BARON_PAID_2"]},
+    {"speaker": "NPC_RATCHET", "portrait": "smile", "lines": ["BARON_PAID_3"]}
+  ],
+  "epilogue_baron": [
+    {"speaker": "NPC_RATCHET", "portrait": "smile", "lines": ["BARON_EPILOGUE_1"]}
+  ]
+}

@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="MarbleDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_7fb25"]
+[ext_resource type="Script" path="res://scripts/data/marble_def.gd" id="1_m88nr"]
 
 [resource]
-script = ExtResource("1_7fb25")
+script = ExtResource("1_m88nr")
 tier = 13
 id = "void"
 name_key = "MARBLE_VOID"
 mult = 8e+14
 cost = 3.43597e+24
-polish_base_cost = 1.71799e+24
+polish_base_cost = 2.74878e+23
 color_outline = Color(0.0431373, 0.0392157, 0.0784314, 1)
 color_shadow = Color(0.239216, 0.121569, 0.45098, 1)
 color_base = Color(0.482353, 0.247059, 0.878431, 1)

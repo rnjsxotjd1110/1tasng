@@ -58,7 +58,8 @@ var _intro: IntroCutscene
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	LetterboxFit.apply(self)
+	size = SCREEN
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_lightning_timer = randf_range(LIGHTNING_MIN, LIGHTNING_MAX)
 	_build_background()

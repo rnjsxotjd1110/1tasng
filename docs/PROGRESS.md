@@ -75,8 +75,8 @@
 - [x] 루시 튜토리얼(6단계 안내, 저장 재개, 설정 끄기/다시 보기, 1회성 신규 기능 팁 3종) (2/N)
 - [ ] 효과음·음악(AudioManager) — 크로스페이드·덕킹·피버 레이어·SFX 감사 완료, **실제 음악 파일은 네트워크
   허용 확장 대기 중**이라 미완 (3/N)
-- [x] 전체 폴리시 감사 — `docs/POLISH_CHECKLIST.md` 참고. 커스텀 커서·게임패드·최소화 프레임 제한 신규,
-  일부 항목(레터박싱 무늬·저사양 성능·실기기 확인)은 이 환경 한계로 다음 담당자에게 이관 (4/N)
+- [x] 전체 폴리시 감사 — `docs/POLISH_CHECKLIST.md` 참고. 커스텀 커서·게임패드·최소화 프레임 제한·다크
+  테이블 레터박싱(마무리 단계에서 재시도해 완성) 신규, 저사양 성능·실기기 확인은 사용자 환경에서 필요 (4/N)
 - [x] 내보내기 프리셋(Windows), 스팀 빌드 준비 — `docs/STEAM.md` 참고. SteamService·아이콘·export_presets.cfg
   (실제 .exe 빌드로 검증)·스토어 스크린샷 10장+투명 로고·크래시 로그 완료. Steamworks 계정·CC0 음원·정식
   스튜디오명은 사용자가 할 일로 이관 (5/N)
@@ -1012,3 +1012,50 @@
 - 사용자가 직접 준비해야 할 것들이 여러 문서에 흩어져 있다 — 마무리 단계에서 하나의 한국어 보고로
   모아서 전달할 것(3/N: CC0 음원 네트워크 허용/승인, 5/N: Steamworks 계정·App ID·GodotSteam 애드온·
   Windows 실기기 확인, 1/N: 정식 스튜디오명).
+
+### 8단계 마무리 (2026-09-25): 다크 테이블 레터박싱 완성 + CC0 음원 선정(승인 대기)
+
+사용자가 5/N 보고에서 남긴 항목들을 처리해 달라고 요청. 네트워크 허용 도메인을 확장해 줘서 음원 조사는
+풀렸지만, 실제 파일을 프로젝트에 넣는 작업이 자동 모드 안전 분류기에 막혔다(아래 참고). 레터박싱은
+4/N 에서 "위험 대비 효과가 낮다"고 미뤘던 것을 이번에 실제로 아키텍처를 바꿔 완성했다.
+
+**한 일**
+- **다크 테이블 레터박싱 완성**(GDD 23장에 전체 과정 기록): `window/stretch/mode` 를 `"viewport"` →
+  `"disabled"` 로 바꾸고 `LetterboxFit`(신규, `scenes/fx/letterbox_fit.gd`)이 정수 배율 계산·중앙 정렬·
+  펠트 무늬 배경 그리기를 코드로 대신한다. 과정에서 실측으로 발견한 것 셋: (1) `CanvasLayer` 는 부모
+  Control 의 scale 을 상속하지 않는다 — `Main` 의 `ui_layer`/`fx_layer` 는 `transform` 을 직접 맞춰야
+  했다. (2) `DisplayServer.window_get_size()` 가 `--resolution` 커맨드라인 인자를 무시하고
+  `project.godot` 기본값을 돌려주는 버그를 발견해 `get_tree().root.size` 로 우회했다. (3)
+  `SplashScreen.tscn`/`TitleScreen.tscn`/`Main.tscn` 씬 리소스 자체에 `anchors_preset=15` 가 박혀 있어
+  스크립트만 고쳐선 안 됐다(씬 파일도 같이 고침). 1600×1200(4:3)·3440×1440(21:9) 두 비율에서 `xwd` 로
+  실제 창을 찍어 펠트 무늬가 정확히 나오는지 확인했다.
+- `tools/capture/capture.gd::_save_shot()` 도 함께 고침 — 이제 캡처 원본이 항상 640×360 이 아니라
+  실제 창 크기라(레터박싱을 엔진이 아니라 코드가 하므로) 이미 충분히 크면 추가로 3배를 곱하지 않는다.
+- 테스트 신규: `tests/test_letterbox_fit.gd`(6개 — 배율·중앙 정렬 계산의 순수 함수 부분만 검증, 실제
+  창 반응은 헤드리스에서 의미 있게 못 함).
+- **CC0 음원 9곡 선정**(incompetech.com, Kevin MacLeod, 전부 CC-BY 4.0): `pieces.json` 공개 카탈로그를
+  받아 장르·무드로 검색해 골랐다 — `bgm_title`="Walking Along", `bgm_b1`="Deadly Roulette"(이름부터
+  완벽한 우연), `bgm_1f`="Hard Boiled", `bgm_2f`="Backbay Lounge", `bgm_3f`="Ultralounge",
+  `bgm_ph`="Grand Dark Waltz Allegro", `bgm_fever_layer`="Vegas Glitz", `bgm_ending`="Long Road Ahead",
+  `bgm_credits`="Americana". mp3 9개(총 57MB)를 내려받아 유효성(파일 포맷)까지 확인했다.
+- 전체 **407 tests, 8997 checks, 0 failures**.
+
+**막힌 부분(사용자 확인 필요) — 중요**
+- 내려받은 음원 9개를 `assets/audio/music/` 로 복사하는 명령이 **자동 모드 안전 분류기에 의해 차단**됐다
+  (외부에서 받은 콘텐츠를 대량으로 자산 폴더에 넣는 작업이라 승인이 필요한 것으로 보인다). 다른 도구로
+  우회하지 않고 그대로 멈췄다 — 사용자가 직접 승인하거나, 파일을 넣어 달라고 명시적으로 요청해야 다음
+  세션에서 진행할 수 있다. 선곡 근거·라이선스 표기 문구(Kevin MacLeod (incompetech.com), CC BY 4.0)는
+  `docs/STEAM.md`/`docs/GDD.md` 20장에 이미 정리돼 있어, 파일만 들어오면 크레딧 반영까지 바로 이어갈 수 있다.
+
+**남은 이슈**
+- 위 음원 파일 복사 승인이 나면: `assets/audio/music/*.mp3` 로 넣고 → `AudioManager._music_stream()` 이
+  이미 `.mp3` 확장자까지 시도하는지 확인(현재는 `.ogg`/`.wav` 만 시도 — `.mp3` 추가 필요) → `CreditsScreen`
+  의 `CREDITS_MUSIC_PENDING` 문구를 9곡 크레딧으로 교체 → 헤드리스 테스트 재확인.
+- `JackpotOverlay` 의 world-위-디밍 버그는 여전히 미해결(spawn_task 로 제안됨).
+
+**다음 작업(9단계)이 알아야 할 것**
+- 레터박싱 이후 마우스 좌표는 `_gui_input`(자동 로컬 변환)에 의존한다 — 새 입력 코드를 짤 때
+  `_unhandled_input`/`_input` 에서 `event.position` 을 직접 쓰지 말 것(더 이상 640×360 논리 좌표가
+  아니다). GDD 23장 참고.
+- 9단계(밸런스 시뮬레이션·최종 QA)는 이 레터박싱 변경과 무관하게 진행 가능 — `tools/sim` 은 게임 로직만
+  다뤄 화면 크기와 관계없다.

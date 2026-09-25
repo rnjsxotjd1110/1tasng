@@ -695,14 +695,20 @@ func _capture(scenario: String, lang: String) -> void:
 
 
 ## 뷰포트를 640×360 원본 + 3배 확대본으로 저장한다(모든 시나리오 공용, 8단계에서 분리).
+## 8단계 마무리: window/stretch/mode 를 "disabled" 로 바꾼 뒤로(GDD 22장, 레터박싱)
+## root.get_texture() 가 항상 640×360 이 아니라 실제 창 크기를 그대로 담는다(기본 창 크기가 640×360 의
+## 정수 배라면 이미 확대된 상태로 나온다) — 그래서 무조건 3배를 더 곱하지 않고, 이미 충분히 크면
+## 그대로 "_x3" 로도 저장한다(파일 이름은 기존 문서·스크린샷 관례와 맞추기 위해 그대로 둔다).
 func _save_shot(scenario: String, lang: String) -> void:
 	await _wait_frames(1)
 	await RenderingServer.frame_post_draw
 	var image := root.get_texture().get_image()
 	var base := "%s/%s_%s" % [out_dir, scenario, lang]
 	image.save_png(base + ".png")
-	var big := image.duplicate() as Image
-	big.resize(image.get_width() * UPSCALE, image.get_height() * UPSCALE, Image.INTERPOLATE_NEAREST)
+	var big := image
+	if image.get_width() < 1000:
+		big = image.duplicate() as Image
+		big.resize(image.get_width() * UPSCALE, image.get_height() * UPSCALE, Image.INTERPOLATE_NEAREST)
 	big.save_png(base + "_x3.png")
 	print("captured ", base)
 

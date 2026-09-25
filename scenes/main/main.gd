@@ -129,13 +129,13 @@ var _slide_from: Control
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	controller.instant_resolve = false
 	_load_game()
 	_build_world()
 	_build_ui()
 	_build_fx()
+	LetterboxFit.apply(self, [ui_layer, fx_layer])
 	EventBus.spin_started.connect(_on_spin_started)
 	EventBus.spin_resolved.connect(_on_spin_resolved)
 	EventBus.bets_changed.connect(_refresh_spin_state)

@@ -545,16 +545,30 @@ PH 에서 1Dc 지불(`EndingService.trigger()`, `Economy.ENDING_COST`) → 마�
 
 ## 20. 8단계 3/N 에서 정한 세부 규칙 (음악·사운드 최종화)
 
-### 20-1. 음악 소싱 — 진행 중(사용자 승인 대기)
+### 20-1. 음악 소싱 — 곡은 정했으나 파일 반입이 사용자 승인 대기(8단계 마무리)
 
-사용자가 "CC0/무료 음원 제안" 방식을 선택했으나, 이 클라우드 컨테이너의 네트워크 정책이 incompetech.com·
-opengameart.org·freesound.org 등 후보 사이트 접속을 막고 있어(egress 차단) 실제로 후보를 듣고 내려받을 수
-없었다. 사용자에게 네트워크 허용 범위 확장을 요청했다 — **`assets/audio/music/*.ogg` 파일은 아직 하나도 없다.**
-필요한 트랙 id(전부 `FloorDef.music_id`/코드에 이미 슬롯이 있다): `bgm_title`(타이틀), `bgm_b1`/`bgm_1f`/`bgm_2f`/
-`bgm_3f`/`bgm_ph`(층별 5종, 위로 갈수록 화려하게), `bgm_fever_layer`(피버 중 층 BGM 위에 겹치는 레이어),
-`bgm_ending`(엔딩 컷신), `bgm_credits`(엔딩 크레딧). 승인된 트랙이 오면 `assets/audio/music/<id>.ogg`(또는
-`.wav`, `AudioManager._music_stream()` 이 `.ogg` 를 먼저 찾고 없으면 `.wav` 로 대체)로 넣기만 하면 아래 재생·
-믹싱 로직이 그대로 동작한다(파일이 없는 동안은 경고만 남기고 조용히 무시하도록 미리 만들어 뒀다).
+사용자가 "CC0/무료 음원 제안" 방식을 선택. 처음엔 네트워크 정책이 incompetech.com 등 후보 사이트 접속을
+막고 있었는데(egress 차단), 사용자가 클라우드 환경 설정에서 허용 도메인을 확장해 줘서 풀렸다. incompetech.com
+의 공개 카탈로그(`pieces.json`, ~1400곡, 장르·무드·bpm 메타데이터 포함)를 받아 아래 9곡을 골랐다(전부 Kevin
+MacLeod, CC BY 4.0 — 크레딧 문구는 STEAM.md 4장):
+
+| id | 곡 | 선정 이유 |
+|---|---|---|
+| `bgm_title` | Walking Along | Dark·Mysterious·Relaxed, 브러시드 킷+베이스+바이브스 — 비 내리는 타이틀 분위기 |
+| `bgm_b1` | Deadly Roulette | 재즈, Dark·Grooving — 이름부터 완벽한 우연, 가장 허름한 층 |
+| `bgm_1f` | Hard Boiled | 재즈, Mysterious·Grooving — 필름누아르 탐정 느낌, B1 보다 한 단계 위 |
+| `bgm_2f` | Backbay Lounge | 재즈, Bright·Grooving — 더 세련된 라운지 |
+| `bgm_3f` | Ultralounge | 재즈, Grooving·Relaxed, 5분대 — 한층 더 고급스러운 라운지 |
+| `bgm_ph` | Grand Dark Waltz Allegro | 오케스트라 왈츠, 어둡고 웅장 — 펜트하우스의 화려함 |
+| `bgm_fever_layer` | Vegas Glitz | 재즈, Bouncy·Humorous, 51초 — 짧고 흥겨운 베가스풍, 층 BGM 위에 겹치는 레이어용 |
+| `bgm_ending` | Long Road Ahead | "선악 대결의 여파... 마지막 3분의 1은 웅장한 승리부" — 엔딩 서사와 정확히 맞음 |
+| `bgm_credits` | Americana | 첼로로 시작해 금관까지 쌓이는 웅장한 마무리 — 엔딩 크레딧 |
+
+mp3 9개(총 57MB)를 실제로 내려받아 포맷 유효성까지 확인했지만, **`assets/audio/music/` 로 옮기는 명령이
+자동 모드 안전 분류기에 막혀** 아직 프로젝트 안에 없다(사용자 승인 필요, PROGRESS.md 참고). 필요한 트랙 id는
+전부 `FloorDef.music_id`/코드에 이미 슬롯이 있다. 파일이 들어오면 `assets/audio/music/<id>.mp3`(또는 `.ogg`/
+`.wav` — `AudioManager._music_stream()` 이 이 순서로 찾는다)에 두기만 하면 아래 재생·믹싱 로직이 그대로
+동작한다(파일이 없는 동안은 경고만 남기고 조용히 무시하도록 미리 만들어 뒀다).
 
 ### 20-2. AudioManager.play_music() — 크로스페이드·믹싱
 
@@ -596,7 +610,7 @@ opengameart.org·freesound.org 등 후보 사이트 접속을 막고 있어(egre
 | 최소화 창 프레임 제한 | `SettingsManager._notification()` 이 `NOTIFICATION_APPLICATION_FOCUS_OUT`/`_IN`(최소화도 이 알림을 받는다)에 반응해 `Engine.max_fps` 를 `BACKGROUND_FPS=10` 으로 낮췄다가 돌아오면 설정값으로 복귀 | 이미 `SettingsManager` 가 `Engine.max_fps` 를 관리하고 있어(4단계) 같은 자리에 얹는 게 가장 자연스러웠다. 포커스를 잃는 모든 경우(최소화 포함, 다른 창 클릭도 포함)를 다뤄 요청 범위보다 오히려 넓게 커버한다 |
 | 유휴 동작 반복 억제 | 새로 만들지 않고 기존 패턴을 감사만 했다: `NeonText.idle_flicker`(불규칙 간격, `RngService.randf_range_misc`), 마담 벨벳 주기 대사(5~8분 무작위 간격 **+** 여러 변형 중 무작위 선택, 7단계)가 이미 이 요구를 만족한다 | 새 기능이 아니라 기존 설계가 이미 요청을 충족하는지 확인하는 감사 항목이었다 — 중복 구현을 피했다 |
 | 해상도 지원(1280×720~4K, 울트라와이드) | `window/stretch/mode="viewport"` + `aspect="keep"` + `scale_mode="integer"`(1단계부터) 구조상 창 크기와 무관하게 항상 640×360 을 정수 배율로 확대·중앙 정렬한다 — 어떤 해상도에서도 레이아웃이 깨지지 않는다(내부 640×360 자체는 창 크기를 아예 모른다). 1600×1200(4:3) 창에서 실제 동작 확인(xwd 로 실제 창을 찍어 확인, `root.get_texture()` 캡처는 내부 640×360 만 담겨 이 확인엔 못 쓴다는 것도 함께 확인) | 이 스트레치 모드 자체가 이미 임의 해상도를 안전하게 지원하도록 설계돼 있어(7단계까지 검증됨) 별도 대응이 필요 없었다 |
-| **다크 테이블 무늬 레터박싱 — 시도했지만 못 함(범위에서 뺌)** | 검은 바 대신 펠트 무늬로 채우려고 `rendering/environment/defaults/default_clear_color` 를 펠트색으로 바꿔봤지만, 실제 창을 찍어보니(xwd) 레터박스 바는 여전히 순수 검정이었다 — 이 스트레치 모드의 바깥 여백은 `RenderingServer` 기본 클리어 컬러가 아닌 다른 경로(디스플레이 서버의 블릿 단계)로 채워지는 것으로 보인다. 변경을 되돌렸다(효과 없는 설정을 남겨두지 않음) | 진짜로 무늬를 넣으려면 `window/stretch/mode="canvas_items"` 로 바꾸고 창 전체를 채우는 배경 + 수동으로 정수 배율 계산·중앙 정렬하는 컨테이너를 직접 만드는 아키텍처 변경이 필요하다 — 1단계부터 7단계까지 전부가 지금의 "viewport" 스트레치를 전제로 좌표를 잡아 왔어서, 이 늦은 시점에 스트레치 방식 자체를 바꾸는 건 위험 대비 효과가 낮다고 판단했다. 9단계나 별도 세션에서 시간을 들여 다시 시도할 것 — 이 표의 실패 기록이 같은 시행착오(클리어 컬러 설정)를 반복하지 않게 해줄 것이다 |
+| **다크 테이블 무늬 레터박싱 — 1차 시도는 실패, 8단계 마무리에서 재시도해 성공** | 검은 바 대신 펠트 무늬로 채우려고 `rendering/environment/defaults/default_clear_color` 를 펠트색으로 바꿔봤지만, 실제 창을 찍어보니(xwd) 레터박스 바는 여전히 순수 검정이었다 — `viewport` 스트레치 모드의 바깥 여백은 `RenderingServer` 기본 클리어 컬러가 아닌 다른 경로(디스플레이 서버의 블릿 단계)로 채워져 스크립트가 손댈 수 없다. 이때는 변경을 되돌렸다 | 아래에서 예상한 아키텍처 변경(스트레치 모드 자체를 바꾸는 것)을 실제로 시도해 성공했다 — 23장 참고. 이 행은 "클리어 컬러 설정으로는 안 된다"는 실패 기록으로 남겨 둔다(같은 시행착오 반복 방지) |
 | 1시간 소크 테스트·저사양 60fps | 이 클라우드 컨테이너는 소프트웨어 렌더러(Mesa llvmpipe)라 실제 프레임 성능이 사용자 PC와 무관하고, 1시간을 실제로 띄워 두는 것도 이 세션 예산에서 비현실적이다 — 수행하지 못했다 | 사용자 실제 하드웨어(Windows PC)에서 확인이 필요한 항목으로 남겨 `docs/POLISH_CHECKLIST.md` 에 명시 |
 | ko/en 전체 화면 스크린샷 재검수 | 이번 세션에서 바꾼 화면(튜토리얼 5종, 커서·게임패드는 스크린샷으로 안 보임)만 재확인했고, 기존 90여 개 시나리오 전체를 이번에 전부 다시 찍어 눈으로 보진 않았다(맥락 비용이 매우 크다) | 7단계까지 각 단계 종료 시 이미 스크린샷 검수를 거쳤고 그 뒤로 레이아웃에 영향을 주는 변경이 없었다 — 전수 재검수는 9단계 최종 QA 항목으로 남긴다 |
 
@@ -613,4 +627,25 @@ opengameart.org·freesound.org 등 후보 사이트 접속을 막고 있어(egre
 | 스토어 로고를 `assets/` 밖에 둔다 | `tools/capture/store_assets/logo_transparent.png`(신규 폴더, `.gitignore` 추가) | 네온 발광 가장자리의 반투명 혼합색이 `test_ui_assets.gd` 의 "36색 팔레트만 쓰는지" 검사에 걸린다(실제로 이 검사에 한 번 걸려서 발견) — 이 파일은 게임이 불러오는 실제 에셋이 아니라 마케팅 전용이므로 검사 대상 밖에 두는 게 맞다고 판단 |
 | 크래시 안전성 = 로그 + 이미 있던 저장 시점들 | `debug/file_logging/enable_file_logging=true` 로 `user://logs/godot.log` 를 남기고, "예외 시 저장"은 GDScript 에 try/catch 가 없어 대신 4~7단계부터 있던 여러 저장 시점(업그레이드·층 이동·창 닫기·포커스 잃음 등)이 이미 크래시로 인한 손실을 몇 초 이내로 줄여준다는 점을 문서화했다 | 새 저장 로직을 추가로 만들지 않고 기존 안전망이 이미 충분함을 확인·기록하는 쪽을 택했다(중복 구현 방지) |
 | Windows 내보내기 프리셋을 실제로 검증 | 이 컨테이너에 없던 Godot 4.3 내보내기 템플릿을 GitHub 릴리스에서 받아 설치하고, `--export-release`/`--export-debug` 로 실제 `.exe` 를 뽑아 콘솔 래퍼 유무(디버그만 있음)까지 확인했다 | "설정 파일만 손으로 써 두고 동작하는지 모른다"는 상태를 피하려고 실제로 내보내 봤다 — `rcedit` 이 없어 아이콘 리소스 삽입까지는 확인 못 했다(STEAM.md 5장에 남김) |
+
+## 23. 8단계 마무리에서 정한 세부 규칙 (다크 테이블 레터박싱 — 재시도해 성공)
+
+21장에서 "위험 대비 효과가 낮다"고 범위에서 뺐던 항목을 사용자 요청으로 다시 시도했다. 이번엔 실제로
+아키텍처를 바꿔서 성공했다 — 아래는 그 과정에서 확인한 사실과 결정이다(같은 작업을 다시 할 때 시행착오를
+줄이기 위해 자세히 남긴다).
+
+| 항목 | 결정 | 이유·구현 |
+|---|---|---|
+| 스트레치 모드 전환 | `window/stretch/mode` 를 `"viewport"` 에서 `"disabled"` 로 바꿨다(`aspect`/`scale_mode` 는 이제 엔진이 안 써서 같이 지웠다). 대신 `LetterboxFit`(신규, `scenes/fx/letterbox_fit.gd`)이 정수 배율 계산·중앙 정렬·여백 채우기를 코드로 직접 한다 | `"viewport"` 모드의 여백은 디스플레이 서버 블릿 단계라 스크립트가 절대 손댈 수 없음을 21장에서 실측으로 확인했다 — 무늬를 넣으려면 이 근본적인 전환이 필수였다 |
+| `CanvasLayer` 는 부모 Control 의 scale 을 상속하지 않는다(실측 확인, 중요) | `Main` 의 `ui_layer`/`fx_layer`(CanvasLayer) 는 `LetterboxFit.apply(self, [ui_layer, fx_layer])` 처럼 `extra_layers` 로 따로 넘겨, 같은 배율·오프셋을 `CanvasLayer.transform` 에 직접 설정해 맞춘다 | 작은 테스트 씬으로 실측: 부모 Control 의 `scale=2` 를 줘도 자식 `CanvasLayer` 안의 `ColorRect` 는 전혀 스케일되지 않고 원래 좌표 그대로 그려졌다(2배 지점이 아니라 1배 지점에 그려짐). `CanvasLayer.transform` 을 부모와 같은 값으로 직접 설정하면 정확히 맞는 것도 실측 확인했다. 다행히 `CanvasLayer.new()` 를 쓰는 곳이 `main.gd` 하나뿐이라(grep 확인) 범위가 좁았다 |
+| `DisplayServer.window_get_size()` 대신 `get_tree().root.size` | `LetterboxFit._Updater.refresh()` 가 창 크기를 읽을 때 `get_tree().root.size`(Window 노드 자체의 크기)를 쓴다 | `--resolution` 커맨드라인 인자로 띄운 창에서 `DisplayServer.window_get_size()` 가 실제 창 크기(예: 1600×1200)가 아니라 `project.godot` 의 `window_width_override`/`height_override` 값(1920×1080)을 그대로 돌려주는 것을 실측으로 발견했다(여러 프레임을 기다려도 안 바뀜 — 타이밍 문제가 아니라 이 API 자체의 문제로 보인다). `get_tree().root.size` 는 항상 정확했다 |
+| 씬 파일에 박혀 있던 `anchors_preset=15` 도 함께 지움 | `SplashScreen.tscn`/`TitleScreen.tscn`/`Main.tscn` 루트 노드의 `anchors_preset`/`anchor_right`/`anchor_bottom` 을 지웠다(각 `.gd` 의 `_ready()` 에서 `set_anchors_preset()` 호출을 지우고 대신 `size = SCREEN` 을 직접 준다) | `.gd` 스크립트의 `set_anchors_preset()` 호출만 지웠을 때 "Nodes with non-equal opposite anchors will have their size overridden" 경고가 남아 원인을 further 조사했더니, **씬 리소스 자체**(.tscn 파일)에도 같은 프리셋이 저장되어 있어 스크립트와 무관하게 계속 적용되고 있었다 — 에디터로 언젠가 한 번 저장될 때 박힌 것으로 보인다. 리소스 쪽도 함께 지워야 완전히 해결됐다 |
+| 무늬는 절차적 `_draw()`, 새 이미지 없음 | `LetterboxFit._Background`: `Palette.FELT_D` 바탕에 `Palette.WOOD_D` 16px 셀을 5% 확률로 흩뿌린다(고정 시드, 크기 바뀔 때만 다시 계산·캐싱). `felt_panel()`(3단계 베팅창 배경)과 같은 "펠트 + 성긴 노이즈" 결 | 새 텍스처 자산 없이 기존 팔레트만으로 이 프로젝트의 펠트 재질감을 재현했다. 창 크기가 계속 바뀔 수 있어 텍스처가 아닌 절차적 그리기를 택했다(어떤 크기에도 이음매 없이 대응) |
+| 검증 방법 | `xwd`(진짜 창을 그대로 찍는 도구, 5/N 에서 이미 설치)로 1600×1200(4:3, 레터박스)·3440×1440(21:9, 필러박스) 두 비율에서 실제로 펠트 무늬가 나오는지 확인했고, 1920×1080(정확히 3배, 여백 없음)에서는 기존과 완전히 동일하게 보이는지 `tools/capture/capture.gd` 로 재확인했다. 전체 헤드리스 테스트(407개)도 통과 | "설정만 바꾸고 안 찍어봤다"를 반복하지 않으려고 이번에도 실제 픽셀을 확인했다 |
+| `tools/capture/capture.gd` 도 같이 손봄 | `_save_shot()`: 이제 `root.get_texture()` 가 항상 640×360 이 아니라 **실제 창 크기 그대로**(스트레치를 코드가 대신하므로) 나온다 — 이미 1000px 이상이면 추가로 3배를 곱하지 않도록 고쳤다(안 그러면 `_x3.png` 가 5760×3240 처럼 쓸데없이 커진다) | 파일 이름(`_x3.png`) 은 기존 관례·문서를 그대로 유지하되, 실제 내용물이 여전히 "화면에 바로 쓸 수 있는 확대본" 크기가 되도록 계산만 바꿨다 |
+
+**남은 이슈**: 이 방식은 마우스 좌표 자동 변환(Godot Control 의 `_gui_input`)에 의존한다 — 이 프로젝트에서 마우스
+좌표를 직접 읽는 곳은 `bet_board.gd::_gui_input()` 뿐이고(grep 확인), `_gui_input` 은 원래 로컬 좌표를 받으므로
+문제없이 동작함을 스크린샷으로 확인했다. 다만 앞으로 `_unhandled_input`/`_input` 에서 `event.position` 을 직접
+읽는 코드를 새로 추가할 때는 그 값이 "실제 창 픽셀" 기준이라는 점(더 이상 640×360 논리 좌표가 아님)을 주의할 것.
 

@@ -335,17 +335,17 @@ func _refresh_music_volume() -> void:
 		_music_current.volume_db = _music_target_volume_db()
 
 
-## 압축 포맷(.ogg)을 먼저 찾고, 없으면 .wav(예: 승인 전 임시 자리표시자)로 대체한다.
+## 압축 포맷(.ogg)을 먼저 찾고, 없으면 .mp3(승인된 CC0 후보의 원본 배포 포맷)나 .wav(임시 자리표시자)로 대체한다.
 func _music_stream(id: String) -> AudioStream:
 	if _streams.has(id):
 		return _streams[id]
-	for ext: String in [".ogg", ".wav"]:
+	for ext: String in [".ogg", ".mp3", ".wav"]:
 		var path: String = MUSIC_DIR + id + ext
 		if ResourceLoader.exists(path):
 			var stream: AudioStream = load(path)
 			_streams[id] = stream
 			return stream
-	push_warning("AudioManager: 없는 음악 '%s'(%s*.ogg/.wav) — 음원 추가 전까지 무시" % [id, MUSIC_DIR + id])
+	push_warning("AudioManager: 없는 음악 '%s'(%s*.ogg/.mp3/.wav) — 음원 추가 전까지 무시" % [id, MUSIC_DIR + id])
 	_streams[id] = null
 	return null
 

@@ -9,7 +9,7 @@ func _give(amount: float) -> void:
 func test_data_matches_spec() -> void:
 	var bet := GameData.upgrade("bet_limit")
 	check_eq(bet.base_cost, 20.0, "베팅 한도 20")
-	check_eq(bet.growth, 1.2, "×1.2")
+	check_eq(bet.growth, 3.0, "×3.0(9단계 튜닝: 효과 1.35 보다 낮으면 폭주해 3.0으로 올림, GDD 5장)")
 	check_eq(bet.max_level, UpgradeDef.UNLIMITED, "무제한")
 	var count := GameData.upgrade("marble_count")
 	check_eq(count.base_cost, 300.0, "구슬 300")
@@ -44,7 +44,7 @@ func test_cost_mult_stat_applies() -> void:
 	GameState.modifiers.add_modifier("skill:discount", StatModifiers.UPGRADE_COST_MULT, StatModifiers.Op.MULT, 0.5)
 	check_rel(UpgradeService.cost_at(bet, 3), before * 0.5, 1e-12, "upgrade_cost_mult 0.5")
 	check_rel(UpgradeService.cost_at(GameData.upgrade("marble_tier"), 0), 25.0, 1e-12, "재질에도 적용(50 × 0.5)")
-	check_rel(UpgradeService.cost_for(bet, 3, 5), (before * 0.5) * (pow(1.2, 5) - 1.0) / 0.2, 1e-9, "합계에도 적용")
+	check_rel(UpgradeService.cost_for(bet, 3, 5), (before * 0.5) * (pow(bet.growth, 5) - 1.0) / (bet.growth - 1.0), 1e-9, "합계에도 적용")
 	_give(1000.0)
 	var chips_before := GameState.chips
 	var plan := UpgradeService.plan("bet_limit", UpgradeService.BuyMode.ONE)
@@ -73,18 +73,18 @@ func test_max_affordable_is_exact() -> void:
 			if n > 0:
 				check(UpgradeService.cost_for(def, from_level, n) <= budget * (1.0 + 1e-9), "L%d 예산 %s: %d개 살 수 있음" % [from_level, budget, n])
 			check(UpgradeService.cost_for(def, from_level, n + 1) > budget, "L%d 예산 %s: %d개째는 못 삼" % [from_level, budget, n + 1])
-	# 경계: 딱 맞는 예산(20 + 24 = 44 → 2개)
-	check_eq(UpgradeService.max_affordable(def, 0, 44.0, -1), 2, "딱 맞으면 산다")
-	check_eq(UpgradeService.max_affordable(def, 0, 43.99, -1), 1, "모자라면 1개")
+	# 경계: 딱 맞는 예산(20 + 60 = 80 → 2개)
+	check_eq(UpgradeService.max_affordable(def, 0, 80.0, -1), 2, "딱 맞으면 산다")
+	check_eq(UpgradeService.max_affordable(def, 0, 79.99, -1), 1, "모자라면 1개")
 	check_eq(UpgradeService.max_affordable(def, 0, 1e60, 5), 5, "limit")
 
 
 func test_max_purchase_through_plan() -> void:
-	_give(5000.0)
+	_give(2_000_000.0)
 	var plan := UpgradeService.plan("bet_limit", UpgradeService.BuyMode.MAX)
 	var expected := UpgradeService.max_affordable(GameData.upgrade("bet_limit"), 0, GameState.chips, -1)
 	check_eq(int(plan["count"]), expected, "MAX 수량 = 최대 구매 가능 수")
-	check(expected > 10, "5.1K 로 10레벨 넘게(%d)" % expected)
+	check(expected > 10, "2M 으로 10레벨 넘게(%d)" % expected)
 	check(bool(plan["affordable"]), "살 수 있음")
 	check_eq(UpgradeService.purchase("bet_limit", UpgradeService.BuyMode.MAX), expected, "MAX 구매")
 	check_eq(GameState.get_upgrade_level("bet_limit"), expected, "레벨")

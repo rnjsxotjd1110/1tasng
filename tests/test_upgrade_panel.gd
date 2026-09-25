@@ -185,8 +185,8 @@ func test_golden_pocket_beam_and_badge() -> void:
 func test_card_text_fits_ko_en() -> void:
 	var states: Array[Dictionary] = [
 		{"chips": 140.0, "floor": 0, "levels": {}},
-		{"chips": 4.2e33, "floor": 4, "levels": {"marble_tier": 13, "marble_polish": 5, "bet_limit": 412, "marble_count": 7, "spin_speed": 13, "golden_pocket": 3}},
-		{"chips": 1e60, "floor": 4, "levels": {"marble_tier": 14, "marble_polish": 5, "bet_limit": 700, "golden_pocket": 5}},
+		{"chips": 4.2e33, "floor": 4, "levels": {"marble_tier": 13, "marble_polish": 5, "bet_limit": 60, "marble_count": 7, "spin_speed": 13, "golden_pocket": 3}},
+		{"chips": 1e60, "floor": 4, "levels": {"marble_tier": 14, "marble_polish": 5, "bet_limit": 110, "golden_pocket": 5}},
 		{"chips": 1e5, "floor": 0, "levels": {"marble_tier": 3}},
 	]
 	for locale: String in ["ko", "en"]:

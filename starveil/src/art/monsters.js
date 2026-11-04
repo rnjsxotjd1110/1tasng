@@ -231,8 +231,48 @@ const SHAPES = {
   },
 };
 
+// ───────── 색 도우미 ─────────
+function hex2rgb(h) { const x = h.replace('#', ''); const n = parseInt(x.length === 3 ? x.split('').map((c) => c + c).join('') : x, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mix(h, t, k) { const a = hex2rgb(h), b = hex2rgb(t); return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, '0')).join(''); }
+const lighten = (h, k) => mix(h, '#ffffff', k);
+const darken = (h, k) => mix(h, '#14102a', k);
+
+// 종류별 대기 모션
+export const IDLE = {
+  slime: 'squish', jelly: 'squish', wisp: 'float', ghost: 'float', eye: 'float', bat: 'flap', candle: 'flicker', book: 'flap',
+  golem: 'breathe', knight: 'breathe', gargoyle: 'breathe', crab: 'breathe', tree: 'sway', queen: 'float', librarian: 'float', nox: 'float',
+};
+
+// 모든 몬스터가 함께 쓰는 입체 필터(외곽선 + 그림자 + 림 라이트). 문서에 한 번만 넣어요.
+export const MON_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="mtoon" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+    <feMorphology in="SourceAlpha" operator="dilate" radius="1.7" result="dil"/>
+    <feFlood flood-color="#160e2c" flood-opacity=".9"/><feComposite in2="dil" operator="in" result="line"/>
+    <feOffset in="SourceAlpha" dx="-5" dy="-7" result="o1"/><feGaussianBlur in="o1" stdDeviation="4.5" result="o1b"/>
+    <feComposite in="SourceAlpha" in2="o1b" operator="out" result="m1"/>
+    <feFlood flood-color="#0e0828" flood-opacity=".42"/><feComposite in2="m1" operator="in" result="shade"/>
+    <feOffset in="SourceAlpha" dx="4" dy="5" result="o2"/><feGaussianBlur in="o2" stdDeviation="3" result="o2b"/>
+    <feComposite in="SourceAlpha" in2="o2b" operator="out" result="m2"/>
+    <feFlood flood-color="#ffffff" flood-opacity=".42"/><feComposite in2="m2" operator="in" result="rim"/>
+    <feMerge><feMergeNode in="line"/><feMergeNode in="SourceGraphic"/><feMergeNode in="shade"/><feMergeNode in="rim"/></feMerge>
+  </filter>
+  <radialGradient id="mground"><stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+</defs></svg>`;
+
 export function monsterSVG(art, cls = '') {
   const fn = SHAPES[art.s] || SHAPES.slime;
   const k = ++uid;
-  return `<svg class="mon ${cls}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">${fn(art, k)}</svg>`;
+  let body = fn(art, k).replace(shadow, '');
+  // 주요 색을 그라디언트로 바꿔 입체감
+  const grads = [];
+  const toGrad = (col, id, top, bot) => {
+    if (!col || !body.includes(`fill="${col}"`)) return;
+    grads.push(`<linearGradient id="${id}" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="${lighten(col, top)}"/><stop offset=".55" stop-color="${col}"/><stop offset="1" stop-color="${darken(col, bot)}"/></linearGradient>`);
+    body = body.split(`fill="${col}"`).join(`fill="url(#${id})"`);
+  };
+  toGrad(art.c, `mc${k}`, 0.32, 0.28);
+  toGrad(art.c2, `md${k}`, 0.2, 0.32);
+  if (art.c3) toGrad(art.c3, `me${k}`, 0.3, 0.25);
+  const ground = `<ellipse cx="60" cy="112" rx="40" ry="6.5" fill="url(#mground)"/>`;
+  return `<svg class="mon ${cls}" viewBox="-6 -6 132 132" xmlns="http://www.w3.org/2000/svg"><defs>${grads.join('')}</defs>${ground}<g filter="url(#mtoon)">${body}</g></svg>`;
 }

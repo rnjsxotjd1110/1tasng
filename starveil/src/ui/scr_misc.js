@@ -16,6 +16,7 @@ import { skillDesc, reqText, rarName, SKILL_RAR } from './describe.js';
 import { fishSVG } from './scr_mini.js';
 import { hubScreen } from './scr_hub.js';
 import { fmt } from '../core/util.js';
+import { setFxQuality } from '../art/fx.js';
 
 // ───────── 설정 ─────────
 export function settingsSheet() {
@@ -42,7 +43,11 @@ export function settingsSheet() {
     const sp = h('div.seg', { style: { margin: '0', flex: 'none' } });
     ['느리게', '보통', '빠르게'].forEach((n, i) => sp.appendChild(h('button' + (st.speed === i ? '.on' : ''), { type: 'button', onclick: () => { st.speed = i; saveSoon(); sp.querySelectorAll('button').forEach((x, k) => x.classList.toggle('on', k === i)); } }, n)));
     speedRow.appendChild(sp);
-    b.append(slider('효과음', 'sfx'), slider('배경음악', 'bgm'), toggle('진동', 'vib', '맞거나 큰 피해를 줄 때 살짝 진동해요'), speedRow, h('div.sep'),
+    const shakeT = toggle('화면 흔들림', 'shake', '큰 피해를 주고받을 때 화면이 흔들려요');
+    if (st.shake === undefined) { st.shake = true; shakeT.querySelector('.switch').classList.add('on'); }
+    const lowT = toggle('이펙트 간소화', 'fxLow', '오래된 휴대폰에서 파티클 수를 줄여요');
+    lowT.querySelector('.switch').addEventListener('click', () => setFxQuality(st.fxLow ? 0.5 : 1));
+    b.append(slider('효과음', 'sfx'), slider('배경음악', 'bgm'), toggle('진동', 'vib', '맞거나 큰 피해를 줄 때 살짝 진동해요'), shakeT, lowT, speedRow, h('div.sep'),
       h('div.b', { text: '저장 데이터' }), h('div.t12.muted', { style: { margin: '4px 0 8px' }, text: '진행 상황은 기기에 자동 저장돼요. 기기를 옮길 때는 저장 코드를 복사해 두세요.' }),
       h('div.row.gap', btn('저장 코드 복사', () => exportSheet(), { cls: 'ghost grow small' }), btn('코드로 불러오기', () => importSheet(), { cls: 'ghost grow small' })),
       h('div', { style: { height: '8px' } }),

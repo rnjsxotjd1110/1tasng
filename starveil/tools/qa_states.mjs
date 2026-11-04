@@ -33,5 +33,9 @@ function mkRun(p, cls = 'gambler', act = 2) {
 { const p = base(); p.unlocked.act4 = true; const run = mkRun(p, 'knight', 4); run.maxAct = 4; run.screen = { type: 'actClear', act: 4 }; out.clear = p; }
 { const p = base(); const run = mkRun(p, 'alch', 3); run.stats = { ...run.stats, nodes: 27, elites: 2, bosses: 3, bossShards: 180, kills: 61, maxHit: 48, goldEarned: 512 }; run.gifts = ['star_tea']; run.over = 'win'; run.screen = { type: 'end', result: 'win' }; out.end = p; }
 { const p = base(); out.hub = p; }
+{ const p = base(); const run = mkRun(p); run.screen = { type: 'treasure', relic: 'moon_tear', gold: 33, opened: false }; out.treasure = p; }
+{ const p = base(); const run = mkRun(p); for (let r = 0; r < 4; r++) { const av = R.availableNodes(run); R.enterNode(run, av[0].r, av[0].c); run.screen = { type: 'map' }; } out.map2 = p; }
+const ENC = { 1: ['moss_slime', 'shroom', 'vine'], 2: ['crystal_bat', 'mimic'], 3: ['armor_ghost', 'candle'], 4: ['nox_guard', 'void_eye'] };
+for (let a = 1; a <= 4; a++) { const p = base(); const run = mkRun(p, 'knight', a); run.screen = { type: 'combat', enemies: ENC[a], kind: 'normal', seed: 9 + a, scale: { hp: 1, atk: 1 } }; out['act' + a] = p; }
 fs.writeFileSync('build/qa_states.json', JSON.stringify(out));
 console.log(Object.keys(out).join(','));

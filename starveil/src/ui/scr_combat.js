@@ -2,10 +2,11 @@
 import { h, btn, ic, sheet, toast, floatText, wait, vibrate } from './dom.js';
 import { App, go, saveSoon, saveNow, bgm } from './app.js';
 import { icon } from '../art/icons.js';
-import { monsterSVG } from '../art/monsters.js';
+import { monsterSVG, IDLE } from '../art/monsters.js';
+import * as FX from '../art/fx.js';
 import { heroineSVG } from '../art/heroines.js';
 import { dieSVG } from '../art/dice.js';
-import { battleBg } from '../art/scenes.js';
+import { battleBgFor } from '../art/battlebg.js';
 import * as C from '../core/combat.js';
 import * as R from '../core/run.js';
 import * as P from '../core/profile.js';
@@ -23,6 +24,15 @@ import { fmt, josa } from '../core/util.js';
 
 const INTENT_ICON = { atk: 'atk', atkdef: 'atk', def: 'def', buff: 'buff', debuff: 'debuff', heal: 'heal', summon: 'summon', steal: 'steal', drain: 'drain', charge: 'charge' };
 
+const EL_BY_ICON = { fire: 'fire', meteor: 'fire', comet: 'fire', boom: 'fire', ice: 'frost', snow: 'frost', frost: 'frost', poison: 'poison', fog: 'poison', flask: 'poison', rain: 'poison', catalyst: 'poison', drop: 'poison', bolt: 'bolt', moon: 'arcane', orb: 'arcane', star: 'holy', holy: 'holy', starsword: 'holy', constel: 'holy', twinstar: 'holy', mirror: 'arcane', chain: 'arcane', split: 'arcane', plus: 'arcane', flip: 'arcane', coin: 'gold', chips: 'gold', seven: 'gold', ace: 'gold', card: 'gold', cards: 'gold', roulette: 'gold', joker: 'gold', heal: 'heal', leaf: 'heal', shield: 'shield', shield2: 'shield', armor: 'shield', castle: 'shield', blood: 'blood', homun: 'poison', stone: 'holy' };
+export function elemOf(def) {
+  if (!def) return 'phys';
+  for (const f of def.fx || []) if (f.t === 'st' && !f.self) { if (f.s === 'burn') return 'fire'; if (f.s === 'frost') return 'frost'; if (f.s === 'poison') return 'poison'; }
+  return EL_BY_ICON[def.icon] || 'phys';
+}
+const ST_FX = { burn: 'fire', poison: 'poison', frost: 'frost', weak: 'dark', vuln: 'blood', str: 'gold', dex: 'shield', thorns: 'poison', regen: 'heal' };
+const AMBIENT = { 1: ['fireflies', '#e8ff9a'], 2: ['sparkles', '#bff4ff'], 3: ['bubbles', '#bfe8ff'], 4: ['motes', '#e6d6ff'] };
+
 export function combatScreen(el) {
   const p = App.p;
   const run = p.run;
@@ -30,7 +40,12 @@ export function combatScreen(el) {
   const act = R.actDef(run.act);
   bgm(s.kind === 'boss' ? 'boss' : 'battle');
   el.classList.add('cb');
-  el.insertAdjacentHTML('afterbegin', battleBg(act));
+  el.insertAdjacentHTML('afterbegin', battleBgFor(act, R.isAbyss(run)) + '<div class="cb-shade"></div>');
+  const amb = R.isAbyss(run) ? ['motes', '#d0a8ff'] : AMBIENT[act.id];
+  FX.setAmbient(amb[0], { color: amb[1], n: 22, area: () => ({ x: 0, y: 40, w: window.innerWidth, h: window.innerHeight * 0.5 }) });
+  let curEl = 'phys';
+  const shakeOn = () => p.settings.shake !== false;
+  const spawnSet = new Set();
 
   const c = C.createCombat(run, s.enemies, R.combatOptions(run));
   R.preCombat(run, c);
@@ -82,7 +97,8 @@ export function combatScreen(el) {
       const kind = e.def.kind;
       const f = h('div.foe' + (kind === 'elite' || e.def.art.big ? '.big' : '') + (kind === 'boss' ? '.boss' : '') + (e.dead ? '.dead' : ''), { 'data-uid': e.uid });
       const intent = h('div.intent');
-      const mon = h('div', { html: monsterSVG(e.def.art), style: { width: '100%', display: 'flex', justifyContent: 'center', position: 'relative' } });
+      const mon = h('div.monwrap.idle-' + (IDLE[e.def.art.s] || 'bob'), { html: monsterSVG(e.def.art), style: { animationDelay: `-${(Math.random() * 2).toFixed(2)}s` } });
+      if (spawnSet.has(e.uid)) { f.classList.add('spawning'); spawnSet.delete(e.uid); }
       const blockB = h('div.blockb', { html: icon('shield') + '<b></b>' });
       mon.appendChild(blockB);
       const hp = h('div.hpbar.enemy', h('b'), h('i'), h('span'));
@@ -138,10 +154,9 @@ export function combatScreen(el) {
       r.blockB.querySelector('b').textContent = e.block;
       r.sts.innerHTML = stChips(e);
       const it = intentHtml(e);
-      r.intent.className = it.cls;
-      r.intent.innerHTML = it.html;
+      if (r.intent.innerHTML !== it.html) { r.intent.className = it.cls + ' pop'; r.intent.innerHTML = it.html; } else r.intent.className = it.cls;
       r.f.classList.toggle('target', e.uid === target && al.length > 1);
-      r.f.classList.toggle('dead', !!e.dead);
+      if (e.dead && !r.f.classList.contains('dying')) r.f.classList.add('dead');
     }
   }
   function syncHero() {
@@ -159,11 +174,28 @@ export function combatScreen(el) {
     tray.innerHTML = '';
     for (const d of c.dice) {
       if (d.used) continue;
-      const b = h('button.die' + (selDie === d.id ? '.sel' : '') + (d.frozen ? '.frozen' : '') + (rollAnim ? '.rolling' : '') + (newIds.includes(d.id) ? '.new' : ''), { type: 'button', 'data-silent': '1', 'data-id': d.id, html: dieSVG(d.value, d.type) });
+      const b = h('button.die' + (selDie === d.id ? '.sel' : '') + (d.frozen ? '.frozen' : '') + (newIds.includes(d.id) ? '.new' : '') + (d.value === 6 ? '.six' : ''), { type: 'button', 'data-silent': '1', 'data-id': d.id, html: dieSVG(d.value, d.type) });
       attachDrag(b, d);
       tray.appendChild(b);
+      if (rollAnim) tumble(b, d, tray.children.length - 1, 'tumble');
     }
     if (!c.dice.some((d) => !d.used)) tray.appendChild(h('div.t13.dim', { style: { alignSelf: 'center' }, text: '모든 주사위를 썼어요' }));
+  }
+  // 굴러가며 눈이 바뀌다가 멈춰요
+  function tumble(b, d, i, cls) {
+    const delay = i * 70;
+    b.style.setProperty('--d', delay + 'ms');
+    b.classList.add(cls);
+    const svg = b.querySelector('.die-svg');
+    if (svg) svg.style.animationDelay = delay + 'ms';
+    let n = 0;
+    const iv = setInterval(() => {
+      n++;
+      if (n * 55 > 380 + delay) { clearInterval(iv); b.innerHTML = dieSVG(d.value, d.type); b.classList.toggle('six', d.value === 6); if (d.value === 6) { const q = FX.centerOf(b); FX.burst(q.x, q.y, { el: 'gold', n: 8, shape: 'star', size: 3, speed: 120, gravity: 0, life: 0.5 }); } return; }
+      b.innerHTML = dieSVG(1 + Math.floor(Math.random() * 6), d.type);
+      const sv = b.querySelector('.die-svg'); if (sv) { sv.style.animation = 'none'; }
+    }, 55);
+    setTimeout(() => b.classList.remove(cls), 700 + delay);
   }
   function renderSkills() {
     skillsEl.innerHTML = '';
@@ -228,7 +260,17 @@ export function combatScreen(el) {
     if (!C.dieOk(c, sk, die)) { sfx('error'); const el2 = skillsEl.querySelector(`[data-si="${si}"]`); if (el2) { el2.classList.remove('shake'); void el2.offsetWidth; el2.classList.add('shake'); } return; }
     selDie = null;
     sfx('place');
-    act2(() => C.placeDie(c, si, dieId, target), si);
+    const dEl = tray.querySelector(`[data-id="${dieId}"]`);
+    const sEl = skillsEl.querySelector(`[data-si="${si}"]`);
+    if (dEl && sEl) {
+      const a = dEl.getBoundingClientRect(), t = sEl.getBoundingClientRect();
+      const g = h('div.fly-die', { html: dieSVG(die.value, die.type), style: { left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px' } });
+      document.body.appendChild(g);
+      dEl.style.visibility = 'hidden';
+      requestAnimationFrame(() => { g.style.transform = `translate(${Math.round(t.left + t.width / 2 - a.left - a.width / 2)}px, ${Math.round(t.top + t.height / 2 - a.top - a.height / 2)}px) scale(.55) rotate(180deg)`; g.style.opacity = '0.2'; });
+      setTimeout(() => g.remove(), 220);
+    }
+    act2(() => C.placeDie(c, si, dieId, target), si, 170);
   }
   function selectDie(d) {
     if (busy || c.over || d.frozen) { if (d.frozen) toast('얼어붙은 주사위는 이번 턴에 쓸 수 없어요', { icon: 'snow', ms: 1400 }); return; }
@@ -242,7 +284,7 @@ export function combatScreen(el) {
     selDie = null;
     sfx('roll');
     const ev = C.reroll(c, ids);
-    play(ev).then(() => { renderAll(false); const ids2 = (ev.find((x) => x.k === 'reroll_dice') || {}).ids || []; tray.querySelectorAll('.die').forEach((b) => { if (ids2.includes(b.dataset.id)) b.classList.add('rolling'); }); });
+    play(ev).then(() => { renderAll(false); const ids2 = (ev.find((x) => x.k === 'reroll_dice') || {}).ids || []; let k = 0; tray.querySelectorAll('.die').forEach((b) => { if (ids2.includes(b.dataset.id)) { const d = c.dice.find((x) => x.id === b.dataset.id); if (d) tumble(b, d, k++, 'reroll'); } }); });
   }
   function doEnd() {
     if (busy || c.over) return;
@@ -323,13 +365,24 @@ export function combatScreen(el) {
   }
 
   // ── 이벤트 재생 ──
-  function act2(fn, si) {
+  function act2(fn, si, delay = 0) {
     if (busy) return Promise.resolve();
     busy = true;
     renderBottom();
     const ev = fn();
-    if (si !== undefined) { const el2 = skillsEl.querySelector(`[data-si="${si}"]`); if (el2) el2.classList.add('fire'); }
-    return play(ev).then(() => { busy = false; afterAction(); if (!c.over) renderAll(false, ev.filter((x) => x.k === 'die_new').map((x) => x.id)); });
+    return wait(delay).then(() => launch(ev, si)).then(() => play(ev)).then(() => { busy = false; afterAction(); if (!c.over) renderAll(false, ev.filter((x) => x.k === 'die_new').map((x) => x.id)); });
+  }
+  // 기술 칸에서 대상에게 발사체
+  async function launch(ev, si, fromEl) {
+    const use = ev.find((x) => x.k === 'use');
+    if (!use && !fromEl) return;
+    const src = fromEl || skillsEl.querySelector(`[data-si="${use.si}"]`);
+    if (src && !fromEl) src.classList.add('fire');
+    if (use) curEl = elemOf(c.skills[use.si] && c.skills[use.si].def);
+    const ids = [...new Set(ev.filter((x) => (x.k === 'dmg' || x.k === 'status') && x.u !== 'hero').map((x) => x.u))].slice(0, 4);
+    if (!ids.length || !src) return;
+    const from = FX.centerOf(src, 0.3);
+    await Promise.all(ids.map((u, i) => { const r = foeEls[u]; return r ? FX.projectile(from, FX.centerOf(r.mon, 0.55), { el: curEl, dur: 0.2 + i * 0.04, arc: -40 - i * 15, size: 7 }) : null; }));
   }
   function unitEl(uid) { if (uid === 'hero') return heroHp; const r = foeEls[uid]; return r ? r.mon : null; }
   async function play(evs) {
@@ -342,43 +395,79 @@ export function combatScreen(el) {
           const tgt = unitEl(e.u);
           if (isHero) {
             setBar(heroHp, e.hp, c.h.maxHp); heroBlock.querySelector('b').textContent = e.block; heroBlock.classList.toggle('zero', e.block <= 0);
-            if (e.amt > 0) { floatText(heroHp, `-${e.amt}`, 'hurt'); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); sfx('hurt'); vibrate(30, p.settings); }
+            if (e.amt > 0) {
+              floatText(heroHp, `-${e.amt}`, 'hurt');
+              const q = FX.centerOf(heroHp);
+              if (e.kind === 'burn') FX.rise(q.x, q.y, { el: 'fire', n: 12 }); else if (e.kind === 'poison') FX.rise(q.x, q.y, { el: 'poison', n: 12 });
+              else { FX.slash(q.x + 10, q.y - 30, { el: 'blood', r: 60, angle: 0.5 }); FX.burst(q.x, q.y, { el: 'blood', n: 12, shape: 'shard', size: 4, speed: 220 }); }
+              el.classList.remove('hurtflash'); void el.offsetWidth; el.classList.add('hurtflash');
+              if (shakeOn()) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+              sfx('hurt'); vibrate(30, p.settings);
+            }
             else if (e.blocked) { floatText(heroBlock, '막음', 'block'); sfx('block'); }
           } else {
             const r = foeEls[e.u];
             if (r) {
               setBar(r.hp, e.hp, (c.enemies.find((x) => x.uid === e.u) || {}).maxHp || 1);
               r.blockB.style.display = e.block > 0 ? 'flex' : 'none'; r.blockB.querySelector('b').textContent = e.block;
-              if (e.amt > 0) { floatText(r.mon, String(e.amt), e.amt >= 20 ? 'big' : 'dmg'); r.f.classList.remove('shake', 'hitflash'); void r.f.offsetWidth; r.f.classList.add('shake', 'hitflash'); sfx(e.amt >= 20 ? 'hitBig' : 'hit'); if (e.amt >= 20) vibrate(20, p.settings); }
+              if (e.amt > 0) {
+                const big = e.amt >= 20;
+                floatText(r.mon, String(e.amt), big ? 'big' : 'dmg');
+                const q = FX.centerOf(r.mon, 0.55);
+                if (e.kind === 'burn') FX.rise(q.x, q.y, { el: 'fire', n: 14, size: 4 });
+                else if (e.kind === 'poison') FX.rise(q.x, q.y, { el: 'poison', n: 14, size: 4 });
+                else if (e.kind === 'thorns') FX.burst(q.x, q.y, { el: 'poison', n: 10, shape: 'shard', speed: 200 });
+                else {
+                  FX.slash(q.x, q.y, { el: curEl, r: big ? 66 : 52, w: big ? 14 : 11 });
+                  FX.burst(q.x, q.y, { el: curEl, n: 14 + Math.min(24, e.amt), speed: big ? 420 : 300, size: big ? 6 : 5 });
+                  FX.burst(q.x, q.y, { el: curEl, n: 6, shape: 'star', size: 3.5, speed: 160, gravity: 40, life: 0.5 });
+                  FX.ring(q.x, q.y, { el: curEl, r: big ? 105 : 58, w: big ? 6 : 4, life: big ? 0.45 : 0.3 });
+                  if (big) FX.flash('#ffffff', 0.16);
+                }
+                r.f.classList.remove('knock', 'hit'); void r.f.offsetWidth; r.f.classList.add('knock', 'hit');
+                if (big && shakeOn()) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+                sfx(big ? 'hitBig' : 'hit'); if (big) vibrate(20, p.settings);
+              }
               else if (e.blocked) { floatText(r.mon, '막음', 'block'); sfx('block'); }
-              if (e.kind === 'burn' || e.kind === 'poison') floatText(r.mon, e.kind === 'burn' ? '화상' : '중독', 'st');
+
             }
           }
           await wait(isHero ? 220 * sp : 130 * sp);
           break;
         }
-        case 'block': { const t = unitEl(e.u); if (e.u === 'hero') { heroBlock.querySelector('b').textContent = e.block; heroBlock.classList.remove('zero'); floatText(heroBlock, `+${e.amt}`, 'block'); } else { const r = foeEls[e.u]; if (r) { r.blockB.style.display = 'flex'; r.blockB.querySelector('b').textContent = e.block; floatText(r.mon, `+${e.amt}`, 'block'); } } sfx('block'); await wait(90 * sp); break; }
-        case 'heal': { if (e.u === 'hero') { setBar(heroHp, e.hp, c.h.maxHp); floatText(heroHp, `+${e.amt}`, 'heal'); } else { const r = foeEls[e.u]; if (r) { setBar(r.hp, e.hp, (c.enemies.find((x) => x.uid === e.u) || {}).maxHp || 1); floatText(r.mon, `+${e.amt}`, 'heal'); } } if (e.amt > 0) sfx('heal'); await wait(110 * sp); break; }
-        case 'status': { const t = unitEl(e.u); if (t && STATUS[e.s]) floatText(t, `${STATUS[e.s].name} +${e.n}`, 'st'); if (e.u === 'hero') heroSts.innerHTML = stChips(c.h); else { const r = foeEls[e.u]; if (r) r.sts.innerHTML = stChips(c.enemies.find((x) => x.uid === e.u)); } sfx(e.s === 'frost' ? 'freeze' : 'status'); await wait(80 * sp); break; }
-        case 'gold': { goldEl.textContent = fmt(e.gold); if (e.amt > 0) { floatText(goldEl, `+${e.amt}`, 'gold'); sfx('gold'); } else floatText(goldEl, `${e.amt}`, 'hurt'); await wait(70 * sp); break; }
+        case 'block': { const t = unitEl(e.u); { const q = FX.centerOf(e.u === 'hero' ? heroBlock : t, 0.5); FX.ring(q.x, q.y, { el: 'shield', r: e.u === 'hero' ? 44 : 60, w: 4 }); FX.burst(q.x, q.y, { el: 'shield', n: 8, shape: 'star', size: 3, speed: 120, gravity: 0, life: 0.5 }); } if (e.u === 'hero') { heroBlock.querySelector('b').textContent = e.block; heroBlock.classList.remove('zero', 'gain'); void heroBlock.offsetWidth; heroBlock.classList.add('gain'); floatText(heroBlock, `+${e.amt}`, 'block'); } else { const r = foeEls[e.u]; if (r) { r.blockB.style.display = 'flex'; r.blockB.querySelector('b').textContent = e.block; floatText(r.mon, `+${e.amt}`, 'block'); } } sfx('block'); await wait(90 * sp); break; }
+        case 'heal': { if (e.amt > 0) { const q = FX.centerOf(unitEl(e.u) || heroHp, 0.5); FX.rise(q.x, q.y, { el: 'heal', n: 14, shape: 'star', size: 3.5 }); } if (e.u === 'hero') { setBar(heroHp, e.hp, c.h.maxHp); floatText(heroHp, `+${e.amt}`, 'heal'); } else { const r = foeEls[e.u]; if (r) { setBar(r.hp, e.hp, (c.enemies.find((x) => x.uid === e.u) || {}).maxHp || 1); floatText(r.mon, `+${e.amt}`, 'heal'); } } if (e.amt > 0) sfx('heal'); await wait(110 * sp); break; }
+        case 'status': { const t = unitEl(e.u); if (t && STATUS[e.s]) { floatText(t, `${STATUS[e.s].name} +${e.n}`, 'st'); const q = FX.centerOf(t, 0.55); const el2 = ST_FX[e.s] || 'arcane'; if (e.s === 'burn') FX.rise(q.x, q.y, { el: 'fire', n: 10 }); else if (e.s === 'poison') FX.rise(q.x, q.y, { el: 'poison', n: 10, size: 5 }); else if (e.s === 'frost') FX.burst(q.x, q.y, { el: 'frost', n: 12, shape: 'shard', speed: 200, gravity: 120 }); else FX.rise(q.x, q.y, { el: el2, n: 8, shape: 'star', size: 3 }); } if (e.u === 'hero') heroSts.innerHTML = stChips(c.h); else { const r = foeEls[e.u]; if (r) r.sts.innerHTML = stChips(c.enemies.find((x) => x.uid === e.u)); } sfx(e.s === 'frost' ? 'freeze' : 'status'); await wait(80 * sp); break; }
+        case 'gold': { goldEl.textContent = fmt(e.gold); if (e.amt > 0) { const tr = foeEls[target] || Object.values(foeEls)[0]; FX.coins(FX.centerOf(tr ? tr.mon : skillsEl), FX.centerOf(goldEl), Math.min(8, 2 + Math.floor(e.amt / 3))); floatText(goldEl, `+${e.amt}`, 'gold'); sfx('gold'); } else floatText(goldEl, `${e.amt}`, 'hurt'); await wait(70 * sp); break; }
         case 'fortune': fProg.style.width = `${Math.min(100, (e.n / e.max) * 100)}%`; fGauge.classList.toggle('ready', e.n >= e.max); break;
-        case 'fortune_use': sfx('fortune'); banner(e.name); await wait(380 * sp); break;
+        case 'fortune_use': { sfx('fortune'); const q = FX.centerOf(heroHp); FX.pillar(q.x, q.y, { el: 'holy', w: 70, life: 0.7 }); FX.flash('#fff2c0', 0.22, 0.3); FX.burst(q.x, q.y, { el: 'gold', n: 30, shape: 'star', size: 4, speed: 320, gravity: 60, life: 0.9 }); banner(e.name); await wait(420 * sp); break; }
         case 'assist': if (aProg) { aProg.style.width = `${Math.min(100, (e.charge / c.assist.max) * 100)}%`; aGauge.classList.toggle('ready', e.charge >= c.assist.max); } break;
-        case 'assist_use': sfx('assist'); banner(e.name, 'pink'); await wait(360 * sp); break;
-        case 'gamble': floatText(skillsEl, e.win ? '성공!' : '실패…', e.win ? 'big' : 'st'); sfx(e.win ? 'good' : 'error'); await wait(220 * sp); break;
-        case 'death': { const r = foeEls[e.u]; if (r) r.f.classList.add('dead'); sfx('splash'); await wait(220 * sp); break; }
-        case 'spawn': buildFoes(); await wait(200 * sp); break;
+        case 'assist_use': { sfx('assist'); const q = FX.centerOf(aGauge || heroHp); FX.burst(q.x, q.y, { el: 'pink', n: 18, shape: 'heart', size: 5, speed: 240, gravity: -40, life: 1 }); FX.ring(q.x, q.y, { el: 'pink', r: 80 }); banner(e.name, 'pink'); await wait(380 * sp); break; }
+        case 'gamble': { floatText(skillsEl, e.win ? '성공!' : '실패…', e.win ? 'big' : 'st'); const q = FX.centerOf(skillsEl, 0.3); if (e.win) { FX.burst(q.x, q.y, { el: 'gold', n: 24, shape: 'star', size: 4, speed: 300, gravity: 120 }); FX.ring(q.x, q.y, { el: 'gold', r: 90 }); } else FX.burst(q.x, q.y, { colors: ['#9a96c0', '#6a6690'], n: 10, shape: 'smoke', size: 10, speed: 60, gravity: -20, add: false }); } sfx(e.win ? 'good' : 'error'); await wait(220 * sp); break;
+        case 'death': {
+          const r = foeEls[e.u];
+          const en = c.enemies.find((x) => x.uid === e.u);
+          if (r) {
+            r.f.classList.add('dying');
+            const q = FX.centerOf(r.mon, 0.55);
+            const col = en ? en.def.art.c : '#ffffff';
+            setTimeout(() => { FX.burst(q.x, q.y, { colors: ['#ffffff', col], n: 30, shape: 'star', size: 4, speed: 340, gravity: 160, life: 0.9 }); FX.ring(q.x, q.y, { colors: ['#fff', col], r: 90 }); FX.rise(q.x, q.y - 10, { colors: ['#ffffff', '#e6e0ff'], n: 10, size: 3, speed: 90 }); }, 260);
+            setTimeout(() => { r.f.classList.remove('dying'); r.f.classList.add('dead'); }, 620);
+          }
+          sfx('splash'); await wait(300 * sp); break;
+        }
+        case 'spawn': spawnSet.add(e.u); buildFoes(); { const r = foeEls[e.u]; if (r) { const q = FX.centerOf(r.mon, 0.6); FX.ring(q.x, q.y, { el: 'dark', r: 70 }); FX.burst(q.x, q.y, { el: 'dark', n: 14, size: 3 }); } } await wait(260 * sp); break;
         case 'relic': { const chip = document.querySelector(`[data-relic="${e.id}"]`); if (chip) { chip.classList.remove('flash'); void chip.offsetWidth; chip.classList.add('flash'); } break; }
         case 'text': { const t = unitEl(e.u) || heroHp; floatText(t, e.t, 'st'); await wait(160 * sp); break; }
         case 'say': { const r = foeEls[e.u]; if (r) { const b = h('div.say', { text: e.t }); r.f.appendChild(b); setTimeout(() => b.remove(), 2600); } await wait(500 * sp); break; }
-        case 'enemy_phase': syncHero(); renderDice(); renderSkills(); banner('적의 차례', 'enemy'); sfx('enemyTurn'); await wait(520 * sp); break;
+        case 'enemy_phase': curEl = 'blood'; syncHero(); renderDice(); renderSkills(); banner('적의 차례', 'enemy'); sfx('enemyTurn'); await wait(520 * sp); break;
         case 'act': { const r = foeEls[e.u]; if (r) { r.f.classList.remove('lunge'); void r.f.offsetWidth; r.f.classList.add('lunge'); } await wait(260 * sp); break; }
-        case 'frozen': { const r = foeEls[e.u]; if (r) floatText(r.mon, '꽁꽁!', 'block'); sfx('freeze'); await wait(300 * sp); break; }
+        case 'frozen': { const r = foeEls[e.u]; if (r) { floatText(r.mon, '꽁꽁!', 'block'); const q = FX.centerOf(r.mon, 0.5); FX.burst(q.x, q.y, { el: 'frost', n: 18, shape: 'shard', size: 5, speed: 200, gravity: 80 }); FX.ring(q.x, q.y, { el: 'frost', r: 70 }); } sfx('freeze'); await wait(300 * sp); break; }
         case 'intents': syncFoes(); break;
         case 'turn': if (e.n > 1) { banner(`${e.n}턴`); await wait(380 * sp); } break;
         case 'roll': break;
         case 'cd': break;
-        case 'use': break;
+        case 'use': curEl = elemOf(c.skills[e.si] && c.skills[e.si].def); break;
         case 'potion_get': toast(`${josa(POTION_BY_ID[e.id].name, '을/를')} 얻었어요`, { icon: 'potion' }); break;
         default: break;
       }
@@ -392,7 +481,7 @@ export function combatScreen(el) {
   function bark(line) {
     if (!aGauge || !line) return;
     if (aBubble) aBubble.remove();
-    aBubble = h('div.say', { text: line.t, style: { bottom: 'calc(100% + 6px)' } });
+    aBubble = h('div.say', { text: line.t });
     aGauge.appendChild(aBubble);
     const g = aGauge.querySelector('.gi');
     g.innerHTML = heroineSVG(c.assist.id, { head: 1, e: line.e || 'smile', outfit: p.heroines[c.assist.id].outfit });
@@ -451,6 +540,7 @@ export function combatScreen(el) {
       }
       if (st.what === 'skill' && st.si !== undefined) { const el2 = skillsEl.querySelector(`[data-si="${st.si}"]`); if (el2) el2.classList.add('fire'); sfx('place'); }
       if (st.what === 'reroll') sfx('roll');
+      if (st.what === 'skill') await launch(st.ev, st.si);
       await play(st.ev);
       busy = false; afterAction();
       if (!c.over) renderAll(st.what === 'reroll');
@@ -485,5 +575,5 @@ export function combatScreen(el) {
     }
     if (auto) autoLoop();
   })();
-  return () => { done = true; auto = false; document.querySelectorAll('.tut,.drag-ghost').forEach((x) => x.remove()); };
+  return () => { FX.setAmbient(null); FX.clearFx(); done = true; auto = false; document.querySelectorAll('.tut,.drag-ghost').forEach((x) => x.remove()); };
 }

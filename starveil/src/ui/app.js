@@ -3,6 +3,9 @@ import { h, toast, topSheetClose, closeAllSheets, countTo, numEl, ic } from './d
 import { loadProfile, saveProfile, checkAchievements, ensureDaily } from '../core/profile.js';
 import { sfx, unlockAudio, setVolumes, playBgm } from '../audio/audio.js';
 import { DIE_DEFS } from '../art/dice.js';
+import { MON_DEFS } from '../art/monsters.js';
+import { HER_DEFS } from '../art/heroines.js';
+import { initFx, setFxQuality, burst, ring } from '../art/fx.js';
 import { fmt } from '../core/util.js';
 
 export const App = {
@@ -20,7 +23,9 @@ export function boot(rootEl) {
   App.awayMs = Date.now() - (App.p.lastSeen || Date.now());
   ensureDaily(App.p);
   setVolumes(App.p.settings.sfx, App.p.settings.bgm);
-  document.body.insertAdjacentHTML('beforeend', DIE_DEFS);
+  document.body.insertAdjacentHTML('beforeend', DIE_DEFS + MON_DEFS + HER_DEFS);
+  initFx(rootEl);
+  setFxQuality(App.p.settings.fxLow ? 0.5 : 1);
   starfield(rootEl);
   // 첫 터치에서 오디오 잠금 해제
   const unlock = () => { unlockAudio(); window.removeEventListener('pointerdown', unlock, true); };
@@ -96,41 +101,37 @@ export function bgm(name) { if (App.p.settings.bgm > 0) playBgm(name); }
 function starfield(root) {
   const cv = h('canvas#stars');
   root.appendChild(cv);
+  const tw = h('div.twinkles');
+  root.appendChild(tw);
   const g = cv.getContext('2d');
-  let W = 0, H = 0, stars = [];
-  const resize = () => {
+  const draw = () => {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    W = root.clientWidth; H = root.clientHeight;
+    const W = root.clientWidth, H = root.clientHeight;
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    stars = [];
-    const n = Math.round((W * H) / 5200);
-    for (let i = 0; i < n; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + 0.3, p: Math.random() * Math.PI * 2, s: 0.6 + Math.random() * 1.4 });
-  };
-  resize();
-  window.addEventListener('resize', resize);
-  let last = 0;
-  const draw = (t) => {
-    requestAnimationFrame(draw);
-    if (t - last < 50 || document.hidden) return;
-    last = t;
     const grd = g.createLinearGradient(0, 0, 0, H);
     grd.addColorStop(0, '#080a24'); grd.addColorStop(0.6, '#15174a'); grd.addColorStop(1, '#241c55');
     g.fillStyle = grd; g.fillRect(0, 0, W, H);
-    for (const s of stars) {
-      const a = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t / 1000 * s.s + s.p));
-      g.globalAlpha = a; g.fillStyle = '#fff';
-      g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
-    }
+    const neb = (x, y, r, c) => { const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, c); q.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = q; g.fillRect(x - r, y - r, r * 2, r * 2); };
+    neb(W * 0.2, H * 0.22, W * 0.6, 'rgba(122,74,208,0.16)'); neb(W * 0.85, H * 0.62, W * 0.55, 'rgba(208,90,168,0.1)');
+    const n = Math.round((W * H) / 4200);
+    for (let i = 0; i < n; i++) { g.globalAlpha = 0.25 + Math.random() * 0.6; g.fillStyle = '#fff'; g.beginPath(); g.arc(Math.random() * W, Math.random() * H, Math.random() * 1.2 + 0.3, 0, Math.PI * 2); g.fill(); }
     g.globalAlpha = 1;
+    tw.innerHTML = '';
+    for (let i = 0; i < 18; i++) tw.appendChild(h('i', { style: { left: (Math.random() * 100).toFixed(1) + '%', top: (Math.random() * 100).toFixed(1) + '%', animationDelay: (-Math.random() * 3).toFixed(2) + 's', animationDuration: (2 + Math.random() * 2.5).toFixed(2) + 's' } }));
   };
-  requestAnimationFrame(draw);
+  draw();
+  let t = null;
+  window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(draw, 150); });
 }
 
 export function levelUpFx(html) {
   const el = h('div.level-up', h('div.lu', { html }));
   document.body.appendChild(el);
   sfx('level');
+  const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+  burst(cx, cy, { colors: ['#fff3b0', '#ff9ad6', '#9fe8ff'], n: 40, shape: 'star', size: 5, speed: 420, gravity: 140, life: 1.2 });
+  ring(cx, cy, { el: 'gold', r: 160, w: 6, life: 0.6 });
   setTimeout(() => el.remove(), 1900);
 }
 export { fmt };

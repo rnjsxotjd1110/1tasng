@@ -30,7 +30,7 @@ export function defaultProfile(now = Date.now()) {
     daily: null,
     challenge: { key: '', done: false, best: 0 },
     crystal: { last: now, carry: 0 },
-    settings: { bgm: 0.45, sfx: 0.7, vib: true, speed: 1, auto: false },
+    settings: { bgm: 0.45, sfx: 0.7, vib: true, speed: 1, auto: false, shake: true, fxLow: false },
     tutorial: { intro: false, combat: false, camp: false },
     run: null,
     nextBuff: null,

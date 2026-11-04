@@ -19,6 +19,7 @@ import { heroineTab } from './scr_heroine.js';
 import { playTab } from './scr_mini.js';
 import { settingsSheet, missionsSheet, achievementsScreen, codexScreen, giftShopSheet } from './scr_misc.js';
 import { sfx } from '../audio/audio.js';
+import { setAmbient } from '../art/fx.js';
 
 const TABS = [
   { id: 'home', name: '야영지', icon: 'tent' },
@@ -58,7 +59,7 @@ function homeTab(body) {
   const p = App.p;
   const featured = HEROINE_IDS.filter((id) => P.heroineUnlocked(p, id)).includes(p.lastCompanion) ? p.lastCompanion : 'lyra';
   const stage = h('div.camp-stage');
-  stage.innerHTML = sceneSVG('camp');
+  stage.innerHTML = sceneSVG('camp', '', 'xMidYMax');
   const hw = h('div.heroine-wrap.breathe');
   const hs = P.heroineState(p, featured);
   hw.innerHTML = heroineSVG(featured, { e: 'smile', outfit: hs.outfit });
@@ -135,7 +136,8 @@ function homeTab(body) {
   }
   // 해금 소식
   showNews();
-  return () => { clearInterval(blink); clearInterval(tick); clearTimeout(say.t); };
+  setTimeout(() => { if (stage.isConnected) setAmbient('fireflies', { n: 16, area: () => { const r = stage.getBoundingClientRect(); return { x: r.left, y: r.top + r.height * 0.35, w: r.width, h: r.height * 0.6 }; } }); }, 50);
+  return () => { clearInterval(blink); clearInterval(tick); clearTimeout(say.t); setAmbient(null); };
 }
 function sideBtn(icn, cap, fn, dot) {
   return h('button.icon-btn', { type: 'button', onclick: fn, html: icon(icn) + `<span class="cap">${cap}</span>` + (dot ? '<i class="badge-dot"></i>' : '') });

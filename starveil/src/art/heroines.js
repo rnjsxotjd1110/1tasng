@@ -26,24 +26,28 @@ const EYE_WHITE = 'M114 171C114 155 150 152 153 168C153 187 119 192 114 171Z';
 
 function eye(k, pal, e) {
   const id = `ey${k}`;
-  if (e === 'happy') return `<path d="M116 177C122 164 145 164 151 177" fill="none" stroke="${LASH}" stroke-width="4.2" stroke-linecap="round"/>`;
-  if (e === 'blink') return `<path d="M115 174C124 181 143 181 152 173" fill="none" stroke="${LASH}" stroke-width="3.8" stroke-linecap="round"/><path d="M116 174l-6 -2" stroke="${LASH}" stroke-width="3" stroke-linecap="round"/>`;
+  if (e === 'happy') return `<path d="M115 178C121 163 146 163 152 178" fill="none" stroke="${LASH}" stroke-width="4.4" stroke-linecap="round"/><path d="M114 177l-6 -3" stroke="${LASH}" stroke-width="3" stroke-linecap="round"/>`;
+  if (e === 'blink') return `<path d="M115 174C124 181 143 181 152 173" fill="none" stroke="${LASH}" stroke-width="3.8" stroke-linecap="round"/><path d="M116 174l-7 -3" stroke="${LASH}" stroke-width="3" stroke-linecap="round"/>`;
   const big = e === 'surprise';
-  const irx = big ? 12 : 14, iry = big ? 16 : 18.5;
-  const prx = big ? 4.5 : 7, pry = big ? 6.5 : 10;
+  const irx = big ? 12 : 14.5, iry = big ? 16 : 19;
+  const prx = big ? 4.5 : 6.5, pry = big ? 6.5 : 9.5;
   const ix = 134, iy = big ? 173 : 175;
   let out = `<defs><clipPath id="${id}c"><path d="${EYE_WHITE}"/></clipPath>
-    <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal.pupil}"/><stop offset=".45" stop-color="${pal.iris1}"/><stop offset="1" stop-color="${pal.iris2}"/></linearGradient></defs>`;
-  out += `<path d="${EYE_WHITE}" fill="#fff"/>`;
+    <radialGradient id="${id}g" cx=".5" cy=".62" r=".62"><stop offset="0" stop-color="${pal.iris2}"/><stop offset=".55" stop-color="${pal.iris1}"/><stop offset="1" stop-color="${pal.pupil}"/></radialGradient>
+    <linearGradient id="${id}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6e0f4"/><stop offset=".4" stop-color="#ffffff"/></linearGradient></defs>`;
+  out += `<path d="${EYE_WHITE}" fill="url(#${id}w)"/>`;
   out += `<g clip-path="url(#${id}c)">
-    <ellipse cx="${ix}" cy="${iy}" rx="${irx}" ry="${iry}" fill="url(#${id}g)"/>
-    <ellipse cx="${ix}" cy="${iy + 2}" rx="${prx}" ry="${pry}" fill="${pal.pupil}" opacity=".85"/>
-    <ellipse cx="${ix}" cy="${iy + 10}" rx="${irx - 4}" ry="5" fill="${pal.iris2}" opacity=".55"/>
-    <path d="M110 150H160V166C146 158 126 158 110 168Z" fill="${pal.pupil}" opacity=".18"/>
+    <ellipse cx="${ix}" cy="${iy}" rx="${irx}" ry="${iry}" fill="url(#${id}g)" stroke="${pal.pupil}" stroke-width="1.6"/>
+    <ellipse cx="${ix}" cy="${iy + 1}" rx="${prx}" ry="${pry}" fill="${pal.pupil}"/>
+    <path d="M${ix - irx + 3} ${iy + 6}Q${ix} ${iy + iry + 4} ${ix + irx - 3} ${iy + 6}Q${ix} ${iy + iry - 5} ${ix - irx + 3} ${iy + 6}Z" fill="${pal.iris2}" opacity=".85"/>
+    <path d="M110 148H160V167C146 158 126 158 110 169Z" fill="${pal.pupil}" opacity=".35"/>
   </g>`;
-  out += `<circle cx="${ix - 6}" cy="${iy - 8}" r="${big ? 3.6 : 4.6}" fill="#fff"/><circle cx="${ix + 6}" cy="${iy + 8}" r="2" fill="#fff" opacity=".9"/>`;
+  out += `<ellipse cx="${ix - 5.5}" cy="${iy - 8}" rx="${big ? 3.4 : 4.6}" ry="${big ? 4 : 5.4}" fill="#fff"/><circle cx="${ix + 6}" cy="${iy + 7}" r="2.1" fill="#fff" opacity=".95"/>
+    <path d="M${ix + 6} ${iy - 7}l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z" fill="#fff" opacity=".85" class="h-twinkle"/>`;
   if (e === 'pout') out += `<path d="M110 150H158V171C142 165 126 165 110 172Z" fill="${SKIN}"/><path d="M114 171C126 166 142 166 154 170" fill="none" stroke="${LASH}" stroke-width="4" stroke-linecap="round"/>`;
-  else out += `<path d="M112 167C117 153 145 149 154 162" fill="none" stroke="${LASH}" stroke-width="4.6" stroke-linecap="round"/><path d="M113 166l-7 -3" stroke="${LASH}" stroke-width="3.4" stroke-linecap="round"/>`;
+  else out += `<path d="M115 157C123 150 142 148 151 153" fill="none" stroke="${SKIN_LINE}" stroke-width="1.4" stroke-linecap="round" opacity=".75"/>
+    <path d="M111 168C116 153 145 149 155 162" fill="none" stroke="${LASH}" stroke-width="5" stroke-linecap="round"/>
+    <path d="M112 166L104 160L109 168ZM114 160L108 152L113 162Z" fill="${LASH}"/>`;
   out += `<path d="M121 190C128 193 140 193 147 189" fill="none" stroke="${SKIN_LINE}" stroke-width="1.6" stroke-linecap="round"/>`;
   if (e === 'sad') out += `<path d="M148 186c3 5 3 9 0 11-3-2-3-6 0-11z" fill="#9fd8ff" opacity=".9"/>`;
   return out;
@@ -68,19 +72,21 @@ function mouth(e) {
   }
 }
 
-function blush(e) {
+function blush(e, k) {
   const strong = e === 'blush' || e === 'happy' || e === 'pout';
-  let s = `<g fill="#ff8fa8" opacity="${strong ? 0.6 : 0.32}"><ellipse cx="121" cy="198" rx="14" ry="6.5"/><ellipse cx="199" cy="198" rx="14" ry="6.5"/></g>`;
+  let s = `<defs><radialGradient id="bl${k}"><stop offset="0" stop-color="#ff7a9a" stop-opacity="${strong ? 0.75 : 0.42}"/><stop offset="1" stop-color="#ff7a9a" stop-opacity="0"/></radialGradient></defs><g fill="url(#bl${k})"><ellipse cx="121" cy="198" rx="17" ry="8.5"/><ellipse cx="199" cy="198" rx="17" ry="8.5"/></g>`;
   if (e === 'blush') s += `<g stroke="#ff6f92" stroke-width="1.8" stroke-linecap="round" opacity=".8"><path d="M113 199l4-6M120 199l4-6M127 199l4-6M190 199l4-6M197 199l4-6M204 199l4-6"/></g>`;
   return s;
 }
 
-function face(k, pal, e, extra = '') {
+function face(k, pal, e, extra = '', bangs = '') {
   const L = eye(k + 'l', pal, e);
   const R = eye(k + 'r', pal, e);
-  return `<path d="${FACE}" fill="${SKIN}"/>
-    <path d="M118 222C134 238 186 238 202 222C196 232 182 241 160 245C138 241 124 232 118 222Z" fill="${SKIN_SH}" opacity=".5"/>
-    ${blush(e)}
+  return `<defs><clipPath id="fc${k}"><path d="${FACE}"/></clipPath><linearGradient id="sk${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1ea"/><stop offset=".7" stop-color="${SKIN}"/><stop offset="1" stop-color="#fbd8cc"/></linearGradient></defs>
+    <path d="${FACE}" fill="url(#sk${k})"/>
+    <g clip-path="url(#fc${k})">${bangs ? `<path d="${bangs}" fill="${SKIN_SH}" opacity=".6" transform="translate(-2 9)"/>` : ''}
+    <path d="M118 222C134 238 186 238 202 222C196 232 182 241 160 245C138 241 124 232 118 222Z" fill="${SKIN_SH}" opacity=".45"/></g>
+    ${blush(e, k)}
     <g>${L}</g><g transform="translate(320 0) scale(-1 1)">${R}</g>
     <path d="M159 197l2 3" stroke="${SKIN_LINE}" stroke-width="2" stroke-linecap="round"/>
     ${mouth(e)}${extra}`;
@@ -257,6 +263,47 @@ function pawPrint(x, y) { return `<g transform="translate(${x} ${y})" fill="#fff
 function glasses() { return `<g fill="none" stroke="#6a6f8a" stroke-width="2.6"><circle cx="134" cy="174" r="21"/><circle cx="186" cy="174" r="21"/><path d="M155 172C158 168 162 168 165 172"/></g><g fill="#fff" opacity=".18"><circle cx="134" cy="174" r="20"/><circle cx="186" cy="174" r="20"/></g>`; }
 
 // ───────── 조립 ─────────
+// ───────── 음영·선화 ─────────
+function hex2rgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mixc(h, t, k) { const a = hex2rgb(h), b = hex2rgb(t); return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, '0')).join(''); }
+// 단색 채우기를 위밝음·아래어두움 그라디언트로 바꿔요(조각마다 따로 음영)
+function shadeFills(str, k, top = 0.25, bot = 0.2, skip = []) {
+  const map = {};
+  let defs = '';
+  const out = str.replace(/fill="(#[0-9a-fA-F]{6})"/g, (m, col) => {
+    const c = col.toLowerCase();
+    if (skip.includes(c)) return m;
+    if (!map[c]) {
+      const gid = `${k}s${Object.keys(map).length}`;
+      map[c] = gid;
+      defs += `<linearGradient id="${gid}" x1="0" y1="0" x2=".22" y2="1"><stop offset="0" stop-color="${mixc(c, '#ffffff', top)}"/><stop offset=".55" stop-color="${c}"/><stop offset="1" stop-color="${mixc(c, '#2a1840', bot)}"/></linearGradient>`;
+    }
+    return `fill="url(#${map[c]})"`;
+  });
+  return { out, defs };
+}
+// 문서에 한 번 넣는 필터: 선화 외곽선, 머리카락 입체 음영
+export const HER_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="hline" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+    <feMorphology in="SourceAlpha" operator="dilate" radius="1.5" result="d"/>
+    <feFlood flood-color="#3b1f48" flood-opacity=".92"/><feComposite in2="d" operator="in" result="l"/>
+    <feMerge><feMergeNode in="l"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="hhair" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+    <feMorphology in="SourceAlpha" operator="dilate" radius="1.5" result="d"/>
+    <feFlood flood-color="#3b1f48" flood-opacity=".92"/><feComposite in2="d" operator="in" result="l"/>
+    <feOffset in="SourceAlpha" dx="0" dy="-9" result="o1"/><feGaussianBlur in="o1" stdDeviation="5" result="o1b"/>
+    <feComposite in="SourceAlpha" in2="o1b" operator="out" result="m1"/>
+    <feFlood flood-color="#3a1a5a" flood-opacity=".3"/><feComposite in2="m1" operator="in" result="sh"/>
+    <feOffset in="SourceAlpha" dx="3" dy="5" result="o2"/><feGaussianBlur in="o2" stdDeviation="2.5" result="o2b"/>
+    <feComposite in="SourceAlpha" in2="o2b" operator="out" result="m2"/>
+    <feFlood flood-color="#ffffff" flood-opacity=".3"/><feComposite in2="m2" operator="in" result="rim"/>
+    <feMerge><feMergeNode in="l"/><feMergeNode in="SourceGraphic"/><feMergeNode in="sh"/><feMergeNode in="rim"/></feMerge>
+  </filter>
+</defs></svg>`;
+
+const STRANDS = (pal) => `<g fill="none" stroke="${pal.hairLine}" stroke-width="1.3" stroke-linecap="round" opacity=".45"><path d="M139 70C134 90 133 108 139 112M171 70C175 92 174 106 171 112M154 64C150 84 150 100 157 110M190 80C196 96 198 108 199 114M124 84C118 100 115 110 113 116"/></g>`;
+
 export function heroineSVG(id, opt = {}) {
   const e = opt.e || 'normal';
   const outfit = opt.outfit || 'default';
@@ -266,16 +313,22 @@ export function heroineSVG(id, opt = {}) {
   if (id === 'lyra') { back = lyraBack(pal, outfit); body = lyraOutfit(outfit); front = lyraFront(pal, outfit); top = lyraHat(outfit); }
   else if (id === 'mio') { back = mioBack(pal, outfit); body = mioOutfit(outfit); front = mioFront(pal, outfit); }
   else { back = serenBack(pal); body = serenOutfit(outfit); front = serenFront(pal, outfit); if (outfit === 'casual') faceExtra = glasses(); }
+  const bangM = /<path[^>]*?\sd="(M1[0-9]{2} 1[0-9]{2}C[^"]+)"/.exec(front);
+  const bangs = bangM ? bangM[1] : '';
+  const skip = [SKIN.toLowerCase(), SKIN_SH.toLowerCase(), '#ffffff', '#fff'];
+  const B = shadeFills(back, k + 'b', 0.28, 0.25);
+  const Y = shadeFills(body, k + 'y', 0.2, 0.25, skip);
+  const F = shadeFills(front + STRANDS(pal), k + 'f', 0.3, 0.18, ['#ffffff']);
+  const T = shadeFills(top, k + 't', 0.25, 0.25, ['#ffffff']);
   const lid = `<path d="M109 172C109 149 157 145 158 166C158 191 114 197 109 172Z" fill="${SKIN}"/>${eye(k + 'bl', pal, 'blink')}`;
   const blinkLayer = e === 'happy' ? '' : `<g class="blink"><g>${lid}</g><g transform="translate(320 0) scale(-1 1)">${lid}</g></g>`;
-  const ears = id === 'mio' ? '' : `<ellipse cx="104" cy="170" rx="8" ry="13" fill="${SKIN}"/><ellipse cx="216" cy="170" rx="8" ry="13" fill="${SKIN}"/>`;
+  const ears = id === 'mio' ? '' : `<ellipse cx="104" cy="170" rx="8" ry="13" fill="${SKIN}"/><ellipse cx="216" cy="170" rx="8" ry="13" fill="${SKIN}"/><path d="M101 164C104 168 104 174 102 178M219 164C216 168 216 174 218 178" stroke="${SKIN_LINE}" stroke-width="1.4" fill="none" opacity=".7"/>`;
   const vb = opt.head ? '78 20 164 200' : '0 -20 320 450';
-  return `<svg class="heroine ${opt.cls || ''}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet">
-    <g class="h-back">${back}</g>
-    <g class="h-body">${body}${NECK}</g>
-    ${ears}
-    <g class="h-face">${face(k, pal, e, faceExtra)}${brow(e, pal)}</g>
-    ${blinkLayer}
-    <g class="h-front">${front}${top}</g>
-  </svg>`;
+  const attrs = `viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet"`;
+  return `<div class="heroine ${opt.cls || ''}"><div class="hl-back"><svg ${attrs}><defs>${B.defs}</defs><g filter="url(#hhair)">${B.out}</g></svg></div><svg class="hl-main" ${attrs}>
+    <defs>${Y.defs}${F.defs}${T.defs}</defs>
+    <g filter="url(#hline)">${Y.out}${NECK}</g>
+    <g filter="url(#hline)">${ears}${face(k, pal, e, faceExtra, bangs)}${brow(e, pal)}${blinkLayer}</g>
+    <g filter="url(#hhair)">${F.out}${T.out}</g>
+  </svg></div>`;
 }

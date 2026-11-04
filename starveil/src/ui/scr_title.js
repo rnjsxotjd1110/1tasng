@@ -5,6 +5,7 @@ import { hubScreen } from './scr_hub.js';
 import { settingsSheet } from './scr_misc.js';
 import { playVN } from './vn.js';
 import { saveSoon } from './app.js';
+import { setAmbient } from '../art/fx.js';
 
 export function titleScreen(el) {
   bgm('title');
@@ -20,8 +21,9 @@ export function titleScreen(el) {
       h('button.tmenu', { type: 'button', onclick: () => settingsSheet() }, '설정'),
       h('button.tmenu', { type: 'button', onclick: credits }, '만든 이야기'),
     ),
-    h('div.title-foot', { text: 'v1.0.0' }),
+    h('div.title-foot', { text: 'v1.1.0' }),
   );
+  setAmbient('shoot', { n: 3, area: () => ({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight * 0.6 }) });
   function start() {
     if (!App.p.tutorial.intro) {
       App.p.tutorial.intro = true;
@@ -29,6 +31,7 @@ export function titleScreen(el) {
       playVN({ bg: 'camp', who: 'lyra', title: '프롤로그', lines: INTRO, onEnd: () => go(hubScreen, 'home') });
     } else go(hubScreen, 'home');
   }
+  return () => setAmbient(null);
 }
 
 const INTRO = [

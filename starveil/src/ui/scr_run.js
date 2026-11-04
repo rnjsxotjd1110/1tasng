@@ -22,6 +22,7 @@ import { combatScreen } from './scr_combat.js';
 import { hubScreen } from './scr_hub.js';
 import { settingsSheet } from './scr_misc.js';
 import { sfx } from '../audio/audio.js';
+import * as FX from '../art/fx.js';
 
 const NODE_ICON = { battle: 'battle', elite: 'elite', event: 'event', shop: 'shop', rest: 'rest', treasure: 'treasure' };
 const NODE_NAME = { battle: '전투', elite: '엘리트', event: '이벤트', shop: '상점', rest: '휴식', treasure: '보물' };
@@ -139,11 +140,12 @@ function mapView(el, run) {
     for (const row of run.map.rows) for (const n of row) {
       if (!n) continue;
       const p1 = pos(n);
-      const targets = n.r === R.ROWS - 1 ? [bossPos] : n.next.map((c) => pos(run.map.rows[n.r + 1][c]));
-      n.next.forEach((c, i) => { });
-      for (const p2 of targets) {
-        const walked = done.has(`${n.r}:${n.c}`);
-        lines += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${walked ? '#ffd98a' : '#ffffff'}" stroke-opacity="${walked ? 0.5 : 0.16}" stroke-width="${walked ? 2.5 : 2}" stroke-dasharray="${walked ? '' : '3 7'}" stroke-linecap="round"/>`;
+      const walked = done.has(`${n.r}:${n.c}`);
+      const outs = n.r === R.ROWS - 1 ? [{ p2: bossPos, key: 'boss' }] : n.next.map((c) => ({ p2: pos(run.map.rows[n.r + 1][c]), key: `${n.r + 1}:${c}` }));
+      for (const { p2, key } of outs) {
+        const walkedTo = walked && (key === 'boss' ? run.pos && run.pos.r === R.ROWS : done.has(key));
+        lines += walkedTo ? `<line class="walked" pathLength="1" stroke-dasharray="1" x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#ffd98a" stroke-opacity=".8" stroke-width="3" stroke-linecap="round" style="animation-delay:${(n.r * 0.06).toFixed(2)}s"/>`
+          : `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#ffffff" stroke-opacity="${walked ? 0.22 : 0.15}" stroke-width="2" stroke-dasharray="3 7" stroke-linecap="round"/>`;
       }
     }
     canvas.insertAdjacentHTML('beforeend', `<svg class="links" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${lines}</svg>`);
@@ -153,7 +155,7 @@ function mapView(el, run) {
       const isCur = run.pos && run.pos.r === n.r && run.pos.c === n.c;
       const isDone = done.has(`${n.r}:${n.c}`);
       const can = isAv(n.r, n.c);
-      const b = h(`button.mnode.t-${n.t}` + (can ? '.av' : '') + (isCur ? '.cur' : '') + (isDone && !isCur ? '.done' : ''), { type: 'button', style: { left: p1.x + 'px', top: p1.y + 'px' }, html: icon(NODE_ICON[n.t]), 'aria-label': NODE_NAME[n.t] });
+      const b = h(`button.mnode.t-${n.t}` + (can ? '.av' : '') + (isCur ? '.cur' : '') + (isDone && !isCur ? '.done' : ''), { type: 'button', style: { left: p1.x + 'px', top: p1.y + 'px', '--d': `${((R.ROWS - n.r) * 0.035).toFixed(2)}s` }, html: icon(NODE_ICON[n.t]), 'aria-label': NODE_NAME[n.t] });
       if (can) b.addEventListener('click', () => { sfx('good'); R.enterNode(run, n.r, n.c); P.dailyProgress(App.p, 'node', 1); next(); });
       else b.addEventListener('click', () => toast(`${NODE_NAME[n.t]} 칸이에요`, { icon: NODE_ICON[n.t], ms: 1200 }));
       canvas.appendChild(b);
@@ -175,11 +177,12 @@ function mapView(el, run) {
   requestAnimationFrame(draw);
   const onR = () => draw();
   window.addEventListener('resize', onR);
+  FX.setAmbient('motes', { color: a.accent, n: 18 });
   if (!App.p.tutorial.map) {
     App.p.tutorial.map = true; saveSoon();
     setTimeout(() => tutorial('빛나는 칸을 눌러 이동해요. <b>전투</b>에서는 기술을, <b>휴식</b>에서는 체력을, <b>상점</b>에서는 골드로 물건을 얻어요. 지도 맨 위에는 <b>보스</b>가 기다려요.'), 400);
   }
-  return () => window.removeEventListener('resize', onR);
+  return () => { window.removeEventListener('resize', onR); FX.setAmbient(null); };
 }
 
 export function tutorial(html, onOk) {
@@ -195,7 +198,7 @@ function rewardView(el, run) {
   const rw = run.screen.reward;
   if (!rw.claimed.gold) { R.claimGold(run); sfx('gold'); }
   el.append(h('div.node-title', { text: rw.kind === 'boss' ? '보스 처치!' : rw.kind === 'elite' ? '엘리트 처치!' : '승리!' }), h('div.node-sub', { text: '전리품을 챙겨요' }));
-  const list = h('div');
+  const list = h('div.stagger');
   el.appendChild(list);
   list.appendChild(h('div.reward-row.claimed', h('div.ico', { html: icon('coin'), style: { color: 'var(--gold)' } }), h('div.grow.b', { text: `골드 ${rw.gold}` }), h('span.good', { html: icon('check') })));
   if (rw.potion) {
@@ -420,16 +423,40 @@ function restView(el, run) {
 }
 
 // ───────── 보물 ─────────
+function chestSVG() {
+  return `<svg viewBox="0 0 150 130" style="width:100%;height:100%;overflow:visible"><defs><linearGradient id="chw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c98a4a"/><stop offset="1" stop-color="#7a4a22"/></linearGradient><radialGradient id="chs"><stop offset="0" stop-color="#fff3b0"/><stop offset="1" stop-color="#ffd98a" stop-opacity="0"/></radialGradient></defs>
+    <ellipse cx="75" cy="124" rx="60" ry="7" fill="#000" opacity=".35"/>
+    <g class="shine"><circle cx="75" cy="60" r="70" fill="url(#chs)"/><path d="M75 60L40 -10M75 60L110 -10M75 60L75 -20M75 60L10 20M75 60L140 20" stroke="#fff3b0" stroke-width="6" stroke-opacity=".5" stroke-linecap="round"/></g>
+    <rect x="18" y="62" width="114" height="58" rx="8" fill="url(#chw)" stroke="#3a1f0a" stroke-width="3"/>
+    <rect x="18" y="62" width="114" height="10" fill="#ffd45a" opacity=".85"/><rect x="66" y="60" width="18" height="60" fill="#ffd45a" opacity=".9"/>
+    <rect x="68" y="78" width="14" height="16" rx="3" fill="#5a3a10"/><circle cx="75" cy="85" r="3" fill="#ffd45a"/>
+    <g class="lid"><path d="M18 64C18 30 40 18 75 18S132 30 132 64Z" fill="url(#chw)" stroke="#3a1f0a" stroke-width="3"/><path d="M66 20H84V64H66Z" fill="#ffd45a" opacity=".9"/><path d="M30 50C40 30 110 30 120 50" stroke="#fff" stroke-opacity=".25" stroke-width="4" fill="none"/></g>
+  </svg>`;
+}
 function treasureView(el, run) {
   const s = run.screen;
-  el.append(h('div.big-ico' + (s.opened ? '' : '.anim'), { html: icon('treasure') }), h('div.node-title', { text: '보물 상자' }));
+  const chest = h('div.chest' + (s.opened ? '.open' : ''), { html: chestSVG() });
+  el.append(chest, h('div.node-title', { text: '보물 상자' }));
   if (!s.opened) {
-    el.append(h('div.node-sub', { text: '반짝이는 상자가 놓여 있어요' }), btn('상자 열기', () => { R.openTreasure(run); sfx('level'); next(); }, { cls: 'wide big' }));
+    el.append(h('div.node-sub', { text: '반짝이는 상자가 놓여 있어요' }), btn('상자 열기', (ev) => {
+      ev.currentTarget.disabled = true;
+      chest.classList.add('shake');
+      sfx('roll');
+      setTimeout(() => {
+        chest.classList.remove('shake'); chest.classList.add('open');
+        R.openTreasure(run); sfx('level');
+        const q = FX.centerOf(chest, 0.45);
+        FX.flash('#fff3c0', 0.3, 0.35); FX.ring(q.x, q.y, { el: 'gold', r: 140, w: 7 });
+        FX.burst(q.x, q.y, { el: 'gold', n: 46, shape: 'star', size: 5, speed: 420, gravity: 220, life: 1.1 });
+        FX.coins(q, FX.centerOf(document.querySelector('.hud .pill')), 8);
+        setTimeout(next, 900);
+      }, 520);
+    }, { cls: 'wide big' }));
     return;
   }
   el.appendChild(h('div.node-sub', { text: '상자 안에서 보물을 찾았어요!' }));
-  el.appendChild(h('div.item', h('div.ico', { html: icon('coin'), style: { color: 'var(--gold)' } }), h('div.grow.tt', { text: `골드 ${s.gold}` })));
-  if (s.relic) { const r = relicById(s.relic); el.appendChild(h('div.item', h('div.ico.rar-' + r.rar, { html: icon(r.icon) }), h('div.grow', h('div.row.gap', h('span.tt', { text: r.name }), h('span.tag.bg-' + r.rar, { text: rarName(r.rar) })), h('div.ds', { text: r.desc })))); }
+  el.appendChild(h('div.item.reveal', h('div.ico', { html: icon('coin'), style: { color: 'var(--gold)' } }), h('div.grow.tt', { text: `골드 ${s.gold}` })));
+  if (s.relic) { const r = relicById(s.relic); el.appendChild(h('div.item.reveal', { style: { animationDelay: '.12s' } }, h('div.ico.rar-' + r.rar, { html: icon(r.icon) }), h('div.grow', h('div.row.gap', h('span.tt', { text: r.name }), h('span.tag.bg-' + r.rar, { text: rarName(r.rar) })), h('div.ds', { text: r.desc })))); }
   el.append(h('div', { style: { height: '14px' } }), btn('계속', () => { R.backToMap(run); next(); }, { cls: 'wide big' }));
 }
 

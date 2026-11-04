@@ -234,7 +234,7 @@ svg { display: block; }
 .mnode { position: absolute; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: default; background: rgba(20, 20, 60, 0.85); color: #8a86b8; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1); transition: transform 0.12s; }
 .mnode.done { color: #5a5788; background: rgba(20, 20, 50, 0.6); }
 .mnode.cur { box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(255, 217, 138, 0.6); color: var(--gold); }
-.mnode.av { cursor: pointer; color: #fff; background: radial-gradient(circle, #4a3f9a, #2a2470); box-shadow: 0 0 0 2.5px var(--gold), 0 0 18px rgba(255, 217, 138, 0.55); animation: pulse 1.6s ease-in-out infinite; }
+.mnode.av { cursor: pointer; color: #fff; background: radial-gradient(circle, #4a3f9a, #2a2470); box-shadow: 0 0 0 2.5px var(--gold), 0 0 18px rgba(255, 217, 138, 0.55); }
 .mnode.av:active { transform: scale(0.92); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px var(--gold), 0 0 28px rgba(255, 217, 138, 0.8); } }
 .mnode.t-elite { color: #ff8a9a; } .mnode.t-rest { color: #ffb34c; } .mnode.t-shop { color: #8be36b; } .mnode.t-treasure { color: var(--gold); } .mnode.t-event { color: #b9a7ff; }
@@ -292,7 +292,8 @@ svg { display: block; }
 .gauge .gi { flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 18px; overflow: hidden; }
 .gauge .gn { font-size: 11px; font-weight: 800; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gauge .prog { margin-top: 3px; height: 6px; }
-.gauge.ready { border-color: var(--gold); background: rgba(255, 217, 138, 0.14); animation: pulse2 1.2s ease-in-out infinite; }
+.gauge.ready { position: relative; border-color: var(--gold); background: rgba(255, 217, 138, 0.14); }
+.gauge.ready::after { content: ''; position: absolute; inset: -1px; border-radius: 12px; box-shadow: 0 0 14px rgba(255, 217, 138, 0.55); animation: glowOp 1.2s ease-in-out infinite; pointer-events: none; }
 @keyframes pulse2 { 50% { box-shadow: 0 0 14px rgba(255, 217, 138, 0.45); } }
 .gauge.comp .gi { background: rgba(255, 154, 214, 0.18); }
 .gauge.comp .gi .heroine { width: 100%; height: 100%; }
@@ -402,7 +403,7 @@ svg { display: block; }
 .tnode.av .orb { color: #fff; box-shadow: 0 0 0 2px rgba(255, 217, 138, 0.6); }
 .tnode.has .orb { color: var(--gold); background: radial-gradient(circle, #5a4a9a, #2a2470); box-shadow: 0 0 0 2.5px var(--gold), 0 0 16px rgba(255, 217, 138, 0.45); }
 .tnode.max .orb { color: #fff3b0; background: radial-gradient(circle, #8a6a30, #4a3410); }
-.tnode.buyable .orb { animation: pulse 1.6s infinite; }
+.tnode.buyable .orb { box-shadow: 0 0 0 2.5px var(--gold), 0 0 18px rgba(255, 217, 138, 0.6); }
 .tnode .tl { font-size: 10.5px; font-weight: 800; color: var(--sub); white-space: nowrap; }
 .tnode .tlv { font-size: 10px; font-weight: 900; color: var(--gold); }
 
@@ -578,3 +579,139 @@ textarea.code { width: 100%; height: 90px; border-radius: 12px; border: 1px soli
   .die { width: 50px; height: 50px; }
   .gauges { margin-top: 4px; }
 }
+
+/* ═══════ 연출 강화 ═══════ */
+/* 몬스터 대기 모션 */
+.monwrap { width: 100%; display: flex; justify-content: center; position: relative; transform-origin: 50% 92%; }
+.idle-squish { animation: squish 1.6s ease-in-out infinite; }
+@keyframes squish { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.05, 0.94); } }
+.idle-float { animation: mfloat 3s ease-in-out infinite; }
+@keyframes mfloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.idle-flap { animation: flap 0.9s ease-in-out infinite; }
+@keyframes flap { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-5px) scale(1.03, 0.97); } }
+.idle-breathe { animation: mbreathe 2.6s ease-in-out infinite; }
+@keyframes mbreathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.015, 1.025); } }
+.idle-sway { animation: msway 3.4s ease-in-out infinite; }
+@keyframes msway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
+.idle-flicker { animation: mflicker 1.8s ease-in-out infinite; }
+@keyframes mflicker { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-3px) scale(1.02, 0.99); } 60% { transform: translateY(-1px) scale(0.99, 1.02); } }
+.idle-bob { animation: mbob 2s ease-in-out infinite; }
+@keyframes mbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+/* 피격·공격·사망 */
+.foe.hit .monwrap .mon { animation: hitTint 0.32s ease-out; }
+@keyframes hitTint { 0% { filter: brightness(2.4) saturate(0.15); } 35% { filter: brightness(1.5) saturate(0.6); } 100% { filter: none; } }
+.foe.knock { animation: knock 0.34s cubic-bezier(.2,.8,.3,1); }
+@keyframes knock { 0% { transform: translate(0, 0); } 25% { transform: translate(7px, -4px) rotate(2deg); } 60% { transform: translate(-3px, 0) rotate(-1deg); } 100% { transform: none; } }
+.foe.lunge { animation: lunge2 0.42s cubic-bezier(.3,.1,.3,1); }
+@keyframes lunge2 { 0% { transform: none; } 30% { transform: translateY(-8px) scale(0.98); } 55% { transform: translateY(26px) scale(1.06); } 100% { transform: none; } }
+.foe.dying .monwrap { animation: dieOut 0.6s ease-in forwards; }
+@keyframes dieOut { 0% { filter: brightness(3) saturate(0); transform: scale(1); opacity: 1; } 40% { filter: brightness(2.2) saturate(0); transform: scale(1.08, 0.9); opacity: 0.9; } 100% { filter: brightness(3) saturate(0); transform: scale(0.4, 1.4) translateY(-20px); opacity: 0; } }
+.foe.dead .intent, .foe.dead .hpbar, .foe.dead .fname, .foe.dead .sts { opacity: 0; transition: opacity 0.3s; }
+.foe.spawning .monwrap { animation: spawnIn 0.45s cubic-bezier(.2,1.4,.4,1); }
+@keyframes spawnIn { from { transform: scale(0.2) translateY(30px); opacity: 0; } }
+.foe.target .monwrap::after { content: ''; position: absolute; left: 50%; bottom: 2%; width: 74%; height: 14%; transform: translateX(-50%); border-radius: 50%; border: 2px solid rgba(255, 217, 138, 0.7); box-shadow: 0 0 14px rgba(255, 217, 138, 0.5); animation: tring 1.4s ease-in-out infinite; pointer-events: none; }
+@keyframes tring { 50% { opacity: 0.45; } }
+.foe.target .mon { filter: none; }
+.intent { transition: transform 0.2s; }
+.intent.pop { animation: ipop 0.35s cubic-bezier(.2,1.6,.4,1); }
+@keyframes ipop { from { transform: scale(0.4); opacity: 0; } }
+.intent.i-atk, .intent.i-atkdef, .intent.i-steal, .intent.i-drain { box-shadow: 0 0 10px rgba(255, 107, 138, 0.35); }
+/* 피해 숫자 */
+.float { font-family: var(--font); -webkit-text-stroke: 1px rgba(40, 10, 40, 0.6); paint-order: stroke fill; animation: dmgPop 0.95s cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes dmgPop { 0% { opacity: 0; transform: translate(-50%, 8px) scale(0.5); } 14% { opacity: 1; transform: translate(-50%, -12px) scale(1.25); } 28% { transform: translate(-50%, -10px) scale(1); } 100% { opacity: 0; transform: translate(-50%, -58px) scale(0.95); } }
+.float.big { font-size: 40px; color: #fff0b0; text-shadow: 0 0 16px rgba(255, 180, 60, 0.9), 0 3px 0 #6a2a10; }
+.float.hurt { font-size: 28px; color: #ff9aa8; text-shadow: 0 0 12px rgba(255, 60, 90, 0.7), 0 2px 0 #4a0a1a; }
+.float.heal { text-shadow: 0 0 12px rgba(90, 255, 150, 0.7), 0 2px 0 #0a3a1a; }
+.float.block { text-shadow: 0 0 12px rgba(120, 180, 255, 0.8), 0 2px 0 #0a1a4a; }
+/* 주사위 굴림 */
+.die.tumble .die-svg { animation: tumble 0.62s cubic-bezier(.25,.6,.3,1) both; }
+@keyframes tumble { 0% { transform: translate(-40px, -46px) rotate(-220deg) scale(0.7); opacity: 0; } 45% { transform: translate(6px, 6px) rotate(20deg) scale(1.05); opacity: 1; } 65% { transform: translate(0, -8px) rotate(-6deg); } 82% { transform: translate(0, 0) rotate(2deg) scale(1.02, 0.97); } 100% { transform: none; } }
+.die.reroll .die-svg { animation: rerollSpin 0.5s cubic-bezier(.3,.7,.3,1); }
+@keyframes rerollSpin { 0% { transform: translateY(0) rotate(0); } 40% { transform: translateY(-22px) rotate(200deg) scale(0.9); } 75% { transform: translateY(2px) rotate(350deg); } 100% { transform: rotate(360deg); } }
+.die .die-svg { transition: filter 0.15s; }
+.die::before { content: ''; position: absolute; left: 12%; right: 12%; bottom: -5px; height: 8px; border-radius: 50%; background: radial-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)); }
+.die.six .die-svg { filter: drop-shadow(0 0 7px rgba(255, 217, 138, 0.75)) drop-shadow(0 3px 0 rgba(0, 0, 0, 0.35)); }
+.fly-die { position: fixed; z-index: 72; pointer-events: none; transition: transform 0.2s cubic-bezier(.4,.1,.6,1), opacity 0.2s; }
+.sk.fire { animation: skfire2 0.45s ease-out; }
+@keyframes skfire2 { 0% { box-shadow: 0 0 0 0 rgba(255, 217, 138, 0.9); background: linear-gradient(180deg, rgba(255, 230, 160, 0.55), rgba(140, 110, 200, 0.6)); } 100% { box-shadow: 0 0 0 14px rgba(255, 217, 138, 0); } }
+.sk.ok::after { content: ''; position: absolute; inset: -1px; border-radius: 14px; box-shadow: 0 0 16px rgba(255, 217, 138, 0.5); animation: glowOp 1.4s ease-in-out infinite; pointer-events: none; will-change: opacity; }
+@keyframes glowOp { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+/* 배너 */
+.turn-banner { font-size: 30px; letter-spacing: 6px; background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(20, 16, 60, 0.85) 25%, rgba(20, 16, 60, 0.85) 75%, rgba(0, 0, 0, 0)); padding: 10px 0; border-top: 1px solid rgba(255, 217, 138, 0.35); border-bottom: 1px solid rgba(255, 217, 138, 0.35); text-shadow: 0 0 18px rgba(255, 217, 138, 0.6); animation: banner2 1s cubic-bezier(.2,.8,.3,1) forwards; }
+.turn-banner.enemy { border-color: rgba(255, 120, 140, 0.4); text-shadow: 0 0 18px rgba(255, 90, 120, 0.6); }
+.turn-banner.pink { color: #ffd6ef; border-color: rgba(255, 154, 214, 0.5); text-shadow: 0 0 18px rgba(255, 120, 200, 0.7); }
+@keyframes banner2 { 0% { opacity: 0; transform: scaleX(0.3); letter-spacing: 20px; } 18% { opacity: 1; transform: none; letter-spacing: 6px; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+.cb.hurtflash::after { content: ''; position: absolute; inset: 0; z-index: 40; pointer-events: none; box-shadow: inset 0 0 90px rgba(255, 40, 80, 0.55); animation: vign 0.45s ease-out forwards; }
+@keyframes vign { to { opacity: 0; } }
+.hero-block.gain .ic { animation: shieldPop 0.4s cubic-bezier(.2,1.6,.4,1); }
+@keyframes shieldPop { 40% { transform: scale(1.3); filter: drop-shadow(0 0 8px #9fd0ff); } }
+@media (prefers-reduced-motion: reduce) { .monwrap, .die .die-svg { animation: none !important; } }
+/* 동료 레이어(뒷머리 흔들림) */
+.heroine { position: relative; display: block; }
+.heroine > svg, .heroine > .hl-back { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.heroine .hl-back > svg { width: 100%; height: 100%; }
+.heroine .hl-back { transform-origin: 50% 32%; animation: hairSway 4.6s ease-in-out infinite; will-change: transform; }
+@keyframes hairSway { 0%, 100% { transform: rotate(-0.9deg); } 50% { transform: rotate(0.9deg); } }
+
+@keyframes twinkle { 0%, 70%, 100% { opacity: 0.2; } 80% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .heroine .hl-back, .heroine .h-twinkle { animation: none; } }
+/* 장면 애니메이션 */
+.scene .sc-flame { transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes flame { 0% { transform: scale(1, 1) skewX(-2deg); } 100% { transform: scale(0.92, 1.1) skewX(3deg); } }
+
+@keyframes scGlow { 50% { opacity: 0.6; } }
+
+@keyframes scTw { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scene .sc-flame, .scene .sc-glow, .scene .sc-tw { animation: none; } }
+/* ═══════ UI 연출 ═══════ */
+.stagger > * { animation: riseIn 0.38s cubic-bezier(.2,.9,.3,1) both; }
+.stagger > *:nth-child(2) { animation-delay: 0.05s; } .stagger > *:nth-child(3) { animation-delay: 0.1s; } .stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.stagger > *:nth-child(5) { animation-delay: 0.2s; } .stagger > *:nth-child(6) { animation-delay: 0.25s; } .stagger > *:nth-child(7) { animation-delay: 0.3s; } .stagger > *:nth-child(n+8) { animation-delay: 0.34s; }
+@keyframes riseIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+/* 지도 */
+.mnode { animation: nodeIn 0.42s cubic-bezier(.2,1.5,.4,1) both; animation-delay: var(--d, 0s); }
+@keyframes nodeIn { from { transform: scale(0.2); opacity: 0; } }
+.mnode.av { animation: nodeIn 0.42s cubic-bezier(.2,1.5,.4,1) both; box-shadow: 0 0 0 3px var(--gold), 0 0 24px rgba(255, 217, 138, 0.65); }
+.mnode.av::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 2px dashed rgba(255, 217, 138, 0.75); animation: spin 6s linear infinite; pointer-events: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.mnode.cur::before { content: '✦'; position: absolute; top: -26px; left: 50%; transform: translateX(-50%); color: var(--gold); font-size: 18px; text-shadow: 0 0 10px var(--gold); animation: curBob 1.4s ease-in-out infinite; }
+@keyframes curBob { 50% { transform: translate(-50%, -5px); } }
+.mnode.boss { box-shadow: 0 0 0 3px rgba(255, 212, 90, 0.5), 0 0 30px rgba(255, 120, 200, 0.4); }
+.mnode.boss.av { animation: nodeIn 0.5s both; box-shadow: 0 0 0 4px var(--gold), 0 0 40px rgba(255, 120, 200, 0.7); }
+@keyframes bossPulse { 50% { box-shadow: 0 0 0 5px var(--gold), 0 0 44px rgba(255, 120, 200, 0.75); } }
+.mnode .ic { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+.map-canvas svg.links line.walked { stroke-dashoffset: 1; animation: drawLine 0.7s ease-out forwards; }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+/* 핵심 버튼 빛 스침 */
+.btn.big { overflow: hidden; }
+.btn.big:not(:disabled)::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0)); transform: skewX(-20deg); animation: sheen 3.6s ease-in-out infinite; pointer-events: none; }
+@keyframes sheen { 0%, 60% { left: -60%; } 85%, 100% { left: 130%; } }
+.tab.on .ic { animation: tabPop 0.4s cubic-bezier(.2,1.8,.4,1); }
+@keyframes tabPop { 40% { transform: translateY(-4px) scale(1.18); } }
+/* 타이틀 */
+.title-scr .logo text { animation: logoGlow 3.2s ease-in-out infinite; }
+@keyframes logoGlow { 50% { filter: brightness(1.18); } }
+.title-moon { filter: drop-shadow(0 0 30px rgba(255, 220, 150, 0.35)); }
+/* 보물 */
+.chest { width: 150px; height: 130px; margin: 18px auto 6px; position: relative; }
+.chest.shake { animation: chestShake 0.5s ease-in-out; }
+@keyframes chestShake { 20%, 60% { transform: rotate(-5deg); } 40%, 80% { transform: rotate(5deg); } }
+.chest .lid { transform-box: fill-box; transform-origin: 10% 100%; transition: transform 0.35s cubic-bezier(.3,1.6,.5,1); }
+.chest.open .lid { transform: rotate(-24deg) translateY(-6px); }
+.chest .shine { opacity: 0; transition: opacity 0.3s 0.15s; }
+.chest.open .shine { opacity: 1; }
+.reveal { animation: reveal 0.55s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes reveal { from { opacity: 0; transform: translateY(18px) scale(0.85); } }
+/* 전투 아래쪽 조작 영역 */
+.cb-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(8, 8, 28, 0) 0%, rgba(8, 8, 28, 0.62) 14%, rgba(8, 8, 28, 0.9) 40%); }
+.vn .vn-chara { animation: charIn 0.4s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes charIn { from { opacity: 0; transform: translateY(24px); } }
+@media (prefers-reduced-motion: reduce) { .mnode, .mnode.av::after, .btn.big::after, .stagger > * { animation: none !important; } }
+.map-scroll { background: radial-gradient(120% 60% at 20% 20%, rgba(122, 74, 208, 0.18), transparent 60%), radial-gradient(90% 50% at 85% 70%, rgba(208, 90, 168, 0.12), transparent 60%); }
+
+.gauge.comp .say { left: auto; right: calc(100% + 8px); bottom: 0; transform: none; width: max-content; max-width: 190px; text-align: left; animation: bubIn2 0.2s both; }
+.gauge.comp .say::after { content: ''; position: absolute; right: -7px; bottom: 12px; border: 7px solid transparent; border-left-color: rgba(255, 255, 255, 0.95); border-right: 0; }
+
+.twinkles { position: absolute; inset: 0; pointer-events: none; }
+.twinkles i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.8); animation: twk 3s ease-in-out infinite; will-change: opacity; }
+@keyframes twk { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.95; } }

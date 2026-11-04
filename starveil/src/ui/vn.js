@@ -89,6 +89,7 @@ export function playVN(opt) {
   function end() {
     if (ended) return;
     ended = true;
+    if (App.vnClose === end) App.vnClose = null;
     clearInterval(timer);
     clearTimeout(blinkT);
     root.style.transition = 'opacity .2s';
@@ -104,6 +105,7 @@ export function playVN(opt) {
     end();
   });
   if (opt.noSkip) skip.style.display = 'none';
+  App.vnClose = end;
   next();
   return { end };
 }

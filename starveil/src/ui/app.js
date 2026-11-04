@@ -17,6 +17,7 @@ export const App = {
 export function boot(rootEl) {
   App.root = rootEl;
   App.p = loadProfile();
+  App.awayMs = Date.now() - (App.p.lastSeen || Date.now());
   ensureDaily(App.p);
   setVolumes(App.p.settings.sfx, App.p.settings.bgm);
   document.body.insertAdjacentHTML('beforeend', DIE_DEFS);
@@ -37,6 +38,7 @@ export function boot(rootEl) {
   // 안드로이드 뒤로 가기(웹뷰에서 호출) + 브라우저 Esc
   window.__starveilBack = () => {
     if (topSheetClose()) return true;
+    if (App.vnClose) { App.vnClose(); return true; }
     if (App.onBack) return !!App.onBack();
     return false;
   };
@@ -49,6 +51,7 @@ export function boot(rootEl) {
 
 export function go(screenFn, ...args) {
   closeAllSheets();
+  document.querySelectorAll('.tut').forEach((x) => x.remove());
   if (App.cleanup) { try { App.cleanup(); } catch (e) { /* 정리 오류 무시 */ } }
   App.cleanup = null;
   App.onBack = null;

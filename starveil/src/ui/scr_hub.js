@@ -110,8 +110,8 @@ function homeTab(body) {
     refreshRes(); checkAch(); saveSoon();
   }, { cls: 'small blue' });
   panel.appendChild(h('div.card.crystal-card', h('div.crystal-ico', { html: icon('crystal') }),
-    h('div.grow', h('div.row.between', h('span.b', { text: '별빛 수정' }), h('span.t12.muted', { text: `시간당 ${fmt(rate)} · 최대 ${cap}시간` })),
-      h('div.row.gap', { style: { marginTop: '4px' } }, h('span.t15.b.gold', stored), h('span.t12.dim', { text: '달가루' })),
+    h('div.grow', h('div.row.between', h('span.b', { text: '별빛 수정', style: { whiteSpace: 'nowrap' } }), h('span.t12.muted', { text: `시간당 ${fmt(rate)}`, style: { whiteSpace: 'nowrap' } })),
+      h('div.row.gap', { style: { marginTop: '4px' } }, h('span.t15.b.gold', stored), h('span.t12.dim', { text: `/ ${fmt(Math.floor(rate * cap))} 달가루 · ${cap}시간분` })),
       h('div.prog.blue', { style: { marginTop: '5px' } }, fill)),
     harvest));
   const tick = setInterval(() => { countTo(stored, P.crystalStored(p), 300); fill.style.width = `${Math.min(100, (P.crystalStored(p) / (rate * cap)) * 100)}%`; }, 5000);
@@ -127,6 +127,12 @@ function homeTab(body) {
     p.tutorial.camp = true; saveSoon();
     setTimeout(() => say({ e: 'happy', t: '여기가 우리 야영지야! 원정 탭에서 미궁으로 출발할 수 있어.' }), 500);
   } else setTimeout(() => hw.click(), 600);
+  // 다녀왔어요 알림
+  if (App.awayMs > 30 * 60000 && P.crystalStored(p) > 0) {
+    const hrs = Math.floor(App.awayMs / 3600000), mins = Math.floor((App.awayMs % 3600000) / 60000);
+    setTimeout(() => toast(`${hrs ? hrs + '시간 ' : ''}${mins}분 동안 별빛 수정에 달가루 <b class="gold">${fmt(P.crystalStored(p))}</b>${josa(fmt(P.crystalStored(p)), '이/가').slice(-1)} 모였어요`, { icon: 'crystal', ms: 3600 }), 700);
+    App.awayMs = 0;
+  }
   // 해금 소식
   showNews();
   return () => { clearInterval(blink); clearInterval(tick); clearTimeout(say.t); };
@@ -280,7 +286,7 @@ function treeTab(body) {
     h('div.t12.muted', { style: { padding: '0 14px 6px' }, text: '원정에서 모은 별조각으로 별을 밝혀 영원히 강해져요.' }), wrap);
   const render = () => {
     canvas.innerHTML = '';
-    const H = 980;
+    const H = 1000;
     let lines = '';
     for (const n of TREE) if (n.req) { const q = TREE_BY_ID[n.req]; const on = P.treeLv(p, n.req) > 0; lines += `<line x1="${q.x}%" y1="${q.y / 100 * H + 25}" x2="${n.x}%" y2="${n.y / 100 * H + 25}" stroke="${on ? '#ffd98a' : '#ffffff'}" stroke-opacity="${on ? 0.55 : 0.12}" stroke-width="2" ${on ? '' : 'stroke-dasharray="4 6"'}/>`; }
     canvas.insertAdjacentHTML('beforeend', `<svg>${lines}</svg>`);

@@ -11,7 +11,7 @@ import { GIFT_BY_ID } from '../data/gifts.js';
 import { hubScreen } from './scr_hub.js';
 import { settingsSheet } from './scr_misc.js';
 import { sfx } from '../audio/audio.js';
-import { fmt, todayKey } from '../core/util.js';
+import { fmt, todayKey, josa } from '../core/util.js';
 import { Rng } from '../core/rng.js';
 
 const MINIS = [

@@ -27,14 +27,14 @@ export function newRun(profile, opt) {
   const lv = (id) => t[id] || 0;
   const phase = opt.phase || 0;
   const rng = new Rng(seed);
-  let maxHp = cls.hp + 4 * lv('hp');
+  let maxHp = cls.hp + 4 * lv('hp') + lv('infinite');
   if (phase >= 6) maxHp = Math.floor(maxHp * 0.9);
   const hero = {
     cls: cls.id, hp: maxHp, maxHp, gold: 50 + 15 * lv('gold'),
     dice: cls.dice.slice(), skills: cls.skills.map((id) => ({ id, up: false })),
     skillSlots: BASE_SKILL_SLOTS + lv('slot'), relics: [], potions: [], potionSlots: BASE_POTION_SLOTS + lv('potion'),
     rerolls: Math.max(0, cls.rerolls + lv('reroll') - (phase >= 17 ? 1 : 0)), fortuneMax: cls.fortuneMax - lv('fortune'),
-    dmgBonus: 0.03 * lv('master'), luck: 0.05 * lv('luck'), assistBonus: lv('assist'),
+    dmgBonus: 0.03 * lv('master') + 0.01 * lv('infinite'), luck: 0.05 * lv('luck'), assistBonus: lv('assist'),
     winHeal: lv('heal'), restBonus: 0.05 * lv('rest'), shopDisc: 0.04 * lv('shop'), eliteGold: 10 * lv('elite'),
     phoenixUsed: false,
   };

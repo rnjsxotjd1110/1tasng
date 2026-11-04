@@ -5,7 +5,7 @@ import { icon } from '../art/icons.js';
 import { monsterSVG } from '../art/monsters.js';
 import { heroineSVG } from '../art/heroines.js';
 import { dieSVG } from '../art/dice.js';
-import { fmt } from '../core/util.js';
+import { fmt, josa } from '../core/util.js';
 import * as R from '../core/run.js';
 import * as P from '../core/profile.js';
 import { skillById, resolveSkill } from '../data/skills.js';
@@ -203,7 +203,8 @@ function rewardView(el, run) {
     const row = h('button.reward-row' + (rw.claimed.potion ? '.claimed' : ''), { type: 'button', onclick: () => {
       if (!R.claimPotion(run)) { toast('물약 칸이 가득 찼어요', { icon: 'potion' }); sfx('error'); return; }
       sfx('buy'); row.classList.add('claimed'); saveSoon();
-    } }, h('div.ico', { html: icon('potion'), style: { color: pt.color } }), h('div.grow', h('div.b', { text: pt.name }), h('div.t12.muted', { text: pt.desc })));
+    } }, h('div.ico', { html: icon('potion'), style: { color: pt.color } }), h('div.grow', h('div.b', { text: pt.name }), h('div.t12.muted', { text: pt.desc })),
+      run.hero.potions.length >= run.hero.potionSlots && !rw.claimed.potion ? h('span.t12.bad', { text: '칸이 가득 찼어요' }) : null);
     list.appendChild(row);
   }
   if (rw.relic) {
@@ -252,7 +253,9 @@ export function skillChoiceSheet(skills, onPick, onSkip, after) {
       if (sel < 0) return;
       const hh = run.hero;
       if (hh.skills.length >= hh.skillSlots) {
-        replaceSheet(skills[sel], (rep) => { if (onPick(sel, rep)) { sfx('level'); close(); saveSoon(); after && after(); } });
+        const pick = sel;
+        close(true);
+        setTimeout(() => replaceSheet(skills[pick], (rep) => { if (onPick(pick, rep)) { sfx('level'); saveSoon(); after && after(); } }), 240);
         return;
       }
       if (onPick(sel)) { sfx('level'); close(); saveSoon(); after && after(); }
@@ -362,7 +365,7 @@ function shopItemSheet(run, i, redraw) {
     const doBuy = (rep) => {
       const res = R.buy(run, i, rep);
       if (res.ok) { sfx('buy'); close(); syncCodex(App.p, run); saveSoon(); redraw(); return; }
-      if (res.why === 'slots') { replaceSheet({ id: it.id, up: it.up }, (r) => doBuy(r)); return; }
+      if (res.why === 'slots') { close(true); setTimeout(() => replaceSheet({ id: it.id, up: it.up }, (r) => doBuy(r)), 240); return; }
       sfx('error');
       toast(res.why === 'gold' ? '골드가 부족해요' : res.why === 'potion' ? '물약 칸이 가득 찼어요' : res.why === 'dice' ? '주사위는 6개까지 가질 수 있어요' : '살 수 없어요', { icon: 'coin' });
     };

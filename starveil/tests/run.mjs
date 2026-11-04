@@ -100,6 +100,7 @@ for (const c of CLASSES) for (let i = 0; i < 60; i++) {
     runs++; if (run.over === 'win') wins++;
     const res = onRunEnd(p, run);
     ok(res.shards >= 0 && Number.isFinite(res.shards), '별조각 정산');
+    ok(p.stats.maxGold === (run.stats.goldEarned || 0), '최대 골드 기록');
   } catch (e) { ok(false, `${c.id} #${i}: ${e.message}`); }
 }
 console.log(`  ${runs}런 완료, 완주 ${wins}회, ${((Date.now() - t0) / 1000).toFixed(1)}초`);

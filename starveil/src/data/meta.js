@@ -24,6 +24,7 @@ export const TREE = [
   { id: 'vault', name: '저장고의 별', icon: 'jar', max: 6, cost: g(70, 1.5), desc: (l) => `수정 저장 한도 +${2 * l}시간`, x: 40, y: 90, req: 'slot' },
   { id: 'dust', name: '달가루의 별', icon: 'moon', max: 5, cost: g(60, 1.5), desc: (l) => `놀이 달가루 +${10 * l}%`, x: 62, y: 90, req: 'lucky' },
   { id: 'master', name: '별지기의 별', icon: 'crown', max: 5, cost: g(1500, 1.6), desc: (l) => `모든 기술 피해 +${3 * l}%`, x: 86, y: 88, req: 'reroll' },
+  { id: 'infinite', name: '무한의 별', icon: 'sparkle', max: 100, cost: (lv) => Math.round(2500 * Math.pow(1.06, lv)), desc: (l) => `모든 피해 +${l}%, 최대 체력 +${l}`, x: 50, y: 97, req: 'master' },
 ];
 export const TREE_BY_ID = {};
 for (const t of TREE) TREE_BY_ID[t.id] = t;

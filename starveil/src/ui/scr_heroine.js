@@ -14,7 +14,7 @@ import { hubScreen } from './scr_hub.js';
 import { settingsSheet, giftShopSheet } from './scr_misc.js';
 import { startMini } from './scr_mini.js';
 import { sfx } from '../audio/audio.js';
-import { fmt } from '../core/util.js';
+import { fmt, josa } from '../core/util.js';
 
 const SCENE_BG = { lyra: 'camp', mio: 'market', seren: 'library' };
 

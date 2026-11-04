@@ -12,7 +12,7 @@ function ensure() {
   ctx = new AC();
   master = ctx.createDynamicsCompressor();
   master.threshold.value = -18; master.knee.value = 12; master.ratio.value = 3; master.attack.value = 0.01; master.release.value = 0.2;
-  const out = ctx.createGain(); out.gain.value = 0.9;
+  const out = ctx.createGain(); out.gain.value = 1.4;
   master.connect(out); out.connect(ctx.destination);
   sfxBus = ctx.createGain(); sfxBus.gain.value = vol.sfx; sfxBus.connect(master);
   bgmBus = ctx.createGain(); bgmBus.gain.value = vol.bgm * 0.6; bgmBus.connect(master);

@@ -245,11 +245,11 @@ svg { display: block; }
 
 /* ── 전투 ── */
 .cb { background: transparent; }
-.cb-enemies { position: relative; z-index: 2; flex: 1.1; min-height: 180px; display: flex; align-items: flex-end; justify-content: center; gap: 4px; padding: 0 6px 4px; }
+.cb-enemies { position: relative; z-index: 2; flex: 1.1; overflow: visible; min-height: 180px; display: flex; align-items: flex-end; justify-content: center; gap: 4px; padding: 0 6px 4px; }
 .foe { position: relative; flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: opacity 0.4s, transform 0.4s; }
-.foe .mon { width: 100%; max-width: 132px; height: auto; aspect-ratio: 1; }
-.foe.big .mon { max-width: 168px; }
-.foe.boss .mon { max-width: 220px; }
+.foe .mon { width: 100%; max-width: min(132px, 17vh); height: auto; aspect-ratio: 1; }
+.foe.big .mon { max-width: min(168px, 21vh); }
+.foe.boss .mon { max-width: min(220px, 26vh); }
 .foe.boss { max-width: 240px; }
 .foe.dead { opacity: 0; transform: translateY(10px); pointer-events: none; }
 .foe.target .mon { filter: drop-shadow(0 0 7px rgba(255, 217, 138, 0.8)); }
@@ -394,7 +394,7 @@ svg { display: block; }
 /* ── 별자리 트리 ── */
 .tree-wrap { position: relative; flex: 1; overflow-y: auto; scrollbar-width: none; }
 .tree-wrap::-webkit-scrollbar { display: none; }
-.tree-canvas { position: relative; width: 100%; height: 980px; }
+.tree-canvas { position: relative; width: 100%; height: 1040px; }
 .tree-canvas > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tnode { position: absolute; width: 58px; margin-left: -29px; display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none; padding: 0; cursor: pointer; color: inherit; font: inherit; }
 .tnode .orb { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(20, 20, 60, 0.9); color: #6a66a0; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12); transition: transform 0.1s; }
@@ -553,3 +553,28 @@ textarea.code { width: 100%; height: 90px; border-radius: 12px; border: 1px soli
 @media (min-height: 820px) { .sk { min-height: 80px; } .die { width: 58px; height: 58px; } }
 @media (max-height: 700px) { .sk { min-height: 64px; padding: 6px 8px; } .sk .sk-ds { font-size: 11.5px; } .die { width: 48px; height: 48px; } .tray { min-height: 60px; padding-top: 6px; } .cb-enemies { min-height: 150px; } }
 @media (prefers-reduced-motion: reduce) { .breathe, .mnode.av, .gauge.ready { animation: none; } }
+
+.foe .say { bottom: auto; top: 22px; max-width: 200px; }
+.foe.boss .say { top: 34px; }
+.gauge .say { font-size: 12px; max-width: 200px; }
+/* 비활성 상태는 모든 색 변형보다 우선 */
+.btn:disabled, .btn.pink:disabled, .btn.blue:disabled, .btn.danger:disabled { background: linear-gradient(180deg, #5a587a, #45436a); color: #9b98c0; box-shadow: 0 3px 0 #2e2c4e; cursor: default; filter: none; transform: none; }
+.btn.ghost:disabled { color: var(--dim); background: rgba(255, 255, 255, 0.03); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.06); }
+
+@media (max-width: 380px) {
+  .sk .sk-nm { font-size: 13px; }
+  .sk .sk-req { font-size: 10px; padding: 2px 5px; }
+  .sk .sk-ic { width: 22px; height: 22px; font-size: 14px; }
+  .sk .sk-top { gap: 4px; }
+  .sk .sk-ds { font-size: 12px; }
+  .cb-top .pill { padding: 4px 8px; }
+}
+@media (max-height: 780px) {
+  .foe .mon { max-width: min(120px, 14vh); }
+  .foe.big .mon { max-width: min(150px, 18vh); }
+  .foe.boss .mon { max-width: min(200px, 21vh); }
+  .sk { min-height: 62px; padding: 6px 8px; }
+  .tray { min-height: 60px; padding: 6px 10px 4px; }
+  .die { width: 50px; height: 50px; }
+  .gauges { margin-top: 4px; }
+}

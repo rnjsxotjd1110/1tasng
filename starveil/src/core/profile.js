@@ -290,6 +290,7 @@ export function onRunEnd(p, run) {
   p.stats.maxAct = Math.max(p.stats.maxAct, run.act);
   p.stats.kills += run.stats.kills || 0;
   p.stats.maxHit = Math.max(p.stats.maxHit, run.stats.maxHit || 0);
+  p.stats.maxGold = Math.max(p.stats.maxGold, run.stats.goldEarned || 0);
   p.stats.gambleWins += run.stats.gambleWins || 0;
   p.stats.fortunes += run.stats.fortunes || 0;
   const unlocks = [];

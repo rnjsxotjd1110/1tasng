@@ -15,4 +15,7 @@ const icon = encodeURIComponent(iconSVG(64));
 const html = tpl.replace('__ICON__', icon).replace('__CSS__', () => css).replace('__JS__', () => js);
 fs.writeFileSync(path.join(out, 'index.html'), html);
 fs.writeFileSync(path.join(out, 'icon.svg'), iconSVG(512));
+// 아티팩트용(문서 뼈대 없이 title·style·본문·script)
+const art = `<title>STARVEIL</title>\n<meta name="theme-color" content="#0b0d26">\n<style>:root{color-scheme:dark}${css}</style>\n<div id="app"></div>\n<script>${js}</script>\n`;
+fs.writeFileSync(path.join(out, 'artifact.html'), art);
 console.log(`dist/index.html ${(html.length / 1024).toFixed(1)} KB`);

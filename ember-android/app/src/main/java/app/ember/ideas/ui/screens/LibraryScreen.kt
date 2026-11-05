@@ -63,6 +63,7 @@ import app.ember.ideas.ui.screens.project.IdeaCard
 import app.ember.ideas.ui.screens.project.RenameDialog
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
+import app.ember.ideas.ui.components.UnderlineTab
 
 enum class LibraryFilter { ALL, EXPLORING, IDEAS, DOCS, FAVORITE }
 
@@ -237,11 +238,3 @@ fun stageColor(stage: ProjectStage) = when (stage) {
 }
 
 
-@Composable
-private fun UnderlineTab(text: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val c = Ember.colors
-    Column(modifier.clickable(role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text, style = MaterialTheme.typography.titleSmall, color = if (selected) c.text else c.textMuted, modifier = Modifier.padding(vertical = 14.dp))
-        Box(Modifier.fillMaxWidth(0.6f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (selected) c.ember else androidx.compose.ui.graphics.Color.Transparent))
-    }
-}

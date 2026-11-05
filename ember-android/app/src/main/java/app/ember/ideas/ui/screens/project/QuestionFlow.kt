@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens.project
 
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -110,6 +111,7 @@ fun QuestionFlow(
     expectedTotal: Int = 8,
     onStop: (() -> Unit)? = null,
     onLeave: (() -> Unit)? = null,
+    partial: app.ember.ideas.ai.PartialQuestion? = null,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -171,12 +173,17 @@ fun QuestionFlow(
                         }
                         Spacer(Modifier.height(20.dp))
                     }
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        ThinkingIndicator(thinkingLines, title = thinkingTitle)
+                    if (busy && partial != null) {
+                        // 질문이 도착하는 대로 먼저 보여 준다. 다 오기 전에는 고를 수 없다.
+                        PartialQuestionPreview(partial)
+                    } else {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            ThinkingIndicator(thinkingLines, title = thinkingTitle)
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        // 다음 질문 카드 자리를 미리 보여 준다(스켈레톤).
+                        SkeletonCards()
                     }
-                    Spacer(Modifier.height(20.dp))
-                    // 다음 질문 카드 자리를 미리 보여 준다(스켈레톤).
-                    SkeletonCards()
                     Spacer(Modifier.weight(1f))
                     Text(s.waitingNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     if (onStop != null && busy) {
@@ -415,6 +422,50 @@ private fun SkeletonCards() {
         repeat(3) {
             Box(Modifier.fillMaxWidth().height(64.dp).clip(EmberShape.control).background(c.surface2.copy(alpha = a + 0.2f)))
             Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+
+@Composable
+private fun PartialQuestionPreview(pq: app.ember.ideas.ai.PartialQuestion) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.size(14.dp), color = c.ember, strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(s.writingQuestion, style = MaterialTheme.typography.labelMedium, color = c.textMuted)
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(pq.title, style = MaterialTheme.typography.headlineSmall, color = c.text)
+        if (pq.subtitle.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(pq.subtitle, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
+        }
+        Spacer(Modifier.height(16.dp))
+        pq.options.forEachIndexed { idx, (label, desc) ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(EmberShape.control).background(c.surface)
+                    .border(1.dp, c.outline, EmberShape.control).height(IntrinsicSize.Min).padding(end = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(('A' + idx).toString(), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.textFaint, textAlign = TextAlign.Center, modifier = Modifier.width(48.dp))
+                Box(Modifier.width(1.dp).fillMaxHeight().background(c.outline))
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
+                    Text(label, style = MaterialTheme.typography.titleSmall, color = c.text)
+                    val d = listOf("추천 · ", "Recommended · ").fold(desc) { acc, p -> acc.removePrefix(p) }
+                    if (d.isNotBlank()) Text(d, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+        if (pq.options.size < 3) {
+            repeat(3 - pq.options.size) {
+                Box(Modifier.fillMaxWidth().height(64.dp).clip(EmberShape.control).background(c.surface2.copy(alpha = 0.6f)))
+                Spacer(Modifier.height(10.dp))
+            }
         }
     }
 }

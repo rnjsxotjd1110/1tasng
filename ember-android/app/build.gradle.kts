@@ -16,9 +16,17 @@ android {
         applicationId = "app.ember.ideas"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
         vectorDrawables { useSupportLibrary = true }
+
+        // 출시 설정. gradle.properties 나 -P 옵션으로 넣는다(비우면 해당 기능이 숨겨진다).
+        fun prop(name: String) = (project.findProperty(name) as String?)?.trim().orEmpty()
+        buildConfigField("String", "EMBER_SERVER_URL", "\"${prop("ember.serverUrl")}\"")
+        buildConfigField("String", "REPORT_EMAIL", "\"${prop("ember.reportEmail")}\"")
+        buildConfigField("String", "PRIVACY_URL", "\"${prop("ember.privacyUrl")}\"")
+        buildConfigField("double", "CREDIT_MARKUP", prop("ember.creditMarkup").ifEmpty { "1.5" })
+        buildConfigField("int", "FREE_CREDITS", prop("ember.freeCredits").ifEmpty { "150" })
     }
 
     // 서명 정보는 저장소에 넣지 않는다. keystore.properties(무시 목록)가 있으면 그 키로 서명한다.
@@ -93,12 +101,16 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.anthropic:anthropic-java:3.4.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+    implementation("com.android.billingclient:billing-ktx:8.3.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.robolectric:robolectric:4.16")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.50.0")

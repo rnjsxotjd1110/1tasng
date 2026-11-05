@@ -32,7 +32,28 @@ data class Settings(
     val monthUsage: Usage = Usage(),
     val monthlyBudgetUsd: Double = 0.0,
     val haptics: Boolean = true,
-)
+    /** Ember 크레딧 계정이 이 기기에 등록되어 있다. */
+    val creditsReady: Boolean = false,
+    /** 마지막으로 확인한 크레딧 잔액(서버 확인 전에는 사용량으로 추정해 줄인다). */
+    val credits: Int = 0,
+    /** 키와 크레딧이 모두 있을 때 크레딧을 쓰기로 골랐다. */
+    val preferCredits: Boolean = false,
+    /** 아이디어를 낼 때 웹에서 실제 작품을 찾아 참고한다. */
+    val webSearch: Boolean = true,
+    /** 질문 단계만 빠른 모델(Sonnet)로 처리한다. */
+    val fastQuestions: Boolean = false,
+    /** 작업이 끝나면 알림을 보낸다. */
+    val notifyDone: Boolean = true,
+    /** GitHub 토큰이 연결되어 있다. */
+    val hasGithub: Boolean = false,
+    val githubUser: String = "",
+) {
+    /** 지금 요청을 Ember 크레딧(중계 서버)으로 보낸다. */
+    val usingCredits: Boolean get() = app.ember.ideas.account.ServerConfig.creditsEnabled && creditsReady && (preferCredits || !hasKey)
+
+    /** Claude 를 부를 수 있는 상태(내 키 또는 크레딧). */
+    val ready: Boolean get() = hasKey || usingCredits
+}
 
 /**
  * 일반 설정은 SharedPreferences, API 키는 Android Keystore 로 암호화한 EncryptedSharedPreferences 에 둔다.
@@ -74,6 +95,36 @@ class SettingsStore(context: Context) {
     fun setLanguage(l: LanguageMode) = put { putString("language", l.name) }
     fun setOnboarded(v: Boolean) = put { putBoolean("onboarded", v) }
     fun setHaptics(v: Boolean) = put { putBoolean("haptics", v) }
+    fun setWebSearch(v: Boolean) = put { putBoolean("web_search", v) }
+    fun setFastQuestions(v: Boolean) = put { putBoolean("fast_questions", v) }
+    fun setNotifyDone(v: Boolean) = put { putBoolean("notify_done", v) }
+    fun setPreferCredits(v: Boolean) = put { putBoolean("prefer_credits", v) }
+
+    // ------------------------------------------------------------ Ember 크레딧
+
+    /** 기기 설치마다 한 번 만드는 익명 ID. 서버 등록에만 쓴다. */
+    fun installId(): String = prefs.getString("install_id", null) ?: java.util.UUID.randomUUID().toString().also {
+        prefs.edit(commit = true) { putString("install_id", it) }
+    }
+
+    fun creditToken(): String? = keyPrefs.getString(KEY_CREDIT, null)
+
+    fun setCreditAccount(token: String?, credits: Int) {
+        keyPrefs.edit(commit = true) { if (token == null) remove(KEY_CREDIT) else putString(KEY_CREDIT, token) }
+        put { putInt("credits", credits) }
+    }
+
+    fun setCredits(credits: Int) = put { putInt("credits", credits) }
+
+    // ------------------------------------------------------------ GitHub
+
+    fun githubToken(): String? = keyPrefs.getString(KEY_GITHUB, null)
+
+    fun setGithub(token: String?, user: String) {
+        keyPrefs.edit(commit = true) { if (token == null) remove(KEY_GITHUB) else putString(KEY_GITHUB, token) }
+        put { if (token == null) remove("github_user") else putString("github_user", user) }
+    }
+
     fun setProfile(p: DevProfile) = put { putString("profile", Protocol.json.encodeToString(DevProfile.serializer(), p)) }
 
     fun addUsage(u: Usage) {
@@ -84,6 +135,10 @@ class SettingsStore(context: Context) {
             putString("usage", Protocol.json.encodeToString(Usage.serializer(), total))
             putString("usage_month", Protocol.json.encodeToString(Usage.serializer(), prevMonth + u))
             putString("usage_month_key", month)
+            // 크레딧으로 쓴 요청은 서버 확인 전까지 잔액을 미리 줄여 보여 준다.
+            if (_settings.value.usingCredits && u.costUsd > 0) {
+                putInt("credits", _settings.value.credits - app.ember.ideas.account.ServerConfig.creditsFor(u.costUsd))
+            }
         }
     }
 
@@ -132,11 +187,21 @@ class SettingsStore(context: Context) {
                 prefs.getString("usage_month", null)?.let { runCatching { Protocol.json.decodeFromString(Usage.serializer(), it) }.getOrNull() } ?: Usage()
             } else Usage(),
             monthlyBudgetUsd = prefs.getFloat("budget", 0f).toDouble(),
+            creditsReady = !creditToken().isNullOrBlank(),
+            credits = prefs.getInt("credits", 0),
+            preferCredits = prefs.getBoolean("prefer_credits", false),
+            webSearch = prefs.getBoolean("web_search", true),
+            fastQuestions = prefs.getBoolean("fast_questions", false),
+            notifyDone = prefs.getBoolean("notify_done", true),
+            hasGithub = !githubToken().isNullOrBlank(),
+            githubUser = prefs.getString("github_user", "") ?: "",
         )
     }
 
     companion object {
         private const val KEY_API = "anthropic_api_key"
+        private const val KEY_CREDIT = "ember_credit_token"
+        private const val KEY_GITHUB = "github_token"
 
         fun maskKey(key: String): String {
             val k = key.trim()

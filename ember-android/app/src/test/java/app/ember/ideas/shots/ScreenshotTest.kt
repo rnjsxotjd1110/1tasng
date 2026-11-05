@@ -1,8 +1,15 @@
 package app.ember.ideas.shots
 
+import app.ember.ideas.account.ServerConfig
+import app.ember.ideas.data.Reference
+import app.ember.ideas.SharedSeed
+import app.ember.ideas.Incoming
+import app.ember.ideas.ui.screens.PrivacyScreen
+import app.ember.ideas.report.CrashLog
 import android.app.Application
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -378,6 +385,137 @@ class ScreenshotTest {
         rule.waitForIdle()
         click("직접 편집")
         shot("28_edit_document", 1500)
+    }
+
+    // ------------------------------------------------------------ 출시 기능
+
+    private fun withServer() {
+        ServerConfig.override = ServerConfig.Values(serverUrl = "https://ember.example", reportEmail = "support@example.com", privacyUrl = "", creditMarkup = 1.5, freeCredits = 150)
+    }
+
+    @org.junit.After fun resetServer() { ServerConfig.override = null }
+
+    @Test fun s29_credits_start() {
+        withServer()
+        setContent { ApiKeyScreen(fromSettings = false, onDone = {}, onBack = null) }
+        shot("29_credits_start")
+    }
+
+    @Test fun s30_credits_balance() {
+        withServer()
+        c.settings.setCreditAccount("tok_test", 1234)
+        setContent { ApiKeyScreen(fromSettings = true, onDone = {}, onBack = {}) }
+        shot("30_credits_balance")
+    }
+
+    @Test fun s31_report() {
+        withKey()
+        c.store.upsert(ideasProject())
+        setContent(auto = true) { ProjectScreen("p_ideas", {}, {}) }
+        click("지하철 정원사")
+        rule.onAllNodes(hasPlainText("AI 결과 신고"), useUnmergedTree = true).onFirst().performScrollTo()
+        click("AI 결과 신고")
+        shot("31_report", 1500)
+    }
+
+    @Test fun s32_github() {
+        withKey()
+        c.settings.setGithub("ghp_test", "octo")
+        c.store.upsert(SampleProject.korean())
+        setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
+        rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("더 보기")).onFirst().performClick()
+        rule.waitForIdle()
+        click("GitHub로 보내기")
+        shot("32_github", 1500)
+    }
+
+    @Test fun s33_diff() {
+        withKey()
+        val sample = SampleProject.korean()
+        c.store.upsert(sample)
+        val md = sample.design!!.latest!!.markdown
+        c.engine.saveManualEdit(sample.id, md.replace("한 판 3~5분", "한 판 3분 안팎").replace("1인, 3개월", "1인, 4개월(사운드 외주)"), "직접 편집")
+        setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
+        rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("더 보기")).onFirst().performClick()
+        rule.waitForIdle()
+        click("버전 기록")
+        click("바뀐 부분")
+        shot("33_diff", 1500)
+    }
+
+    @Test fun s34_edit_section() {
+        withKey()
+        c.store.upsert(SampleProject.korean())
+        setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
+        rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("편집")).onFirst().performClick()
+        rule.waitForIdle()
+        click("미리 보기")
+        shot("34_edit_section", 1500)
+    }
+
+    @Test fun s35_partial_question() {
+        withKey()
+        ai.gate = CompletableDeferred()
+        ai.partialFraction = 0.62
+        ai.turnReplies += Result.success(FakeAi.question("한 판은 얼마나 걸리면 좋을까요?", stage = "핵심 경험", progress = 55, options = listOf("1~2분" to "", "3~5분" to "", "10분 이상" to "", "정해 두지 않음" to "")))
+        c.store.upsert(interviewProject())
+        setContent { ProjectScreen("p_interview", {}, {}) }
+        click("아늑하고 따뜻한")
+        click("다음")
+        shot("35_partial_question", 1500)
+    }
+
+    @Test fun s36_idea_references() {
+        withKey()
+        val p = ideasProject()
+        val first = p.ideaBatches.first().ideas.first().copy(references = listOf(
+            Reference("Mini Metro - Dinosaur Polo Club", "https://dinopoloclub.com/games/mini-metro/"),
+            Reference("Viridi on Steam", "https://store.steampowered.com/app/375950/Viridi/"),
+        ))
+        c.store.upsert(p.copy(ideaBatches = listOf(p.ideaBatches.first().copy(ideas = listOf(first) + p.ideaBatches.first().ideas.drop(1)))))
+        setContent(auto = true) { ProjectScreen("p_ideas", {}, {}) }
+        click("지하철 정원사")
+        rule.onAllNodes(hasPlainText("store.steampowered.com"), useUnmergedTree = true).onFirst().performScrollTo()
+        shot("36_idea_references", 1500)
+    }
+
+    @Test fun s37_home_image() {
+        withKey()
+        val f = java.io.File(app.cacheDir, "sketch.png")
+        val bmp = android.graphics.Bitmap.createBitmap(400, 300, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bmp).apply {
+            drawColor(0xFF2A3A5C.toInt())
+            val paint = android.graphics.Paint().apply { color = 0xFFFFC46B.toInt() }
+            drawCircle(300f, 80f, 40f, paint)
+            paint.color = 0xFF16213A.toInt()
+            drawRect(0f, 200f, 400f, 300f, paint)
+        }
+        f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        SharedSeed.shared = Incoming.Shared("밤 기차 창밖 풍경", android.net.Uri.fromFile(f))
+        setContent(auto = true) { MainTabs({}, {}, {}, {}) }
+        Thread.sleep(800)
+        rule.waitForIdle()
+        shot("37_home_image", 1500)
+    }
+
+    @Test fun s38_privacy() {
+        setContent { PrivacyScreen {} }
+        shot("38_privacy")
+    }
+
+    @Test fun s39_settings_data() {
+        withKey()
+        c.settings.setGithub("ghp_test", "octo")
+        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 2) }
+        rule.onAllNodes(hasPlainText("Android 백업을 켜 두면"), useUnmergedTree = true).onFirst().performScrollTo()
+        shot("39_settings_data", 1500)
+    }
+
+    @Test fun s40_crash_prompt() {
+        withKey()
+        CrashLog.write(app, Thread.currentThread(), IllegalStateException("test"))
+        setContent { MainTabs({}, {}, {}, {}) }
+        shot("40_crash_prompt")
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

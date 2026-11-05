@@ -13,7 +13,10 @@ import com.anthropic.errors.NotFoundException
 import com.anthropic.errors.PermissionDeniedException
 import com.anthropic.errors.RateLimitException
 import com.anthropic.errors.UnauthorizedException
+import com.anthropic.models.messages.Base64ImageSource
 import com.anthropic.models.messages.CacheControlEphemeral
+import com.anthropic.models.messages.ContentBlockParam
+import com.anthropic.models.messages.WebSearchTool20260209
 import com.anthropic.models.messages.JsonOutputFormat
 import com.anthropic.models.messages.MessageCreateParams
 import com.anthropic.models.messages.OutputConfig
@@ -35,26 +38,33 @@ import kotlinx.serialization.json.longOrNull
 import java.io.IOException
 import java.time.Duration
 
+/** 요청을 보낼 곳. [baseUrl] 이 있으면 Ember 중계 서버, 없으면 Anthropic 에 직접 보낸다. */
+data class Endpoint(val key: String, val baseUrl: String? = null)
+
 /**
  * Anthropic Java SDK 로 Claude 를 부른다.
- * 키는 매 요청마다 [apiKey] 에서 읽어 오며, 키가 바뀌면 클라이언트를 다시 만든다.
+ * 보낼 곳은 매 요청마다 [endpoint] 에서 읽어 오며, 바뀌면 클라이언트를 다시 만든다.
  */
-class ClaudeAiService(private val apiKey: () -> String?) : AiService {
+class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
 
-    @Volatile private var cached: Pair<String, AnthropicClient>? = null
+    @Volatile private var cached: Pair<Endpoint, AnthropicClient>? = null
 
     /** 서버측 거절 대체(fallbacks) 기능. 계정이 지원하지 않아 400 이 나면 끄고 다시 보낸다. */
     @Volatile private var fallbackEnabled = true
 
-    private fun client(key: String? = apiKey()): AnthropicClient {
-        if (key.isNullOrBlank()) throw AiError.NoKey
-        cached?.let { (k, c) -> if (k == key) return c }
+    private fun client(ep: Endpoint? = endpoint()): AnthropicClient {
+        if (ep == null || ep.key.isBlank()) throw AiError.NoKey
+        cached?.let { (k, c) -> if (k == ep) return c }
         val c = AnthropicOkHttpClient.builder()
-            .apiKey(key)
+            .apiKey(ep.key)
+            // 이 SDK 버전은 키만 넘기면 Authorization: Bearer 로 보내는데, Anthropic API 키는 x-api-key 로 보내야 한다.
+            // 헤더를 직접 넣으면 SDK 가 Bearer 를 덧붙이지 않는다(중계 서버도 x-api-key 를 받는다).
+            .putHeader("X-Api-Key", ep.key)
+            .apply { if (ep.baseUrl != null) baseUrl(ep.baseUrl) }
             .maxRetries(2)
             .timeout(Duration.ofMinutes(10))
             .build()
-        cached = key to c
+        cached = ep to c
         return c
     }
 
@@ -72,7 +82,15 @@ class ClaudeAiService(private val apiKey: () -> String?) : AiService {
         system(system)
         cacheControl(CacheControlEphemeral.builder().build())
         messages.forEach { m ->
-            if (m.role == ChatMessage.ASSISTANT) addAssistantMessage(m.text) else addUserMessage(m.text)
+            when {
+                m.role == ChatMessage.ASSISTANT -> addAssistantMessage(m.text)
+                m.images.isEmpty() -> addUserMessage(m.text)
+                else -> {
+                    // 이미지를 글보다 앞에 두면 Claude 가 그림을 먼저 보고 질문을 읽는다.
+                    val blocks = m.images.mapNotNull { path -> imageBlock(path) } + ContentBlockParam.ofText(m.text)
+                    addUserMessageOfContentBlockParams(blocks)
+                }
+            }
         }
         val oc = OutputConfig.builder().effort(effort.toSdk())
         if (format != null) oc.format(format)
@@ -84,6 +102,13 @@ class ClaudeAiService(private val apiKey: () -> String?) : AiService {
         return this
     }
 
+    private fun imageBlock(path: String): ContentBlockParam? {
+        val f = java.io.File(path)
+        if (!f.isFile) return null
+        val data = java.util.Base64.getEncoder().encodeToString(f.readBytes())
+        return ContentBlockParam.ofImage(Base64ImageSource.builder().mediaType(Base64ImageSource.MediaType.IMAGE_JPEG).data(data).build())
+    }
+
     override suspend fun turn(model: ClaudeModel, request: TurnRequest): TurnResult = withContext(Dispatchers.IO) {
         val format = JsonOutputFormat.builder()
             .schema(JsonOutputFormat.Schema.builder().apply {
@@ -91,27 +116,100 @@ class ClaudeAiService(private val apiKey: () -> String?) : AiService {
             }.build())
             .build()
         val c = client()
-        val response = mapErrors {
-            withFallbackRetry { fb ->
-                val params = MessageCreateParams.builder()
-                    .applyCommon(model, request.system, request.messages, request.effort, request.maxTokens, format, fb)
-                    .build()
-                c.messages().create(params)
+        val search = request.webSearch && model != ClaudeModel.HAIKU
+        var usage = app.ember.ideas.data.Usage()
+        val sources = LinkedHashMap<String, app.ember.ideas.data.Reference>()
+        val earlier = ArrayList<com.anthropic.models.messages.Message>()
+        var response: com.anthropic.models.messages.Message
+        // 웹 검색이 길어지면 서버가 pause_turn 으로 잠시 돌려준다. 받은 내용을 그대로 붙여 이어 가게 한다(최대 3번).
+        while (true) {
+            response = mapErrors {
+                withFallbackRetry { fb ->
+                    val b = MessageCreateParams.builder()
+                        .applyCommon(model, request.system, request.messages, request.effort, request.maxTokens, format, fb)
+                    if (search) b.addTool(WebSearchTool20260209.builder().maxUses(3L).build())
+                    earlier.forEach { b.addMessage(it) }
+                    c.messages().create(b.build())
+                }
             }
+            val u = response.usage()
+            val searches = u.serverToolUse().map { it.webSearchRequests() }.orElse(0L)
+            usage += usageOf(model, u.inputTokens(), u.outputTokens(), u.cacheReadInputTokens().orElse(0L), u.cacheCreationInputTokens().orElse(0L), searches)
+            response.content().forEach { b ->
+                b.webSearchToolResult().orElse(null)?.content()?.resultBlocks()?.orElse(null)?.forEach { r ->
+                    sources.putIfAbsent(r.url(), app.ember.ideas.data.Reference(r.title(), r.url()))
+                }
+            }
+            if (response.stopReason().orElse(null) != StopReason.PAUSE_TURN || earlier.size >= 3) break
+            earlier += response
         }
         val stop = response.stopReason().orElse(null)
         if (stop == StopReason.REFUSAL) throw AiError.Refused
-        val text = response.content().mapNotNull { b -> b.text().orElse(null)?.text() }.joinToString("")
+        // 검색을 쓰면 앞쪽에 짧은 안내 글이 섞일 수 있으니 마지막 도구 결과 뒤의 글만 JSON 으로 본다.
+        val blocks = response.content()
+        val lastTool = blocks.indexOfLast { !it.isText() && it.thinking().isEmpty }
+        val text = blocks.drop(lastTool + 1).mapNotNull { b -> b.text().orElse(null)?.text() }.joinToString("")
         if (text.isBlank() || stop == StopReason.MAX_TOKENS) throw AiError.BadResponse
-        val u = response.usage()
-        val usage = usageOf(
-            model,
-            u.inputTokens(),
-            u.outputTokens(),
-            u.cacheReadInputTokens().orElse(0L),
-            u.cacheCreationInputTokens().orElse(0L),
-        )
-        TurnResult(text, usage)
+        TurnResult(text, usage, sources.values.toList())
+    }
+
+    override suspend fun turnStreaming(model: ClaudeModel, request: TurnRequest, onText: (String) -> Unit): TurnResult {
+        // 웹 검색이 섞이면 중간 글과 도구 결과가 끼어들므로 한 번에 받는다.
+        if (request.webSearch) return turn(model, request)
+        return withContext(Dispatchers.IO) {
+            val format = JsonOutputFormat.builder()
+                .schema(JsonOutputFormat.Schema.builder().apply {
+                    request.schema.forEach { (k, v) -> putAdditionalProperty(k, JsonValue.from(v.toPlain())) }
+                }.build())
+                .build()
+            val c = client()
+            val text = StringBuilder()
+            var input = 0L
+            var cacheRead = 0L
+            var cacheWrite = 0L
+            var output = 0L
+            var stop: StopReason? = null
+            var lastEmit = 0L
+            mapErrors {
+                withFallbackRetry { fb ->
+                    text.clear()
+                    val params = MessageCreateParams.builder()
+                        .applyCommon(model, request.system, request.messages, request.effort, request.maxTokens, format, fb)
+                        .build()
+                    c.messages().createStreaming(params).use { sr ->
+                        val it = sr.stream().iterator()
+                        while (it.hasNext()) {
+                            currentCoroutineContext().ensureActive()
+                            val event = it.next()
+                            event.messageStart().orElse(null)?.let { st ->
+                                val u = st.message().usage()
+                                input = u.inputTokens()
+                                cacheRead = u.cacheReadInputTokens().orElse(0L)
+                                cacheWrite = u.cacheCreationInputTokens().orElse(0L)
+                            }
+                            val delta = event.contentBlockDelta().orElse(null)?.delta()?.text()?.orElse(null)?.text()
+                            if (!delta.isNullOrEmpty()) {
+                                text.append(delta)
+                                // 화면 갱신은 0.12초에 한 번이면 충분하다.
+                                val now = System.currentTimeMillis()
+                                if (now - lastEmit > 120) { lastEmit = now; onText(text.toString()) }
+                            }
+                            event.messageDelta().orElse(null)?.let { d ->
+                                output = d.usage().outputTokens()
+                                val inTok = d.usage().inputTokens().orElse(0L)
+                                if (inTok > 0) input = inTok
+                                stop = d.delta().stopReason().orElse(null)
+                            }
+                        }
+                    }
+                }
+            }
+            if (stop == StopReason.REFUSAL) throw AiError.Refused
+            val result = text.toString()
+            if (result.isBlank() || stop == StopReason.MAX_TOKENS) throw AiError.BadResponse
+            onText(result)
+            TurnResult(result, usageOf(model, input, output, cacheRead, cacheWrite))
+        }
     }
 
     override fun stream(model: ClaudeModel, request: StreamRequest): Flow<StreamEvent> = flow {
@@ -154,7 +252,7 @@ class ClaudeAiService(private val apiKey: () -> String?) : AiService {
     }.flowOn(Dispatchers.IO)
 
     override suspend fun validate(apiKey: String, model: ClaudeModel) = withContext(Dispatchers.IO) {
-        val c = client(apiKey.trim())
+        val c = client(Endpoint(apiKey.trim()))
         mapErrors { c.models().retrieve(model.id) }
         Unit
     }
@@ -191,6 +289,7 @@ class ClaudeAiService(private val apiKey: () -> String?) : AiService {
         if (msg.contains("credit balance", ignoreCase = true) || msg.contains("billing", ignoreCase = true)) throw AiError.NoCredit
         throw AiError.Other(e.message ?: "400")
     } catch (e: AnthropicServiceException) {
+        if (e.statusCode() == 402) throw AiError.OutOfCredits
         if (e.statusCode() == 529 || e.statusCode() >= 500) throw AiError.Overloaded
         throw AiError.Other("${e.statusCode()} ${e.message ?: ""}".trim())
     } catch (e: AnthropicIoException) {
@@ -211,12 +310,12 @@ class ClaudeAiService(private val apiKey: () -> String?) : AiService {
         Effort.XHIGH -> OutputConfig.Effort.XHIGH
     }
 
-    private fun usageOf(model: ClaudeModel, input: Long, output: Long, cacheRead: Long, cacheWrite: Long) = Usage(
+    private fun usageOf(model: ClaudeModel, input: Long, output: Long, cacheRead: Long, cacheWrite: Long, searches: Long = 0) = Usage(
         inputTokens = input,
         outputTokens = output,
         cacheReadTokens = cacheRead,
         cacheWriteTokens = cacheWrite,
-        costUsd = model.cost(input, output, cacheRead, cacheWrite),
+        costUsd = model.cost(input, output, cacheRead, cacheWrite) + searches * WEB_SEARCH_USD,
         requests = 1,
     )
 }

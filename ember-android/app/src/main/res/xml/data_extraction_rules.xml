@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 이상 백업 규칙. 프로젝트·참고 이미지·일반 설정만 백업한다.
+     API 키·크레딧 토큰·GitHub 토큰(ember_secure, ember_key)은 기기 밖으로 내보내지 않는다. -->
 <data-extraction-rules>
-    <cloud-backup><exclude domain="sharedpref" path="." /><exclude domain="file" path="." /></cloud-backup>
-    <device-transfer><exclude domain="sharedpref" path="ember_secure.xml" /></device-transfer>
+    <cloud-backup>
+        <include domain="file" path="projects.json" />
+        <include domain="file" path="images/" />
+        <include domain="sharedpref" path="ember_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="projects.json" />
+        <include domain="file" path="images/" />
+        <include domain="sharedpref" path="ember_settings.xml" />
+    </device-transfer>
 </data-extraction-rules>

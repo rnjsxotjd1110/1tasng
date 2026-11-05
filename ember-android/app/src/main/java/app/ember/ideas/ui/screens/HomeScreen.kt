@@ -1,5 +1,11 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -95,16 +101,41 @@ fun HomeScreen(
     var kind by rememberSaveable { mutableStateOf<ProjectKind?>(null) }
     var seed by rememberSaveable { mutableStateOf("") }
     var shuffle by remember { mutableStateOf(0) }
+    var images by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    fun addImage(uri: android.net.Uri) {
+        if (images.size >= app.ember.ideas.data.ImageStore.MAX_IMAGES) return
+        scope.launch {
+            val path = container.images.import(uri)
+            if (path == null) android.widget.Toast.makeText(ctx, s.imageFailed, android.widget.Toast.LENGTH_SHORT).show()
+            else images = images + path
+        }
+    }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> if (uri != null) addImage(uri) }
+
+    // 다른 앱에서 공유받은 글·이미지를 한 번만 가져온다.
+    val shared = app.ember.ideas.SharedSeed.value.value
+    androidx.compose.runtime.LaunchedEffect(shared) {
+        val sh = shared ?: return@LaunchedEffect
+        app.ember.ideas.SharedSeed.shared = null
+        if (sh.text.isNotBlank()) seed = sh.text.take(400)
+        if (kind == null) kind = ProjectKind.ANY
+        sh.image?.let { addImage(it) }
+    }
 
     val inProgress = projects.filter { !it.isSample && it.stage != ProjectStage.DOCUMENT }.take(8)
     val docs = projects.filter { it.design?.latest != null }.take(3)
 
     fun start(quick: Boolean = false) {
         val k = kind ?: return
-        if (!settings.hasKey) { onNeedKey(); return }
+        if (!settings.ready) { onNeedKey(); return }
         focus.clearFocus()
-        val p = container.engine.createProject(k, seed, s.defaultProjectTitle(k), quick)
+        val p = container.engine.createProject(k, seed, s.defaultProjectTitle(k), quick, images)
         seed = ""
+        images = emptyList()
         kind = null
         onOpenProject(p.id)
     }
@@ -196,22 +227,33 @@ fun HomeScreen(
                         seed = s.inspirations.random()
                         if (kind == null) kind = ProjectKind.ANY
                     }, icon = Icons.Rounded.Casino)
+                    if (images.size < app.ember.ideas.data.ImageStore.MAX_IMAGES) {
+                        GhostButton(modifier = Modifier.offset(x = (-14).dp), text = s.attachImage, onClick = {
+                            picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }, icon = Icons.Rounded.AddPhotoAlternate)
+                    }
                     Spacer(Modifier.weight(1f))
                     if (seed.isNotEmpty()) Text("${seed.length}/400", style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(end = 6.dp))
+                }
+                if (images.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        images.forEach { path -> ImageThumb(path, s.removeImage) { images = images - path; container.images.delete(path) } }
+                    }
+                    Text(s.imageHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 8.dp))
                 }
                 Spacer(Modifier.height(12.dp))
                 PrimaryButton(
                     text = when {
-                        !settings.hasKey -> s.connectToStart
+                        !settings.ready -> s.connectToStart
                         kind == null -> s.pickKindFirst
                         else -> s.startDiscovery
                     },
-                    onClick = { if (!settings.hasKey) onNeedKey() else start() },
-                    enabled = kind != null || !settings.hasKey,
+                    onClick = { if (!settings.ready) onNeedKey() else start() },
+                    enabled = kind != null || !settings.ready,
                     modifier = Modifier.fillMaxWidth(),
-                    icon = if (!settings.hasKey) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
+                    icon = if (!settings.ready) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
                 )
-                if (!settings.hasKey) {
+                if (!settings.ready) {
                     Text(
                         s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)), s.modelShort(app.ember.ideas.ai.ClaudeModel.OPUS)),
                         style = MaterialTheme.typography.bodySmall, color = c.textFaint,
@@ -219,9 +261,9 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     )
                 }
-                if (settings.hasKey) {
+                if (settings.ready) {
                     Text(
-                        s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+                        s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
                         style = MaterialTheme.typography.bodySmall,
                         color = c.textFaint,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -369,5 +411,31 @@ fun KindBadge(kind: ProjectKind, sizeDp: Int) {
     }
     Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
         Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size((sizeDp * 0.62f).dp))
+    }
+}
+
+
+/** 첨부한 참고 이미지의 작은 미리 보기. 오른쪽 위 버튼으로 뺀다. */
+@Composable
+fun ImageThumb(path: String, removeLabel: String?, size: androidx.compose.ui.unit.Dp = 72.dp, onRemove: (() -> Unit)? = null) {
+    val c = Ember.colors
+    val bmp = remember(path) {
+        runCatching {
+            android.graphics.BitmapFactory.decodeFile(path, android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 })?.asImageBitmap()
+        }.getOrNull()
+    }
+    Box(Modifier.size(size).clip(app.ember.ideas.ui.theme.EmberShape.chip).background(c.surface2)) {
+        if (bmp != null) {
+            androidx.compose.foundation.Image(bmp, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        }
+        if (onRemove != null) {
+            Box(
+                Modifier.align(Alignment.TopEnd).size(28.dp).clip(app.ember.ideas.ui.theme.EmberShape.tag)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onRemove)
+                    .semantics { contentDescription = removeLabel ?: "" },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+        }
     }
 }

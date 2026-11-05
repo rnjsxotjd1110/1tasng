@@ -2,6 +2,11 @@
 
 package app.ember.ideas.ui.screens.project
 
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Flag
+import app.ember.ideas.container
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -107,7 +112,7 @@ fun EmberSheet(onDismiss: () -> Unit, state: SheetState = rememberModalBottomShe
 }
 
 @Composable
-private fun SheetTitle(title: String, subtitle: String? = null, onClose: (() -> Unit)? = null) {
+internal fun SheetTitle(title: String, subtitle: String? = null, onClose: (() -> Unit)? = null) {
     val c = Ember.colors
     Column(Modifier.padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -137,6 +142,7 @@ fun IdeaDetailSheet(
     onCombine: () -> Unit,
     onSendToClaude: () -> Unit,
     onCopy: () -> Unit,
+    onReport: () -> Unit = {},
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -172,6 +178,7 @@ fun IdeaDetailSheet(
             DetailBlock(s.fieldMonetization, idea.monetization)
             DetailBlock(s.fieldFit, idea.fitReason, accent = true)
             if (idea.similarWorks.isNotEmpty()) BulletBlock(s.fieldSimilar, idea.similarWorks)
+            if (idea.references.isNotEmpty()) ReferenceBlock(s.fieldReferences, idea.references)
             DetailTitle(s.tryDifferently)
             Row(Modifier.fillMaxWidth().offset(x = (-12).dp)) {
                 GhostButton(s.vary, onVary, icon = Icons.Rounded.Shuffle, enabled = !busy)
@@ -180,6 +187,7 @@ fun IdeaDetailSheet(
             }
             Spacer(Modifier.height(8.dp))
             GhostButton(s.sendIdeaToClaude, onSendToClaude, icon = Icons.AutoMirrored.Rounded.Send, modifier = Modifier.offset(x = (-12).dp))
+            GhostButton(s.reportAi, onReport, icon = Icons.Rounded.Flag, color = c.textFaint, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.topFade(c.surface).padding(horizontal = 20.dp, vertical = 10.dp)) {
@@ -235,6 +243,31 @@ private fun BulletBlock(title: String, items: List<String>) {
     }
 }
 
+/** 웹 검색으로 확인한 페이지. 누르면 브라우저로 연다. */
+@Composable
+private fun ReferenceBlock(title: String, refs: List<app.ember.ideas.data.Reference>) {
+    val c = Ember.colors
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    DetailTitle(title)
+    refs.forEach { r ->
+        Row(
+            Modifier.fillMaxWidth().clip(app.ember.ideas.ui.theme.EmberShape.chip)
+                .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(r.url))) }
+                }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = c.textFaint, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(r.title.ifBlank { r.url }, style = MaterialTheme.typography.bodyMedium, color = c.text, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(android.net.Uri.parse(r.url).host ?: r.url, style = MaterialTheme.typography.bodySmall, color = c.textFaint, maxLines = 1)
+            }
+        }
+    }
+}
+
 @Composable
 private fun DetailTitle(t: String) {
     Text(t, style = MaterialTheme.typography.titleSmall, color = Ember.colors.text, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
@@ -264,7 +297,7 @@ fun DesignSetupSheet(idea: Idea, model: app.ember.ideas.ai.ClaudeModel, onDismis
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(8.dp))
             DocDepth.entries.forEach { d ->
-                val cost = s.costApprox(app.ember.ideas.ai.CostEstimate.design(model, d, ask))
+                val cost = s.estimate(app.ember.ideas.ai.CostEstimate.design(model, d, ask))
                 val (lo, hi) = app.ember.ideas.ai.CostEstimate.minutes(model, d)
                 ChoiceRow(s.depthTitle(d), s.depthBody(d) + "\n" + s.depthMeta(d, cost, s.minutes(lo, hi)), depth == d) { depth = d }
                 Spacer(Modifier.height(8.dp))
@@ -288,18 +321,20 @@ fun ChoiceRow(title: String, body: String, selected: Boolean, onClick: () -> Uni
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = if (body.isBlank()) 52.dp else 64.dp)
             .clip(shape)
             .background(if (selected) c.emberSoft else c.surface)
             .border(if (selected) 1.5.dp else 1.dp, border, shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = if (body.isBlank()) 12.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = c.text)
-            Spacer(Modifier.height(2.dp))
-            Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            if (body.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            }
         }
         Spacer(Modifier.width(12.dp))
         SelectMark(selected, multi = false)
@@ -363,7 +398,7 @@ fun ReviseSheet(costUsd: Double, onDismiss: () -> Unit, initialText: String = ""
             }
             Spacer(Modifier.height(12.dp))
             EmberTextField(text, { text = it }, s.revisePlaceholder, minHeight = 96.dp, maxLength = 800)
-            Text(s.reviseCost(s.costApprox(costUsd)), style = MaterialTheme.typography.bodySmall, color = Ember.colors.textFaint, modifier = Modifier.padding(top = 8.dp))
+            Text(s.reviseCost(s.estimate(costUsd)), style = MaterialTheme.typography.bodySmall, color = Ember.colors.textFaint, modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.height(14.dp))
             PrimaryButton(s.applyRevision, { onSubmit(instruction) }, Modifier.fillMaxWidth(), enabled = instruction.isNotBlank())
             Spacer(Modifier.height(12.dp))
@@ -372,7 +407,7 @@ fun ReviseSheet(costUsd: Double, onDismiss: () -> Unit, initialText: String = ""
 }
 
 @Composable
-fun VersionsSheet(versions: List<DocVersion>, onDismiss: () -> Unit, onRestore: (DocVersion) -> Unit) {
+fun VersionsSheet(versions: List<DocVersion>, onDismiss: () -> Unit, onCompare: (Int) -> Unit = {}, onRestore: (DocVersion) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
     EmberSheet(onDismiss) {
@@ -396,7 +431,10 @@ fun VersionsSheet(versions: List<DocVersion>, onDismiss: () -> Unit, onRestore: 
                             style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (!isLatest) GhostButton(s.restore, { onRestore(v) }, icon = Icons.Rounded.History)
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (i > 0) GhostButton(s.showChanges, { onCompare(i) }, color = c.textMuted)
+                        if (!isLatest) GhostButton(s.restore, { onRestore(v) }, icon = Icons.Rounded.History)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -449,6 +487,7 @@ fun HandoffSheet(
     onCopy: (HandoffChoice) -> Unit,
     onShare: (HandoffChoice) -> Unit,
     onExportClaudeMd: (() -> Unit)? = null,
+    onGitHub: (() -> Unit)? = null,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -501,6 +540,7 @@ fun HandoffSheet(
             Spacer(Modifier.height(8.dp))
             EmberTextField(extra, { extra = it }, s.handoffExtraPlaceholder, minHeight = 56.dp, maxLength = 500)
             Spacer(Modifier.height(12.dp))
+            if (onGitHub != null) GhostButton(s.github, onGitHub, icon = Icons.Rounded.CloudUpload, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.topFade(c.surface).padding(horizontal = 20.dp, vertical = 8.dp)) {
@@ -675,23 +715,136 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
 // ------------------------------------------------------------------ 직접 편집
 
 @Composable
-fun EditDocumentSheet(markdown: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+fun EditDocumentSheet(markdown: String, onDismiss: () -> Unit, title: String? = null, subtitle: String? = null, onSave: (String) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
     var text by rememberSaveable { mutableStateOf(markdown) }
+    var preview by rememberSaveable { mutableStateOf(false) }
     EmberSheet(onDismiss) {
-        SheetTitle(s.editDocument, s.editDocumentSub, onDismiss)
+        SheetTitle(title ?: s.editDocument, subtitle ?: s.editDocumentSub, onDismiss)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+            app.ember.ideas.ui.components.UnderlineTab(s.tabEdit, !preview, Modifier.weight(1f)) { preview = false }
+            app.ember.ideas.ui.components.UnderlineTab(s.tabPreview, preview, Modifier.weight(1f)) { preview = true }
+        }
+        Spacer(Modifier.height(10.dp))
         Column(Modifier.weight(1f, fill = false).padding(horizontal = 20.dp)) {
-            androidx.compose.foundation.text.BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = c.text),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.ember),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp).clip(RoundedCornerShape(10.dp)).background(c.surface2).padding(14.dp).verticalScroll(rememberScrollState()),
-            )
+            if (preview) {
+                // 저장했을 때 설계서에 보일 모양 그대로 보여 준다.
+                val blocks = remember(text) { app.ember.ideas.ui.markdown.MarkdownParser.parse(text) }
+                Column(Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp).verticalScroll(rememberScrollState())) {
+                    blocks.forEach { app.ember.ideas.ui.markdown.MarkdownBlockView(it) }
+                }
+            } else {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = c.text),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(c.ember),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp).clip(RoundedCornerShape(10.dp)).background(c.surface2).padding(14.dp).verticalScroll(rememberScrollState()),
+                )
+            }
         }
         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             PrimaryButton(s.save, { onSave(text) }, Modifier.fillMaxWidth(), enabled = text.isNotBlank() && text != markdown)
+        }
+    }
+}
+
+// ------------------------------------------------------------------ AI 결과 신고
+
+@Composable
+fun ReportSheet(target: app.ember.ideas.report.ReportTarget, onDismiss: () -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var reason by remember { mutableStateOf(0) }
+    var note by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val what = when (target.kind) {
+        app.ember.ideas.report.ReportKind.QUESTION -> s.reportWhatQuestion
+        app.ember.ideas.report.ReportKind.IDEA -> if (target.content.count { it == '\n' } > 6) s.reportWhatIdeas else s.reportWhatIdea
+        app.ember.ideas.report.ReportKind.DOCUMENT -> s.reportWhatDocument
+        app.ember.ideas.report.ReportKind.OTHER -> ""
+    }
+    EmberSheet(onDismiss) {
+        SheetTitle(s.reportTitle, s.reportSub, onDismiss)
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+            s.reportReasons.forEachIndexed { i, r ->
+                ChoiceRow(r, "", reason == i) { reason = i }
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+            app.ember.ideas.ui.components.EmberTextField(note, { note = it }, placeholder = s.reportNoteHint, minHeight = 80.dp, maxLength = 1000)
+            Spacer(Modifier.height(10.dp))
+            if (what.isNotBlank()) Text(s.reportIncludes(what), style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+            if (!app.ember.ideas.account.ServerConfig.creditsEnabled) {
+                Text(s.reportByEmail, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (error != null) Text(error ?: "", style = MaterialTheme.typography.bodySmall, color = c.danger, modifier = Modifier.padding(top = 8.dp))
+            Spacer(Modifier.height(12.dp))
+        }
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
+            PrimaryButton(s.reportSend, {
+                sending = true
+                error = null
+                scope.launch {
+                    try {
+                        val viaEmail = app.ember.ideas.report.ReportSender.send(ctx, ctx.container.credits, target, s.reportReasons[reason], note.trim())
+                        if (!viaEmail) android.widget.Toast.makeText(ctx, s.reportSent, android.widget.Toast.LENGTH_LONG).show()
+                        onDismiss()
+                    } catch (e: app.ember.ideas.ai.AiError) {
+                        error = s.errorBody(e)
+                    } catch (e: android.content.ActivityNotFoundException) {
+                        error = s.errorBody(app.ember.ideas.ai.AiError.Other(e.message ?: ""))
+                    } finally {
+                        sending = false
+                    }
+                }
+            }, Modifier.fillMaxWidth(), loading = sending, icon = Icons.Rounded.Flag)
+        }
+    }
+}
+
+// ------------------------------------------------------------------ 버전 비교
+
+@Composable
+fun DiffSheet(old: DocVersion, new: DocVersion, fromNo: Int, toNo: Int, onDismiss: () -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    val lines = remember(old.id, new.id) { app.ember.ideas.data.TextDiff.lines(old.markdown, new.markdown) }
+    val (added, removed) = app.ember.ideas.data.TextDiff.stats(lines)
+    EmberSheet(onDismiss) {
+        SheetTitle(s.diffTitle(fromNo, toNo), if (added + removed == 0) s.diffNone else s.diffStats(added, removed), onDismiss)
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
+            lines.forEach { l ->
+                when (l) {
+                    is app.ember.ideas.data.DiffLine.Skip -> Text(
+                        s.diffSkip(l.count), style = MaterialTheme.typography.labelMedium, color = c.textFaint,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    )
+                    else -> {
+                        val (mark, text, bg, fg) = when (l) {
+                            is app.ember.ideas.data.DiffLine.Added -> listOf("+", l.text, c.success.copy(alpha = 0.14f), c.text)
+                            is app.ember.ideas.data.DiffLine.Removed -> listOf("−", l.text, c.danger.copy(alpha = 0.12f), c.textMuted)
+                            is app.ember.ideas.data.DiffLine.Same -> listOf(" ", l.text, androidx.compose.ui.graphics.Color.Transparent, c.textMuted)
+                            else -> listOf("", "", androidx.compose.ui.graphics.Color.Transparent, c.text)
+                        }
+                        Row(Modifier.fillMaxWidth().background(bg as androidx.compose.ui.graphics.Color).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                            Text(mark as String, style = MaterialTheme.typography.bodySmall, color = if (l is app.ember.ideas.data.DiffLine.Added) c.success else if (l is app.ember.ideas.data.DiffLine.Removed) c.danger else c.textFaint, modifier = Modifier.width(16.dp))
+                            Text(
+                                (text as String).ifEmpty { " " },
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    textDecoration = if (l is app.ember.ideas.data.DiffLine.Removed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                                ),
+                                color = fg as androidx.compose.ui.graphics.Color,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

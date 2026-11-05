@@ -1,5 +1,6 @@
 package app.ember.ideas.data
 
+import app.ember.ideas.ai.ClaudeModel
 import app.ember.ideas.ai.AiError
 import app.ember.ideas.ai.AiService
 import app.ember.ideas.ai.Effort
@@ -29,12 +30,16 @@ data class OpState(
     val error: AiError? = null,
     val streamingText: String = "",
     val startedAt: Long = System.currentTimeMillis(),
+    /** 질문을 받는 중이면 지금까지 도착한 질문(제목·선택지 일부). */
+    val partial: app.ember.ideas.ai.PartialQuestion? = null,
 )
 
 /**
  * 프로젝트의 모든 AI 흐름(아이디어 인터뷰 → 아이디어 → 설계 인터뷰 → 설계서)을 담당한다.
  * 요청이 성공했을 때만 대화 기록을 저장하므로, 실패하면 같은 동작을 그대로 다시 시도할 수 있다.
  */
+private const val SEARCH_FROM_PROGRESS = 60
+
 class ProjectEngine(
     private val store: ProjectStore,
     private val settings: SettingsStore,
@@ -44,6 +49,11 @@ class ProjectEngine(
 ) {
     /** 체험 프로젝트는 키 없이 준비된 응답을 쓰는 데모 AI 로 돌린다. */
     private fun aiFor(id: String): AiService = if (store.get(id)?.isDemo == true) demoAi else ai
+
+    /** 작업이 끝날 때마다 알린다(알림·백그라운드 유지에 쓴다). */
+    data class OpFinished(val projectId: String, val kind: OpKind, val error: AiError?)
+    private val _finished = kotlinx.coroutines.flow.MutableSharedFlow<OpFinished>(extraBufferCapacity = 16)
+    val finished: kotlinx.coroutines.flow.SharedFlow<OpFinished> = _finished
 
     private val _ops = MutableStateFlow<Map<String, OpState>>(emptyMap())
     val ops: StateFlow<Map<String, OpState>> = _ops.asStateFlow()
@@ -62,14 +72,26 @@ class ProjectEngine(
     private val deep get() = settings.settings.value.deepThinking
     private val model get() = settings.settings.value.model
 
+    /** '질문은 빠르게'를 켜면 질문 단계만 Sonnet 으로 보낸다. 아이디어·설계서는 고른 모델 그대로. */
+    private fun questionModel(kind: OpKind): ClaudeModel =
+        if (settings.settings.value.fastQuestions && (kind == OpKind.ASKING || kind == OpKind.DESIGN_ASKING) && model == ClaudeModel.OPUS) ClaudeModel.SONNET else model
+
+    /** 모델이 적은 참고 링크 중 실제 검색 결과에 있던 것만 남긴다(주소를 지어내지 못하게). */
+    private fun verifiedReferences(refs: List<app.ember.ideas.data.Reference>, sources: List<app.ember.ideas.data.Reference>): List<app.ember.ideas.data.Reference> {
+        fun key(u: String) = u.trim().removeSuffix("/").substringBefore("#").lowercase()
+        val known = sources.associateBy { key(it.url) }
+        return refs.mapNotNull { r -> known[key(r.url)]?.let { k -> app.ember.ideas.data.Reference(r.title.ifBlank { k.title }, k.url) } }
+            .distinctBy { key(it.url) }.take(3)
+    }
+
     fun isBusy(id: String) = _ops.value[id]?.running == true
 
     // ------------------------------------------------------------ 프로젝트 생성
 
-    fun createProject(kind: ProjectKind, seed: String, defaultTitle: String, quick: Boolean = false): Project {
+    fun createProject(kind: ProjectKind, seed: String, defaultTitle: String, quick: Boolean = false, images: List<String> = emptyList()): Project {
         val now = System.currentTimeMillis()
         val title = seed.trim().lineSequence().firstOrNull()?.take(28)?.takeIf { it.isNotBlank() } ?: defaultTitle
-        val p = Project(id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now)
+        val p = Project(id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now, images = images)
         store.upsert(p)
         startInterview(p.id, quick)
         return p
@@ -85,9 +107,9 @@ class ProjectEngine(
 
     fun startInterview(id: String, quick: Boolean = false) {
         val p = store.get(id) ?: return
-        val start = Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang)
+        val start = Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang, imageCount = p.images.size)
         val text = if (quick) start.removeSuffix("첫 질문을 해 주세요.") + Protocol.REQUEST_QUICK_IDEAS else start
-        discoveryCall(id, if (quick) OpKind.IDEAS else OpKind.ASKING, base = emptyList(), userMsg = ChatMessage(ChatMessage.USER, text), onBeforeCommit = { it })
+        discoveryCall(id, if (quick) OpKind.IDEAS else OpKind.ASKING, base = emptyList(), userMsg = ChatMessage(ChatMessage.USER, text, p.images), onBeforeCommit = { it })
     }
 
     // ------------------------------------------------------------ 아이디어 인터뷰
@@ -143,16 +165,20 @@ class ProjectEngine(
     ) {
         launchOp(id, kind, retry = { discoveryCall(id, kind, base, userMsg, onBeforeCommit) }) {
             val messages = base + userMsg
-            val result = aiFor(id).turn(
-                model,
+            // 아이디어가 나올 차례일 때만 웹 검색을 준다(질문 단계의 비용·대기 시간을 늘리지 않으려고).
+            val lastProgress = store.get(id)?.turns?.lastOrNull()?.progress ?: 0
+            val search = settings.settings.value.webSearch && (kind == OpKind.IDEAS || lastProgress >= SEARCH_FROM_PROGRESS)
+            val result = aiFor(id).turnStreaming(
+                questionModel(kind),
                 TurnRequest(
                     system = Protocol.discoverySystem(lang),
                     messages = messages,
                     schema = Protocol.discoverySchema,
                     effort = if (kind == OpKind.IDEAS) (if (deep) Effort.HIGH else Effort.MEDIUM) else (if (deep) Effort.MEDIUM else Effort.LOW),
+                    webSearch = search,
                 ),
-            )
-            val reply = parse(result.text)
+            ) { text -> showPartial(id, text) }
+            val reply = parse(result.text).let { r -> r.copy(ideas = r.ideas.map { it.copy(references = verifiedReferences(it.references, result.sources)) }) }
             if (!reply.isQuestion && !reply.isIdeas) throw AiError.BadResponse
             store.update(id) { proj0 ->
                 val proj = onBeforeCommit(proj0)
@@ -247,15 +273,15 @@ class ProjectEngine(
         launchOp(id, OpKind.DESIGN_ASKING, retry = { designCall(id, base, userMsg, onBeforeCommit) }) {
             val depth = store.get(id)?.design?.depth ?: DocDepth.STANDARD
             val messages = base + userMsg
-            val result = aiFor(id).turn(
-                model,
+            val result = aiFor(id).turnStreaming(
+                questionModel(OpKind.DESIGN_ASKING),
                 TurnRequest(
                     system = Protocol.designSystem(lang, depth),
                     messages = messages,
                     schema = Protocol.designSchema,
                     effort = if (deep) Effort.HIGH else Effort.MEDIUM,
                 ),
-            )
+            ) { text -> showPartial(id, text) }
             val reply = parse(result.text)
             if (!reply.isQuestion && !reply.isReady) throw AiError.BadResponse
             store.update(id) { proj ->
@@ -413,6 +439,12 @@ class ProjectEngine(
         _ops.update { it - id }
     }
 
+    /** 스트리밍 중인 질문을 화면에 미리 보여 준다. 바뀐 것이 없으면 상태를 건드리지 않는다. */
+    private fun showPartial(id: String, text: String) {
+        val pq = app.ember.ideas.ai.PartialJson.question(text) ?: return
+        setOp(id) { if (it.partial == pq) it else it.copy(partial = pq) }
+    }
+
     private fun setOp(id: String, f: (OpState) -> OpState) {
         _ops.update { m -> m[id]?.let { m + (id to f(it)) } ?: m }
     }
@@ -436,9 +468,13 @@ class ProjectEngine(
                 throw e
             } catch (e: AiError) {
                 _ops.update { it + (id to OpState(kind, running = false, error = e)) }
+                _finished.tryEmit(OpFinished(id, kind, e))
             } catch (e: Throwable) {
-                _ops.update { it + (id to OpState(kind, running = false, error = AiError.Other(e.message ?: e.javaClass.simpleName))) }
+                val err = AiError.Other(e.message ?: e.javaClass.simpleName)
+                _ops.update { it + (id to OpState(kind, running = false, error = err)) }
+                _finished.tryEmit(OpFinished(id, kind, err))
             }
+            if (success) _finished.tryEmit(OpFinished(id, kind, null))
             if (success) {
                 _ops.update { it - id }
                 retries.remove(id)

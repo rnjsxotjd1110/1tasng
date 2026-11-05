@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 이하 백업 규칙. data_extraction_rules.xml 과 같은 범위. -->
+<full-backup-content>
+    <include domain="file" path="projects.json" />
+    <include domain="file" path="images/" />
+    <include domain="sharedpref" path="ember_settings.xml" />
+</full-backup-content>

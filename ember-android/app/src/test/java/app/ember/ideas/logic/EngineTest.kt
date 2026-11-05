@@ -145,4 +145,79 @@ class EngineTest {
         val c2 = AppContainer(app, FakeAi())
         assertEquals("Q1", c2.store.get(p.id)?.currentTurn?.question?.title)
     }
+
+    @Test fun searchOnlyForIdeasAndReferencesAreVerified() {
+        ai.turnReplies += Result.success(FakeAi.question("Q1", progress = 20))
+        val withRefs = FakeAi.ideas("A", "B").replaceFirst(
+            "\"fit_reason\":\"이유\"",
+            "\"fit_reason\":\"이유\",\"references\":[{\"title\":\"\",\"url\":\"https://example.com/mini-metro/\"},{\"title\":\"가짜\",\"url\":\"https://made-up.example/x\"}]",
+        )
+        ai.turnReplies += Result.success(withRefs)
+        ai.sources = listOf(app.ember.ideas.data.Reference("Mini Metro", "https://example.com/mini-metro"))
+        val p = c.engine.createProject(ProjectKind.GAME, "", "새 게임")
+        idle()
+        assertFalse("질문 단계에서는 검색하지 않아요", ai.turnRequests.last().webSearch)
+        c.engine.requestIdeasNow(p.id)
+        idle()
+        assertTrue(ai.turnRequests.last().webSearch)
+        val refs = c.store.get(p.id)!!.allIdeas.first().references
+        // 검색 결과에 없던 주소는 지우고, 빈 제목은 검색 결과 제목으로 채운다.
+        assertEquals(listOf("https://example.com/mini-metro"), refs.map { it.url })
+        assertEquals("Mini Metro", refs.first().title)
+
+        c.settings.setWebSearch(false)
+        ai.turnReplies += Result.success(FakeAi.ideas("C"))
+        c.engine.moreIdeas(p.id)
+        idle()
+        assertFalse(ai.turnRequests.last().webSearch)
+    }
+
+    @Test fun imagesGoWithFirstMessageOnly() {
+        ai.turnReplies += Result.success(FakeAi.question("Q1"))
+        ai.turnReplies += Result.success(FakeAi.question("Q2"))
+        val p = c.engine.createProject(ProjectKind.APP, "메모", "새 앱", images = listOf("/data/img1.jpg"))
+        idle()
+        c.engine.answer(p.id, Answer(listOf("o1")))
+        idle()
+        val msgs = ai.turnRequests.last().messages
+        assertEquals(listOf("/data/img1.jpg"), msgs.first().images)
+        assertTrue(msgs.first().text.contains("참고 이미지: 1장"))
+        assertTrue(msgs.drop(1).all { it.images.isEmpty() })
+    }
+
+    @Test fun fastQuestionsUseSonnetForQuestionsOnly() {
+        c.settings.setFastQuestions(true)
+        val models = mutableListOf<app.ember.ideas.ai.ClaudeModel>()
+        val spy = object : app.ember.ideas.ai.AiService by ai {
+            override suspend fun turn(model: app.ember.ideas.ai.ClaudeModel, request: app.ember.ideas.ai.TurnRequest): app.ember.ideas.ai.TurnResult {
+                models += model
+                return ai.turn(model, request)
+            }
+            override suspend fun turnStreaming(model: app.ember.ideas.ai.ClaudeModel, request: app.ember.ideas.ai.TurnRequest, onText: (String) -> Unit) = turn(model, request)
+        }
+        val app2 = ApplicationProvider.getApplicationContext<Application>()
+        val c2 = AppContainer(app2, spy)
+        ai.turnReplies += Result.success(FakeAi.question("Q1"))
+        ai.turnReplies += Result.success(FakeAi.ideas("A"))
+        val p = c2.engine.createProject(ProjectKind.GAME, "", "새 게임")
+        idle()
+        c2.engine.requestIdeasNow(p.id)
+        idle()
+        assertEquals(listOf(app.ember.ideas.ai.ClaudeModel.SONNET, app.ember.ideas.ai.ClaudeModel.OPUS), models)
+    }
+
+    @Test fun importMergesNewerProjects() {
+        ai.turnReplies += Result.success(FakeAi.question("Q1"))
+        val p = c.engine.createProject(ProjectKind.GAME, "", "원래 제목")
+        idle()
+        val exported = c.store.exportJson()
+        c.engine.rename(p.id, "바뀐 제목")
+        // 예전 백업을 가져와도 더 최근에 고친 프로젝트는 그대로 둔다.
+        assertEquals(0, c.store.importJson(exported))
+        assertEquals("바뀐 제목", c.store.get(p.id)!!.title)
+        c.store.deleteAll()
+        assertEquals(1, c.store.importJson(exported))
+        assertEquals("원래 제목", c.store.get(p.id)!!.title)
+        assertNull(c.store.importJson("not a backup"))
+    }
 }

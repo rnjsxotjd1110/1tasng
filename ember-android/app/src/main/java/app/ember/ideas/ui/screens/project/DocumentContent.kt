@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens.project
 
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,6 +89,7 @@ fun DocumentContent(
     startedAt: Long = System.currentTimeMillis(),
     onRevise: () -> Unit,
     onReviseSection: (String) -> Unit = {},
+    onEditSection: (String) -> Unit = {},
     onHandoff: () -> Unit,
     onStop: () -> Unit,
     onRegenerate: () -> Unit,
@@ -293,7 +295,10 @@ fun DocumentContent(
                     itemsIndexed(blocks) { _, b ->
                         if (!busy && b is MdBlock.Heading && b.level == 2) {
                             MarkdownBlockView(b, headingAction = {
-                                GhostButton(s.rewriteShort, { onReviseSection(b.text.substringAfter(". ")) }, icon = Icons.Rounded.Refresh, color = c.textMuted, modifier = Modifier.offset(x = 14.dp))
+                                Row(Modifier.offset(x = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    app.ember.ideas.ui.components.IconCircleButton(Icons.Rounded.Edit, s.editShort, { onEditSection(b.text) }, filled = false, tint = c.textMuted)
+                                    GhostButton(s.rewriteShort, { onReviseSection(b.text.substringAfter(". ")) }, icon = Icons.Rounded.Refresh, color = c.textMuted)
+                                }
                             })
                         } else MarkdownBlockView(b)
                     }

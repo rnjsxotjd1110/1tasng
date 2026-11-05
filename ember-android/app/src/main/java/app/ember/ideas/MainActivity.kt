@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,9 +87,18 @@ import app.ember.ideas.ui.theme.LightEmber
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    /** 알림·공유로 열렸을 때 처리할 일. EmberNavHost 가 처리한 뒤 비운다. */
+    val incoming = androidx.compose.runtime.mutableStateOf<Incoming?>(null)
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        Incoming.from(intent)?.let { incoming.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) incoming.value = Incoming.from(intent)
         val settings = container.settings
         setContent {
             val st by settings.settings.collectAsState()
@@ -104,17 +114,37 @@ class MainActivity : ComponentActivity() {
                     navigationBarStyle = if (dark) SystemBarStyle.dark(bg) else SystemBarStyle.light(bg, bg),
                 )
             }
-            EmberRoot(st.theme, st.language, st.onboarded)
+            EmberRoot(st.theme, st.language, st.onboarded, incoming = incoming)
         }
     }
 }
 
 @Composable
-fun EmberRoot(theme: ThemeMode, language: LanguageMode, onboarded: Boolean, startRoute: String? = null) {
+fun EmberRoot(
+    theme: ThemeMode,
+    language: LanguageMode,
+    onboarded: Boolean,
+    startRoute: String? = null,
+    incoming: androidx.compose.runtime.MutableState<Incoming?>? = null,
+) {
+    val usingCredits = LocalContext.current.container.settings.settings.collectAsState().value.usingCredits
+    app.ember.ideas.ui.strings.CostMode.credits = usingCredits
     EmberTheme(theme) {
         CompositionLocalProvider(LocalStrings provides stringsFor(language)) {
             val nav = rememberNavController()
             EmberNavHost(nav, startRoute ?: if (onboarded) "main" else "onboarding")
+            val inc = incoming?.value
+            androidx.compose.runtime.LaunchedEffect(inc, onboarded) {
+                if (inc == null || !onboarded) return@LaunchedEffect
+                when (inc) {
+                    is Incoming.OpenProject -> nav.navigate("project/${inc.id}") { launchSingleTop = true }
+                    is Incoming.Shared -> {
+                        SharedSeed.shared = inc
+                        nav.navigate("main") { popUpTo(0) { inclusive = true } }
+                    }
+                }
+                incoming.value = null
+            }
         }
     }
 }
@@ -134,7 +164,7 @@ fun EmberNavHost(nav: NavHostController, start: String) {
         composable("onboarding") {
             OnboardingScreen(onFinish = {
                 settings.setOnboarded(true)
-                if (settings.settings.value.hasKey) {
+                if (settings.settings.value.ready) {
                     nav.navigate("main") { popUpTo("onboarding") { inclusive = true } }
                 } else {
                     nav.navigate("key?from=onboarding") { popUpTo("onboarding") { inclusive = true } }
@@ -165,7 +195,8 @@ fun EmberNavHost(nav: NavHostController, start: String) {
             ProjectScreen(id, onBack = { nav.popBackStack() }, onFixKey = { nav.navigate("key?from=settings") })
         }
         composable("profile") { ProfileScreen { nav.popBackStack() } }
-        composable("about") { AboutScreen { nav.popBackStack() } }
+        composable("about") { AboutScreen(onBack = { nav.popBackStack() }, onOpenPrivacy = { nav.navigate("privacy") }) }
+        composable("privacy") { app.ember.ideas.ui.screens.PrivacyScreen { nav.popBackStack() } }
     }
 }
 
@@ -213,6 +244,17 @@ fun MainTabs(
             }
             BottomBar(tab) { tab = it }
         }
+        // 지난 실행에서 앱이 갑자기 꺼졌다면 한 번 알려 준다.
+        var crashPrompt by remember { mutableStateOf(app.ember.ideas.report.CrashLog.hasUnseen(ctx)) }
+        if (crashPrompt) {
+            app.ember.ideas.ui.screens.project.EmberDialog(s.crashTitle, s.crashBody, s.crashSend, {
+                crashPrompt = false
+                app.ember.ideas.report.CrashLog.send(ctx, s.crashSend)
+            }, {
+                crashPrompt = false
+                app.ember.ideas.report.CrashLog.markSeen(ctx)
+            })
+        }
     }
 }
 
@@ -251,4 +293,36 @@ private fun TabItem(icon: ImageVector, label: String, selected: Boolean, modifie
         Spacer(Modifier.height(4.dp))
         Text(label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium), color = if (selected) c.text else c.textFaint)
     }
+}
+
+
+/** 밖에서 들어온 요청: 알림을 눌러 프로젝트 열기, 다른 앱에서 글·이미지 공유. */
+sealed interface Incoming {
+    data class OpenProject(val id: String) : Incoming
+    data class Shared(val text: String, val image: android.net.Uri?) : Incoming
+
+    companion object {
+        fun from(intent: android.content.Intent?): Incoming? {
+            if (intent == null) return null
+            intent.getStringExtra(app.ember.ideas.work.Notifier.EXTRA_PROJECT)?.let { return OpenProject(it) }
+            if (intent.action == android.content.Intent.ACTION_SEND) {
+                val text = listOfNotNull(
+                    intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT),
+                    intent.getStringExtra(android.content.Intent.EXTRA_TEXT),
+                ).joinToString("\n").trim()
+                @Suppress("DEPRECATION")
+                val image = if (intent.type?.startsWith("image/") == true) intent.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM) else null
+                if (text.isNotEmpty() || image != null) return Shared(text.take(400), image)
+            }
+            return null
+        }
+    }
+}
+
+/** 공유받은 내용을 홈 화면이 한 번 가져가도록 맡아 두는 곳. */
+object SharedSeed {
+    val value = androidx.compose.runtime.mutableStateOf<Incoming.Shared?>(null)
+    var shared: Incoming.Shared?
+        get() = value.value
+        set(v) { value.value = v }
 }

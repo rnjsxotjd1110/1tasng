@@ -130,6 +130,10 @@ object Protocol {
         "similar_works" to strArray(),
         "risks" to strArray(),
         "validation" to str(),
+        "references" to buildJsonObject {
+            put("type", "array")
+            put("items", obj("title" to str(), "url" to str()))
+        },
     )
 
     val discoverySchema: JsonObject = obj(
@@ -184,6 +188,9 @@ object Protocol {
 - scope 는 "소형", "중형", "대형" 중 하나(영어 응답이면 Small/Medium/Large), dev_time 은 사용자 상황 기준 예상 개발 기간, difficulty 는 1~5 정수입니다.
 - fit_reason 은 사용자의 어떤 답 때문에 이 아이디어를 골랐는지 설명합니다.
 - similar_works 에는 참고할 만한 실제 작품이나 서비스 2~3개를 "이름 — 무엇이 비슷하고 무엇이 다른지" 형식으로 적습니다. 확실하지 않은 작품은 지어내지 않습니다.
+- web_search 도구가 있으면 아이디어를 낼 때에만 최대 3번 써서 similar_works 의 작품이 실제로 있는지, 비슷한 게임·앱이 이미 있는지 확인합니다. 질문할 때는 검색하지 않습니다.
+- references 에는 검색으로 확인한 페이지의 제목과 URL 을 아이디어마다 0~3개 넣습니다. 검색 결과에 나온 URL 만 그대로 쓰고, 검색하지 않았으면 빈 배열로 둡니다.
+- 사용자가 참고 이미지를 보냈다면 그림의 분위기·화면 구성·소재를 질문과 아이디어에 반영하고, insight 에 이미지에서 읽은 점을 한 번 언급합니다.
 - risks 에는 이 아이디어의 가장 큰 위험 2개를 짧게 적고, validation 에는 1~2주 안에 아이디어를 검증할 수 있는 가장 싼 방법을 한 문장으로 적습니다.
 - 사용자의 개발 경험과 규모에 맞게 실현 가능한 범위로 제안합니다.
 """.trimIndent()
@@ -290,10 +297,11 @@ $sections
         }.trimEnd()
     }
 
-    fun startMessage(kind: ProjectKind, seed: String, profile: DevProfile, lang: ReplyLanguage): String = buildString {
+    fun startMessage(kind: ProjectKind, seed: String, profile: DevProfile, lang: ReplyLanguage, imageCount: Int = 0): String = buildString {
         appendLine("[시작] 새 아이디어 탐색을 시작합니다.")
         appendLine("관심 분야: ${kindLabel(kind, lang)}")
         appendLine("떠오른 생각: ${seed.trim().ifEmpty { "(없음)" }}")
+        if (imageCount > 0) appendLine("참고 이미지: ${imageCount}장을 함께 보냅니다. 분위기·화면 구성·소재를 참고해 주세요.")
         appendLine(profileBlock(profile))
         append("첫 질문을 해 주세요.")
     }

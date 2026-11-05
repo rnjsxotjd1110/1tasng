@@ -83,7 +83,12 @@ data class Idea(
     @SerialName("similar_works") val similarWorks: List<String> = emptyList(),
     val risks: List<String> = emptyList(),
     val validation: String = "",
+    /** 웹 검색으로 확인한 참고 페이지. 검색 결과에 실제로 있던 주소만 남긴다. */
+    val references: List<Reference> = emptyList(),
 )
+
+@Serializable
+data class Reference(val title: String = "", val url: String = "")
 
 @Serializable
 data class IdeaBatch(
@@ -96,7 +101,12 @@ data class IdeaBatch(
 
 /** API 로 그대로 다시 보내는 대화 기록. assistant 는 Claude 가 돌려준 원문(JSON)을 보관한다. */
 @Serializable
-data class ChatMessage(val role: String, val text: String) {
+data class ChatMessage(
+    val role: String,
+    val text: String,
+    /** 함께 보낼 참고 이미지(앱 저장소의 JPEG 절대 경로). 첫 메시지에만 붙는다. */
+    val images: List<String> = emptyList(),
+) {
     companion object {
         const val USER = "user"
         const val ASSISTANT = "assistant"
@@ -163,6 +173,8 @@ data class Project(
     val isDemo: Boolean = false,
     val titleEdited: Boolean = false,
     val note: String = "",
+    /** 처음에 함께 보낸 참고 이미지(앱 저장소 경로). */
+    val images: List<String> = emptyList(),
 ) {
     val allIdeas: List<Idea> get() = ideaBatches.flatMap { it.ideas }
     fun idea(id: String): Idea? = allIdeas.firstOrNull { it.id == id }

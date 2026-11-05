@@ -1,0 +1,25 @@
+{
+  "name": "ember-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ember 앱용 유료 Anthropic 프록시 (Cloudflare Worker + D1)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init:local": "wrangler d1 execute ember --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute ember --remote --file=./schema.sql",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261104.1",
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.157.0"
+  }
+}

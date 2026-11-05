@@ -77,6 +77,25 @@ class ProjectStore(private val dir: File, private val scope: CoroutineScope) {
 
     fun exportJson(): String = Protocol.json.encodeToString(serializer, _projects.value)
 
+    /**
+     * 내보낸 백업 파일을 합친다. 같은 프로젝트는 더 최근에 고친 쪽을 남긴다.
+     * @return 새로 들어오거나 바뀐 프로젝트 수. 파일 형식이 틀리면 null.
+     */
+    fun importJson(text: String): Int? {
+        val incoming = runCatching { Protocol.json.decodeFromString(serializer, text) }.getOrNull() ?: return null
+        var changed = 0
+        _projects.update { list ->
+            val byId = list.associateBy { it.id }.toMutableMap()
+            incoming.forEach { p ->
+                val cur = byId[p.id]
+                if (cur == null || p.updatedAt > cur.updatedAt) { byId[p.id] = p; changed++ }
+            }
+            byId.values.sortedByDescending { it.updatedAt }
+        }
+        if (changed > 0) persist()
+        return changed
+    }
+
     private fun persist() {
         val snapshot = _projects.value
         scope.launch(Dispatchers.IO) {

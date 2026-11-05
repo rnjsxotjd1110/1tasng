@@ -1,0 +1,40 @@
+# Ember 서버 (Cloudflare Worker) 설정
+name = "ember-server"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 오래된 rate_limits 행을 매일 정리한다(UTC 03:17).
+[triggers]
+crons = ["17 3 * * *"]
+
+# D1 데이터베이스. `npx wrangler d1 create ember` 실행 후 나온 database_id 를 아래에 붙여 넣는다.
+[[d1_databases]]
+binding = "DB"
+database_name = "ember"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# 공개 설정값(비밀 아님). 비워 두면 코드의 기본값을 쓴다.
+# 비밀값(ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, ADMIN_KEY)은 절대 여기에 쓰지 말고
+# `npx wrangler secret put 이름` 으로 넣는다.
+[vars]
+# 안드로이드 앱 패키지 이름(구글 플레이 영수증 검증용)
+PACKAGE_NAME = "app.ember.ideas"
+# 신규 설치 1회 무료 크레딧
+FREE_CREDITS = "150"
+# 원가 대비 마크업 배수(1.5 = 원가의 150%)
+MARKUP = "1.5"
+# max_tokens 상한(이보다 크면 잘라서 보낸다)
+MAX_OUTPUT_TOKENS = "64000"
+# 요청 본문 최대 크기(바이트). 이미지 base64 포함.
+MAX_BODY_BYTES = "2097152"
+# 상품 ID → 지급 크레딧(JSON)
+PRODUCTS = '{"ember_credits_500":500,"ember_credits_1500":1650,"ember_credits_5000":5750}'
+# IP 당 가입 제한: 창(초)당 횟수
+REGISTER_LIMIT = "5"
+REGISTER_WINDOW_SECONDS = "3600"
+# 토큰 당 /v1/messages 제한: 창(초)당 횟수
+MESSAGES_LIMIT = "30"
+MESSAGES_WINDOW_SECONDS = "600"
+# 업스트림 주소(테스트용으로만 바꾼다)
+ANTHROPIC_BASE_URL = "https://api.anthropic.com"

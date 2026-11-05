@@ -435,10 +435,10 @@ fun ErrorPanel(
 ) {
     val c = Ember.colors
     val s = LocalStrings.current
-    val keyProblem = error is AiError.InvalidKey || error is AiError.NoKey
+    val keyProblem = error is AiError.InvalidKey || error is AiError.NoKey || error is AiError.OutOfCredits
     val icon = when (error) {
         is AiError.Offline -> Icons.Rounded.CloudOff
-        is AiError.InvalidKey, is AiError.NoKey -> Icons.Rounded.Key
+        is AiError.InvalidKey, is AiError.NoKey, is AiError.OutOfCredits -> Icons.Rounded.Key
         else -> Icons.Rounded.ErrorOutline
     }
     EmberCard(modifier.fillMaxWidth().border(1.dp, c.danger.copy(alpha = 0.45f), EmberShape.panel), highlight = false, border = false) {
@@ -450,7 +450,7 @@ fun ErrorPanel(
                     Text(s.errorTitle(error), style = MaterialTheme.typography.titleSmall, color = c.text)
                     Spacer(Modifier.height(2.dp))
                     Text(s.errorBody(error), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
-                    if (error !is AiError.InvalidKey && error !is AiError.NoKey && error !is AiError.Refused) {
+                    if (error !is AiError.InvalidKey && error !is AiError.NoKey && error !is AiError.Refused && error !is AiError.OutOfCredits) {
                         Spacer(Modifier.height(4.dp))
                         Text(s.errorSafeNote, style = MaterialTheme.typography.labelSmall, color = c.textFaint)
                     }
@@ -459,7 +459,7 @@ fun ErrorPanel(
             Spacer(Modifier.height(14.dp))
             Column {
                 if (keyProblem) {
-                    PrimaryButton(s.fixKey, onFixKey, Modifier.fillMaxWidth(), icon = Icons.Rounded.Key, height = 48.dp)
+                    PrimaryButton(if (error is AiError.OutOfCredits) s.topUp else s.fixKey, onFixKey, Modifier.fillMaxWidth(), icon = Icons.Rounded.Key, height = 48.dp)
                 } else if (showRetry) {
                     PrimaryButton(s.retry, onRetry, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, height = 48.dp)
                 }
@@ -528,4 +528,18 @@ fun Modifier.topFade(color: Color, height: Dp = 16.dp): Modifier = this.drawBehi
         size = androidx.compose.ui.geometry.Size(size.width, h),
     )
     drawRect(color)
+}
+
+
+/** 밑줄로 선택을 표시하는 탭. 두세 개의 보기를 나눌 때 쓴다. */
+@Composable
+fun UnderlineTab(text: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = Ember.colors
+    Column(
+        modifier.clickable(role = Role.Tab, onClick = onClick).semantics { stateDescription = if (selected) "✓" else "" },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(text, style = MaterialTheme.typography.titleSmall, color = if (selected) c.text else c.textMuted, modifier = Modifier.padding(vertical = 14.dp), maxLines = 1)
+        Box(Modifier.fillMaxWidth(0.6f).height(2.dp).background(if (selected) c.ember else Color.Transparent))
+    }
 }

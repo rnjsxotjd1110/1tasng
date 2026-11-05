@@ -71,6 +71,7 @@ object KoStrings : Strings() {
         AiError.BadResponse -> "응답을 읽지 못했어요"
         AiError.ModelUnavailable -> "선택한 모델을 쓸 수 없어요"
         AiError.OverBudget -> "이번 달 예산을 다 썼어요"
+        AiError.OutOfCredits -> "Ember 크레딧을 다 썼어요"
         is AiError.Other -> "문제가 생겼어요"
     }
 
@@ -85,6 +86,7 @@ object KoStrings : Strings() {
         AiError.BadResponse -> "응답 형식이 어긋났어요. 다시 시도하면 대부분 해결돼요."
         AiError.ModelUnavailable -> "설정에서 다른 모델을 고르거나, 이 키에 모델 권한이 있는지 확인해 주세요."
         AiError.OverBudget -> "설정한 월 예산에 도달해 요청을 멈췄어요. 설정 → 월 예산에서 한도를 올리거나 끌 수 있어요."
+        AiError.OutOfCredits -> "설정 → Claude 연결에서 크레딧을 충전하거나, 내 API 키를 연결해 계속할 수 있어요."
         is AiError.Other -> e.detail.take(160).ifBlank { "잠시 후 다시 시도해 주세요." }
     }
     override val fixKey = "키 다시 연결"
@@ -488,6 +490,122 @@ object KoStrings : Strings() {
 
     override val rewriteShort = "다시 쓰기"
     override val saveClaudeMd = "CLAUDE.md 저장"
+
+    override val accessTabCredits = "Ember 크레딧"
+    override val accessTabKey = "내 API 키"
+    override val creditsHeadline = "가입 없이 바로 시작해요"
+    override fun creditsBody(free: Int, discoveries: Int) = "처음 ${free}크레딧을 무료로 드려요. 아이디어 탐색을 약 ${discoveries}번 할 수 있어요. 다 쓰면 Google Play 결제로 충전해요."
+    override val creditsStart = "무료 크레딧 받기"
+    override val creditsContinue = "시작하기"
+    override val creditsBalance = "남은 크레딧"
+    override fun creditsWorth(discoveries: Int, docs: Int) = "탐색 약 ${discoveries}회 또는 표준 설계서 약 ${docs}개"
+    override fun creditsUnit(discovery: Int, doc: Int) = "크레딧은 쓴 만큼만 줄어요. 탐색 1회에 약 ${discovery}크레딧, 표준 설계서 1개에 약 ${doc}크레딧이 들어요(Opus 5.5 기준)."
+    override val creditsPacks = "충전하기"
+    override fun creditsAmount(n: Int) = "%,d크레딧".format(n)
+    override val creditsPriceLoading = "가격 확인 중"
+    override val creditsRestore = "구매 복원"
+    override val creditsPrefer = "크레딧으로 요청하기"
+    override val creditsPreferBody = "API 키를 연결해 두었어도 크레딧을 먼저 써요. 끄면 내 키로 요청해요."
+    override val creditsPending = "결제를 기다리고 있어요. 결제가 끝나면 자동으로 충전돼요."
+    override fun creditsAdded(total: Int) = "충전했어요. 지금 ${"%,d".format(total)}크레딧이 있어요."
+    override val creditsFailed = "결제를 마치지 못했어요. 결제가 되었는데 크레딧이 늘지 않았다면 '구매 복원'을 눌러 주세요."
+    override val creditsUnavailable = "지금은 Google Play 결제를 쓸 수 없어요. Play 스토어에서 설치한 앱인지, Play 스토어에 로그인되어 있는지 확인해 주세요."
+    override val creditsNote = "크레딧은 이 기기의 Ember에 묶여 있어요. Android 백업을 켜 두면 새 휴대폰에서도 이어서 쓸 수 있고, 백업 없이 앱을 지우면 남은 크레딧을 되살릴 수 없어요."
+    override val topUp = "크레딧 충전"
+    override val accessTitle = "Claude 연결"
+    override fun creditsApprox(n: Int) = "약 ${"%,d".format(n)}크레딧"
+
+    override val reportAi = "AI 결과 신고"
+    override val reportTitle = "AI가 만든 내용 신고하기"
+    override val reportSub = "불쾌하거나 해롭거나 틀린 내용을 알려 주세요. 보낸 내용은 결과를 고치는 데에만 써요."
+    override val reportReasons = listOf("불쾌하거나 해로운 내용", "사실과 다른 내용", "저작권·상표 침해가 의심돼요", "개인정보가 들어 있어요", "기타")
+    override val reportNoteHint = "무엇이 문제였는지 적어 주세요(선택)"
+    override fun reportIncludes(what: String) = "함께 보내는 내용: $what"
+    override val reportWhatQuestion = "지금 보이는 질문과 선택지"
+    override val reportWhatIdeas = "가장 최근에 받은 아이디어"
+    override val reportWhatIdea = "이 아이디어"
+    override val reportWhatDocument = "현재 설계서"
+    override val reportSend = "신고 보내기"
+    override val reportSent = "신고를 보냈어요. 확인한 뒤 개선에 반영할게요."
+    override val reportByEmail = "메일 앱이 열리면 내용을 확인하고 보내 주세요."
+    override val privacyPolicy = "개인정보처리방침"
+    override val privacyUpdated = "시행일 2026년 11월 5일"
+    override val privacySections = KoPolicy.sections
+
+    override val contactUs = "문의 메일 보내기"
+
+    override val notifChannelWork = "진행 중인 작업"
+    override val notifChannelDone = "작업 완료"
+    override fun notifWorking(count: Int, title: String) = if (count > 1) "작업 ${count}개를 이어서 하고 있어요" else "‘$title’ 작업을 이어서 하고 있어요"
+    override val notifWorkingBody = "앱을 닫아도 끝까지 진행하고, 끝나면 알려 드려요."
+    override fun notifDone(kind: app.ember.ideas.data.OpKind) = when (kind) { app.ember.ideas.data.OpKind.ASKING -> "다음 질문이 준비됐어요"; app.ember.ideas.data.OpKind.IDEAS -> "새 아이디어가 도착했어요"; app.ember.ideas.data.OpKind.DESIGN_ASKING -> "설계 질문이 준비됐어요"; app.ember.ideas.data.OpKind.WRITING -> "설계서가 완성됐어요"; app.ember.ideas.data.OpKind.REVISING -> "설계서를 고쳤어요" }
+    override val notifFailed = "작업을 마치지 못했어요"
+    override val notifyDoneSetting = "작업이 끝나면 알림"
+    override val notifyDoneBody = "앱을 나가 있어도 질문·아이디어·설계서가 준비되면 알려 줘요."
+
+    override val crashTitle = "지난번에 Ember가 갑자기 닫혔어요"
+    override val crashBody = "오류 보고서를 보내 주시면 원인을 찾는 데 큰 도움이 돼요. 보고서에는 기기 정보와 오류 위치만 들어 있고, 프로젝트 내용과 키는 들어 있지 않아요."
+    override val crashSend = "보고서 보내기"
+    override val crashRow = "오류 보고서 보내기"
+    override fun crashCount(n: Int) = if (n == 0) "기록 없음" else "${n}건"
+
+    override val webSearchSetting = "실제 작품 검색"
+    override fun webSearchBody(cost: String) = "아이디어를 낼 때 웹에서 비슷한 게임·앱을 찾아 확인하고 링크를 남겨요. 검색 1회에 $cost(최대 3회)가 더 들어요."
+    override val fastQuestionsSetting = "질문은 빠르게"
+    override val fastQuestionsBody = "질문 카드만 Sonnet 5.5로 받아 기다리는 시간과 비용을 줄여요. 아이디어와 설계서는 고른 모델로 만들어요."
+    override val fieldReferences = "확인한 자료"
+
+    override val attachImage = "참고 이미지"
+    override val removeImage = "이미지 빼기"
+    override val imageHint = "스케치나 참고 화면을 올리면 Claude가 분위기를 읽고 질문에 반영해요."
+    override val imageFailed = "이미지를 불러오지 못했어요. 다른 사진으로 다시 시도해 주세요."
+    override fun imagesAttached(n: Int) = "참고 이미지 ${n}장"
+
+    override val github = "GitHub로 보내기"
+    override val githubConnect = "GitHub 연결"
+    override val githubTokenBody = "GitHub 개인 액세스 토큰을 붙여 넣어 주세요. 토큰은 이 휴대폰에만 암호화해 저장하고 GitHub에만 보내요."
+    override val githubTokenSteps = listOf("github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens로 가요.", "Generate new token을 누르고 Repository access를 All repositories로 골라요.", "Permissions에서 Administration, Contents, Issues를 Read and write로 바꿔요.", "만든 토큰(github_pat_…)을 복사해 여기에 붙여 넣어요.")
+    override val githubOpenTokens = "토큰 만들기 페이지 열기"
+    override fun githubConnected(user: String) = "@$user 계정으로 연결됨"
+    override val githubDisconnect = "연결 끊기"
+    override val githubNewRepo = "새 저장소"
+    override val githubIssue = "이슈로 보내기"
+    override val githubRepoName = "저장소 이름"
+    override val githubPrivate = "비공개 저장소"
+    override val githubPrivateBody = "나와 초대한 사람만 볼 수 있어요."
+    override val githubRepoFiles = "README.md, CLAUDE.md, docs/DESIGN.md를 올려요. 저장소를 클론하면 Claude Code가 CLAUDE.md를 바로 읽어요."
+    override val githubCreateRepo = "저장소 만들기"
+    override val githubPickRepo = "보낼 저장소"
+    override val githubPerSection = "단락마다 이슈 하나씩"
+    override fun githubPerSectionBody(n: Int) = "설계서의 큰 단락 ${n}개를 각각 이슈로 만들어요. 끄면 설계서 전체가 이슈 하나로 가요."
+    override fun githubSendIssues(n: Int) = if (n > 1) "이슈 ${n}개 만들기" else "이슈 만들기"
+    override val githubNoRepos = "이슈를 만들 수 있는 저장소가 없어요. 먼저 새 저장소를 만들어 보세요."
+    override val githubDone = "GitHub에 올렸어요"
+    override val githubOpen = "GitHub에서 열기"
+    override fun githubError(e: app.ember.ideas.handoff.GitHubError) = when (e) { app.ember.ideas.handoff.GitHubError.BadToken -> "토큰이 맞지 않거나 만료됐어요. 새 토큰을 연결해 주세요."; app.ember.ideas.handoff.GitHubError.NoPermission -> "토큰에 권한이 부족해요. Administration, Contents, Issues 권한을 Read and write로 바꿔 주세요."; app.ember.ideas.handoff.GitHubError.NameTaken -> "같은 이름의 저장소가 이미 있어요. 이름을 바꿔 주세요."; app.ember.ideas.handoff.GitHubError.Offline -> "인터넷 연결을 확인해 주세요."; is app.ember.ideas.handoff.GitHubError.Other -> "GitHub가 요청을 받지 않았어요(${e.detail})." }
+
+    override val importAll = "파일에서 가져오기"
+    override val importAllBody = "내보낸 백업 파일(.json)의 프로젝트를 합쳐요. 같은 프로젝트는 더 최근 것을 남겨요."
+    override fun imported(n: Int) = if (n == 0) "새로 가져온 프로젝트가 없어요" else "프로젝트 ${n}개를 가져왔어요"
+    override val importFailed = "Ember 백업 파일이 아니에요. '모든 프로젝트 내보내기'로 만든 파일을 골라 주세요."
+    override val backupNote = "Android 백업을 켜 두면 프로젝트와 설정이 Google 계정에 함께 백업돼요. API 키와 토큰은 백업하지 않아요."
+    override val eraseAll = "모든 데이터 지우기"
+    override val eraseAllBody = "프로젝트, 설정, API 키, GitHub 토큰, 참고 이미지, 오류 기록을 이 휴대폰에서 모두 지우고 처음 화면으로 돌아가요. 되돌릴 수 없어요."
+
+    override val showChanges = "바뀐 부분"
+    override fun diffTitle(from: Int, to: Int) = "v$from → v$to 바뀐 부분"
+    override fun diffStats(added: Int, removed: Int) = "${added}줄 추가, ${removed}줄 삭제"
+    override fun diffSkip(n: Int) = "같은 내용 ${n}줄"
+    override val diffNone = "두 버전의 내용이 같아요."
+
+    override val editShort = "편집"
+    override fun editSectionTitle(name: String) = "‘$name’ 편집"
+    override val editSectionSub = "이 단락만 고쳐요. 저장하면 새 버전으로 남고 비용은 들지 않아요."
+    override fun editedSectionNote(name: String) = "‘$name’ 직접 편집"
+    override val tabEdit = "편집"
+    override val tabPreview = "미리 보기"
+
+    override val writingQuestion = "질문을 쓰고 있어요"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

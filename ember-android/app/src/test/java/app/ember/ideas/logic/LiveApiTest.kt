@@ -19,7 +19,7 @@ import org.junit.Test
  * (유효한 키가 없어도 401 이 돌아와야 정상이다.)
  */
 class LiveApiTest {
-    private val svc = ClaudeAiService { "sk-ant-api03-invalid-key-for-ember-tests-0000000000000000" }
+    private val svc = ClaudeAiService { app.ember.ideas.ai.Endpoint("sk-ant-api03-invalid-key-for-ember-tests-0000000000000000") }
     private val msgs = listOf(ChatMessage(ChatMessage.USER, Protocol.startMessage(app.ember.ideas.data.ProjectKind.GAME, "", app.ember.ideas.data.DevProfile(), ReplyLanguage.KO)))
 
     @Test fun structuredTurnMapsUnauthorized() = runBlocking {

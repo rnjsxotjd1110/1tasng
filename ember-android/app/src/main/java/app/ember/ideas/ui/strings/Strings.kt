@@ -18,6 +18,10 @@ import java.util.Locale
 abstract class Strings {
     abstract val isKorean: Boolean
 
+    /** 크레딧으로 쓰는 중이면 크레딧으로, 아니면 통화로 예상 비용을 보여 준다. */
+    fun estimate(usd: Double): String =
+        if (CostMode.credits) creditsApprox(app.ember.ideas.account.ServerConfig.creditsFor(usd)) else costApprox(usd)
+
     // 공통
     abstract val back: String; abstract val next: String; abstract val skip: String; abstract val close: String
     abstract val cancel: String; abstract val save: String; abstract val delete: String; abstract val retry: String
@@ -239,9 +243,128 @@ abstract class Strings {
     abstract val exportClaudeMd: String
     abstract val errorSafeNote: String
 
+    abstract val accessTabCredits: String
+    abstract val accessTabKey: String
+    abstract val creditsHeadline: String
+    abstract fun creditsBody(free: Int, discoveries: Int): String
+    abstract val creditsStart: String
+    abstract val creditsContinue: String
+    abstract val creditsBalance: String
+    abstract fun creditsWorth(discoveries: Int, docs: Int): String
+    abstract fun creditsUnit(discovery: Int, doc: Int): String
+    abstract val creditsPacks: String
+    abstract fun creditsAmount(n: Int): String
+    abstract val creditsPriceLoading: String
+    abstract val creditsRestore: String
+    abstract val creditsPrefer: String
+    abstract val creditsPreferBody: String
+    abstract val creditsPending: String
+    abstract fun creditsAdded(total: Int): String
+    abstract val creditsFailed: String
+    abstract val creditsUnavailable: String
+    abstract val creditsNote: String
+    abstract val topUp: String
+    abstract val accessTitle: String
+    abstract fun creditsApprox(n: Int): String
+
+    abstract val reportAi: String
+    abstract val reportTitle: String
+    abstract val reportSub: String
+    abstract val reportReasons: List<String>
+    abstract val reportNoteHint: String
+    abstract fun reportIncludes(what: String): String
+    abstract val reportWhatQuestion: String
+    abstract val reportWhatIdeas: String
+    abstract val reportWhatIdea: String
+    abstract val reportWhatDocument: String
+    abstract val reportSend: String
+    abstract val reportSent: String
+    abstract val reportByEmail: String
+    abstract val privacyPolicy: String
+    abstract val privacyUpdated: String
+    abstract val privacySections: List<Pair<String, String>>
+
+    abstract val contactUs: String
+
+    abstract val notifChannelWork: String
+    abstract val notifChannelDone: String
+    abstract fun notifWorking(count: Int, title: String): String
+    abstract val notifWorkingBody: String
+    abstract fun notifDone(kind: app.ember.ideas.data.OpKind): String
+    abstract val notifFailed: String
+    abstract val notifyDoneSetting: String
+    abstract val notifyDoneBody: String
+
+    abstract val crashTitle: String
+    abstract val crashBody: String
+    abstract val crashSend: String
+    abstract val crashRow: String
+    abstract fun crashCount(n: Int): String
+
+    abstract val webSearchSetting: String
+    abstract fun webSearchBody(cost: String): String
+    abstract val fastQuestionsSetting: String
+    abstract val fastQuestionsBody: String
+    abstract val fieldReferences: String
+
+    abstract val attachImage: String
+    abstract val removeImage: String
+    abstract val imageHint: String
+    abstract val imageFailed: String
+    abstract fun imagesAttached(n: Int): String
+
+    abstract val github: String
+    abstract val githubConnect: String
+    abstract val githubTokenBody: String
+    abstract val githubTokenSteps: List<String>
+    abstract val githubOpenTokens: String
+    abstract fun githubConnected(user: String): String
+    abstract val githubDisconnect: String
+    abstract val githubNewRepo: String
+    abstract val githubIssue: String
+    abstract val githubRepoName: String
+    abstract val githubPrivate: String
+    abstract val githubPrivateBody: String
+    abstract val githubRepoFiles: String
+    abstract val githubCreateRepo: String
+    abstract val githubPickRepo: String
+    abstract val githubPerSection: String
+    abstract fun githubPerSectionBody(n: Int): String
+    abstract fun githubSendIssues(n: Int): String
+    abstract val githubNoRepos: String
+    abstract val githubDone: String
+    abstract val githubOpen: String
+    abstract fun githubError(e: app.ember.ideas.handoff.GitHubError): String
+
+    abstract val importAll: String
+    abstract val importAllBody: String
+    abstract fun imported(n: Int): String
+    abstract val importFailed: String
+    abstract val backupNote: String
+    abstract val eraseAll: String
+    abstract val eraseAllBody: String
+
+    abstract val showChanges: String
+    abstract fun diffTitle(from: Int, to: Int): String
+    abstract fun diffStats(added: Int, removed: Int): String
+    abstract fun diffSkip(n: Int): String
+    abstract val diffNone: String
+
+    abstract val editShort: String
+    abstract fun editSectionTitle(name: String): String
+    abstract val editSectionSub: String
+    abstract fun editedSectionNote(name: String): String
+    abstract val tabEdit: String
+    abstract val tabPreview: String
+
+    abstract val writingQuestion: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }
+
+/** 비용을 크레딧으로 보여 줄지. 설정이 바뀌면 EmberRoot 가 맞춘다. */
+object CostMode { @Volatile var credits: Boolean = false }
 
 val LocalStrings = staticCompositionLocalOf<Strings> { KoStrings }
 

@@ -34,9 +34,15 @@ data class TurnRequest(
     val schema: JsonObject,
     val effort: Effort,
     val maxTokens: Long = 16_000,
+    /** 웹 검색 도구를 함께 준다(아이디어를 낼 가능성이 높을 때만). */
+    val webSearch: Boolean = false,
 )
 
-data class TurnResult(val text: String, val usage: Usage)
+/** [sources] 는 웹 검색 결과에 실제로 나온 페이지들이다. */
+data class TurnResult(val text: String, val usage: Usage, val sources: List<app.ember.ideas.data.Reference> = emptyList())
+
+/** 웹 검색 1회 요금(USD). */
+const val WEB_SEARCH_USD = 0.01
 
 data class StreamRequest(
     val system: String,
@@ -62,12 +68,20 @@ sealed class AiError(message: String) : Exception(message) {
     data object BadResponse : AiError("bad_response") { private fun readResolve(): Any = BadResponse }
     data object ModelUnavailable : AiError("model_unavailable") { private fun readResolve(): Any = ModelUnavailable }
     data object OverBudget : AiError("over_budget") { private fun readResolve(): Any = OverBudget }
+    /** Ember 크레딧이 바닥났다(중계 서버 402). */
+    data object OutOfCredits : AiError("out_of_credits") { private fun readResolve(): Any = OutOfCredits }
     class Other(val detail: String) : AiError(detail)
 }
 
 interface AiService {
     /** 구조화 출력(JSON) 한 번 요청. */
     suspend fun turn(model: ClaudeModel, request: TurnRequest): TurnResult
+
+    /**
+     * [turn] 과 같지만 글이 오는 대로 [onText] 에 지금까지의 글 전체를 넘긴다(질문 카드를 미리 그리려고).
+     * 스트리밍을 못 하는 구현은 기본값처럼 한 번에 받는다.
+     */
+    suspend fun turnStreaming(model: ClaudeModel, request: TurnRequest, onText: (String) -> Unit): TurnResult = turn(model, request)
 
     /** 긴 Markdown 생성용 스트리밍. */
     fun stream(model: ClaudeModel, request: StreamRequest): Flow<StreamEvent>

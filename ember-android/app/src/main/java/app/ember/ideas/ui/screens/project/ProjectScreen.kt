@@ -1,5 +1,7 @@
 package app.ember.ideas.ui.screens.project
 
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Flag
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +67,10 @@ private sealed interface Sheet {
     data object History : Sheet
     data object DesignHistory : Sheet
     data object Compare : Sheet
+    data class Report(val target: app.ember.ideas.report.ReportTarget) : Sheet
+    data object GitHub : Sheet
+    data class Diff(val index: Int) : Sheet
+    data class EditSection(val heading: String) : Sheet
 }
 
 @Composable
@@ -102,6 +108,17 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
     }
 
     val busy = op?.running == true
+    // 첫 작업을 시작할 때 한 번만 알림 권한을 묻는다(Android 13 이상).
+    val notifLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
+    androidx.compose.runtime.LaunchedEffect(busy) {
+        if (!busy || android.os.Build.VERSION.SDK_INT < 33 || !settings.notifyDone || project?.isDemo == true) return@LaunchedEffect
+        val meta = ctx.getSharedPreferences("ember_meta", android.content.Context.MODE_PRIVATE)
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted && !meta.getBoolean("asked_notif", false)) {
+            meta.edit().putBoolean("asked_notif", true).apply()
+            notifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     val error = op?.error
     val korean = s.isKorean
     // 사용자가 문서 화면에서 아이디어 목록으로 잠시 돌아가 보는 경우를 위한 보기 단계.
@@ -157,10 +174,15 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                                 Toast.makeText(ctx, s.copied, Toast.LENGTH_SHORT).show()
                             }
                             if ((project.design.versions.size) > 1) MenuItem(s.versionsTitle, Icons.Rounded.History) { menu = false; sheet = Sheet.Versions }
+                            if (!busy) MenuItem(s.github, Icons.Rounded.CloudUpload) { menu = false; sheet = Sheet.GitHub }
                             if (!busy) MenuItem(s.regenerateAll, Icons.Rounded.Refresh) { menu = false; confirmRegenerate = true }
                         }
                         if ((stage == ProjectStage.INTERVIEW || stage == ProjectStage.DESIGN_INTERVIEW) && busy) {
                             MenuItem(s.stop, Icons.AutoMirrored.Rounded.ArrowBack) { menu = false; engine.cancel(project.id) }
+                        }
+                        if (!project.isSample) MenuItem(s.reportAi, Icons.Rounded.Flag) {
+                            menu = false
+                            sheet = Sheet.Report(app.ember.ideas.report.ReportSender.targetFor(project, stage))
                         }
                         MenuItem(s.delete, Icons.Rounded.Delete, danger = true) { menu = false; confirmDelete = true }
                     }
@@ -178,7 +200,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
                     Text(s.demoBanner, style = MaterialTheme.typography.bodySmall, color = c.text, modifier = Modifier.weight(1f))
-                    if (!settings.hasKey) app.ember.ideas.ui.components.GhostButton(s.demoConnect, onFixKey)
+                    if (!settings.ready) app.ember.ideas.ui.components.GhostButton(s.demoConnect, onFixKey)
                 }
             }
             Box(Modifier.weight(1f)) {
@@ -216,6 +238,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                                 expectedTotal = 8,
                                 onStop = { engine.cancel(project.id) },
                                 onLeave = { engine.dismissError(project.id); onBack() },
+                                partial = op?.partial,
                             )
                         }
                     }
@@ -225,7 +248,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         error = error,
                         onOpenIdea = { sheet = Sheet.IdeaDetail(it.id) },
                         onCompare = { sheet = Sheet.Compare },
-                        onDesignIdea = { if (!settings.hasKey && !project.isDemo) onFixKey() else sheet = Sheet.DesignSetup(it.id) },
+                        onDesignIdea = { if (!settings.ready && !project.isDemo) onFixKey() else sheet = Sheet.DesignSetup(it.id) },
                         onToggleSave = { engine.toggleSaved(project.id, it.id) },
                         onMoreIdeas = { engine.moreIdeas(project.id) },
                         onMoreQuestions = { viewStage = null; engine.moreQuestions(project.id) },
@@ -251,6 +274,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             onRetry = { engine.retry(project.id) },
                             onFixKey = onFixKey,
                             onShowHistory = { sheet = Sheet.DesignHistory },
+                            partial = op?.partial,
                             expectedTotal = d?.depth?.designQuestions ?: 6,
                             onStop = { engine.cancel(project.id) },
                             onLeave = { engine.dismissError(project.id); onBack() },
@@ -265,6 +289,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         error = error,
                         onRevise = { sheet = Sheet.Revise() },
                         onReviseSection = { title -> sheet = Sheet.Revise(s.rewriteSection(title)) },
+                        onEditSection = { heading -> sheet = Sheet.EditSection(heading) },
                         onHandoff = { sheet = Sheet.Handoff(project.design?.ideaId, HandoffGoal.START_BUILD) },
                         onStop = { engine.cancel(project.id) },
                         onRegenerate = { engine.generateDocument(project.id) },
@@ -279,6 +304,8 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
 
     // ---------------------------------------------------------------- 시트·대화상자
     when (val sh = sheet) {
+        is Sheet.Report -> ReportSheet(sh.target) { sheet = null }
+        Sheet.GitHub -> GitHubSheet(project) { sheet = null }
         is Sheet.IdeaDetail -> project.idea(sh.ideaId)?.let { idea ->
             IdeaDetailSheet(
                 idea = idea,
@@ -288,7 +315,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 onDismiss = { sheet = null },
                 onToggleSave = { engine.toggleSaved(project.id, idea.id) },
                 onDesign = {
-                    if (!settings.hasKey && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(idea.id)
+                    if (!settings.ready && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(idea.id)
                 },
                 onVary = { sheet = Sheet.Vary(idea.id) },
                 onCombine = { sheet = Sheet.Combine(idea.id) },
@@ -297,6 +324,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                     Handoff.copy(ctx, idea.title, ideaAsText(idea))
                     Toast.makeText(ctx, s.copied, Toast.LENGTH_SHORT).show()
                 },
+                onReport = { sheet = Sheet.Report(app.ember.ideas.report.ReportSender.forIdea(idea)) },
             )
         } ?: run { sheet = null }
         is Sheet.DesignSetup -> project.idea(sh.ideaId)?.let { idea ->
@@ -309,13 +337,13 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         is Sheet.Vary -> project.idea(sh.ideaId)?.let { idea ->
             VariationSheet(idea, { sheet = null }) { dir ->
                 sheet = null
-                if (!settings.hasKey && !project.isDemo) onFixKey() else engine.variation(project.id, idea, dir)
+                if (!settings.ready && !project.isDemo) onFixKey() else engine.variation(project.id, idea, dir)
             }
         }
         is Sheet.Combine -> project.idea(sh.ideaId)?.let { idea ->
             CombineSheet(idea, project.allIdeas.filter { it.id != idea.id }, { sheet = null }) { other ->
                 sheet = null
-                if (!settings.hasKey && !project.isDemo) onFixKey() else engine.combine(project.id, idea, other)
+                if (!settings.ready && !project.isDemo) onFixKey() else engine.combine(project.id, idea, other)
             }
         }
         is Sheet.Handoff -> HandoffSheet(
@@ -345,19 +373,35 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 val idea = sh.ideaId?.let { project.idea(it) } ?: project.selectedIdea
                 Handoff.shareMarkdown(ctx, "CLAUDE", Handoff.buildClaudeMd(project, idea, settings.profile, korean), s.share, fileName = "CLAUDE.md")
             }) else null,
+            onGitHub = if (project.design?.latest != null) ({ sheet = Sheet.GitHub }) else null,
         )
         Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }, { sheet = Sheet.IdeaDetail(it.id) }) {
-            if (!settings.hasKey && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(it.id)
+            if (!settings.ready && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(it.id)
         }
         is Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }, sh.initial) { text ->
             sheet = null
-            if (!settings.hasKey && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)
+            if (!settings.ready && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)
         }
         Sheet.EditDoc -> EditDocumentSheet(project.design?.latest?.markdown.orEmpty(), { sheet = null }) { md ->
             sheet = null
             engine.saveManualEdit(project.id, md, s.editedNote)
         }
-        Sheet.Versions -> VersionsSheet(project.design?.versions.orEmpty(), { sheet = null }) { v ->
+        is Sheet.EditSection -> {
+            val full = project.design?.latest?.markdown.orEmpty()
+            val section = app.ember.ideas.data.DocSections.get(full, sh.heading)
+            if (section == null) sheet = null
+            else {
+                val name = sh.heading.substringAfter(". ")
+                EditDocumentSheet(section, { sheet = null }, title = s.editSectionTitle(name), subtitle = s.editSectionSub) { md ->
+                    sheet = null
+                    engine.saveManualEdit(project.id, app.ember.ideas.data.DocSections.replace(full, sh.heading, md), s.editedSectionNote(name))
+                }
+            }
+        }
+        is Sheet.Diff -> project.design?.versions?.let { vs ->
+            if (sh.index in 1..vs.lastIndex) DiffSheet(vs[sh.index - 1], vs[sh.index], sh.index, sh.index + 1) { sheet = Sheet.Versions }
+        }
+        Sheet.Versions -> VersionsSheet(project.design?.versions.orEmpty(), { sheet = null }, onCompare = { sheet = Sheet.Diff(it) }) { v ->
             sheet = null
             engine.restoreVersion(project.id, v.id, s.restoredNote(project.design?.versions?.indexOf(v)?.plus(1) ?: 0))
         }
@@ -379,7 +423,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
     if (confirmRegenerate) {
         EmberDialog(s.regenerateAll, s.regenerateBody, s.regenerate, {
             confirmRegenerate = false
-            if (!settings.hasKey && !project.isDemo) onFixKey() else engine.generateDocument(project.id)
+            if (!settings.ready && !project.isDemo) onFixKey() else engine.generateDocument(project.id)
         }, { confirmRegenerate = false })
     }
 

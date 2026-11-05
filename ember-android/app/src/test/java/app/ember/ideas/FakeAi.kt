@@ -24,12 +24,24 @@ class FakeAi : AiService {
     var validateError: AiError? = null
     /** 게이트가 있을 때 멈추기 전에 먼저 보낼 조각 수(스트리밍 중 화면 캡처용). */
     var streamBeforeGate = 0
+    /** 웹 검색 결과로 돌려줄 페이지(검증된 참고 링크 시험용). */
+    var sources: List<app.ember.ideas.data.Reference> = emptyList()
+    /** 스트리밍 질문을 이만큼의 비율까지 먼저 보낸 뒤 게이트에서 멈춘다(0 이면 안 보냄). */
+    var partialFraction = 0.0
 
     override suspend fun turn(model: ClaudeModel, request: TurnRequest): TurnResult {
         turnRequests += request
         gate?.await()
         val r = turnReplies.removeFirstOrNull() ?: Result.failure(AiError.BadResponse)
-        return TurnResult(r.getOrThrow(), Usage(1000, 500, 0, 0, 0.014, 1))
+        return TurnResult(r.getOrThrow(), Usage(1000, 500, 0, 0, 0.014, 1), sources)
+    }
+
+    override suspend fun turnStreaming(model: ClaudeModel, request: TurnRequest, onText: (String) -> Unit): TurnResult {
+        if (partialFraction > 0 && gate != null) {
+            val next = turnReplies.firstOrNull()?.getOrNull()
+            if (next != null) onText(next.take((next.length * partialFraction).toInt()))
+        }
+        return turn(model, request)
     }
 
     override fun stream(model: ClaudeModel, request: StreamRequest): Flow<StreamEvent> = flow {

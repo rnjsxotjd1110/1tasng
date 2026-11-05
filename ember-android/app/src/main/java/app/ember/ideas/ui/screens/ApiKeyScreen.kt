@@ -74,7 +74,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)?) {
+fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)?, startOnCredits: Boolean = true) {
     val s = LocalStrings.current
     val c = Ember.colors
     val ctx = LocalContext.current
@@ -88,6 +88,28 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
     var success by remember { mutableStateOf(false) }
     var guideOpen by remember { mutableStateOf(false) }
     val current by settings.settings.collectAsState()
+    val creditsEnabled = app.ember.ideas.account.ServerConfig.creditsEnabled
+    var creditsTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(creditsEnabled && startOnCredits && (!current.hasKey || current.usingCredits)) }
+    var connecting by remember { mutableStateOf(false) }
+    var creditError by remember { mutableStateOf<String?>(null) }
+
+    fun connectCredits() {
+        connecting = true
+        creditError = null
+        scope.launch {
+            try {
+                container.credits.connect()
+            } catch (e: AiError) {
+                creditError = s.errorBody(e)
+            } finally {
+                connecting = false
+            }
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // 잔액은 화면을 열 때마다 서버 값으로 맞춘다.
+        if (creditsEnabled && current.creditsReady) runCatching { container.credits.refresh() }
+    }
 
     fun submit() {
         val k = key.trim()
@@ -113,13 +135,24 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
 
     EmberBackground {
         Column(Modifier.fillMaxSize().imePadding()) {
-            EmberTopBar(title = if (fromSettings) s.keyTitleSettings else "", onBack = onBack)
+            EmberTopBar(title = if (!fromSettings) "" else if (creditsEnabled) s.accessTitle else s.keyTitleSettings, onBack = onBack)
+            if (creditsEnabled) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    app.ember.ideas.ui.components.UnderlineTab(s.accessTabCredits, creditsTab, Modifier.weight(1f)) { creditsTab = true }
+                    app.ember.ideas.ui.components.UnderlineTab(s.accessTabKey, !creditsTab, Modifier.weight(1f)) { creditsTab = false }
+                }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(1.dp).background(c.outline))
+                Spacer(Modifier.height(20.dp))
+            }
             Column(
                 Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
             ) {
+                if (creditsTab) {
+                    CreditsBody(current, creditError)
+                } else {
                 Icon(Icons.Rounded.Lock, null, tint = c.ember, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.height(16.dp))
                 Text(s.keyHeadline, style = MaterialTheme.typography.headlineMedium, color = c.text)
@@ -200,9 +233,19 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                         }
                     }
                 }
+                }
                 Spacer(Modifier.height(48.dp))
             }
             Column(Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (creditsTab) {
+                    if (!current.creditsReady) {
+                        PrimaryButton(s.creditsStart, ::connectCredits, Modifier.fillMaxWidth(), loading = connecting)
+                    } else if (!fromSettings) {
+                        PrimaryButton(s.creditsContinue, onDone, Modifier.fillMaxWidth())
+                    }
+                    if (current.creditsReady) GhostButton(s.creditsRestore, { container.billing.start(); container.billing.restore() }, color = c.textMuted)
+                    else if (!fromSettings) GhostButton(s.later, onDone, color = c.textMuted)
+                } else {
                 PrimaryButton(
                     text = if (success) s.keyConnected else s.keyConnect,
                     onClick = ::submit,
@@ -215,6 +258,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     GhostButton(s.later, onDone, color = c.textMuted)
                 } else if (current.hasKey) {
                     GhostButton(s.removeKey, { settings.setApiKey(null); onDone() }, color = c.danger)
+                }
                 }
             }
         }

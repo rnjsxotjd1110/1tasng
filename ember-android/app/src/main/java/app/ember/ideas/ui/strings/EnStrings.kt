@@ -70,6 +70,7 @@ object EnStrings : Strings() {
         AiError.BadResponse -> "Couldn't read the response"
         AiError.ModelUnavailable -> "That model isn't available"
         AiError.OverBudget -> "Monthly budget reached"
+        AiError.OutOfCredits -> "You're out of Ember credits"
         is AiError.Other -> "Something went wrong"
     }
     override fun errorBody(e: AiError) = when (e) {
@@ -83,6 +84,7 @@ object EnStrings : Strings() {
         AiError.BadResponse -> "The response was malformed. Trying again usually fixes it."
         AiError.ModelUnavailable -> "Choose another model in Settings, or check this key's model access."
         AiError.OverBudget -> "Requests are paused because you hit your monthly budget. Raise or turn it off in Settings → Monthly budget."
+        AiError.OutOfCredits -> "Top up in Settings → Claude connection, or connect your own API key to keep going."
         is AiError.Other -> e.detail.take(160).ifBlank { "Please try again in a moment." }
     }
     override val fixKey = "Reconnect key"
@@ -479,6 +481,122 @@ object EnStrings : Strings() {
 
     override val rewriteShort = "Rewrite"
     override val saveClaudeMd = "Save CLAUDE.md"
+
+    override val accessTabCredits = "Ember credits"
+    override val accessTabKey = "My API key"
+    override val creditsHeadline = "Start now, no sign-up"
+    override fun creditsBody(free: Int, discoveries: Int) = "You get $free free credits, enough for about $discoveries idea sessions. When they run out, top up with Google Play."
+    override val creditsStart = "Get free credits"
+    override val creditsContinue = "Get started"
+    override val creditsBalance = "Credits left"
+    override fun creditsWorth(discoveries: Int, docs: Int) = "About $discoveries idea sessions or $docs standard design docs"
+    override fun creditsUnit(discovery: Int, doc: Int) = "Credits only go down by what you use: about $discovery per idea session and $doc per standard design doc (Opus 5.5)."
+    override val creditsPacks = "Top up"
+    override fun creditsAmount(n: Int) = "%,d credits".format(java.util.Locale.ENGLISH, n)
+    override val creditsPriceLoading = "Checking price"
+    override val creditsRestore = "Restore purchases"
+    override val creditsPrefer = "Use credits for requests"
+    override val creditsPreferBody = "Uses credits even when an API key is connected. Turn off to use your key."
+    override val creditsPending = "Your payment is pending. Credits are added as soon as it clears."
+    override fun creditsAdded(total: Int) = "Topped up. You now have ${"%,d".format(java.util.Locale.ENGLISH, total)} credits."
+    override val creditsFailed = "The purchase didn't finish. If you were charged but have no credits, tap Restore purchases."
+    override val creditsUnavailable = "Google Play billing isn't available right now. Make sure the app came from the Play Store and you're signed in."
+    override val creditsNote = "Credits belong to Ember on this device. With Android backup on they follow you to a new phone; uninstalling without a backup loses them."
+    override val topUp = "Top up credits"
+    override val accessTitle = "Claude connection"
+    override fun creditsApprox(n: Int) = "~${"%,d".format(java.util.Locale.ENGLISH, n)} credits"
+
+    override val reportAi = "Report AI content"
+    override val reportTitle = "Report AI-generated content"
+    override val reportSub = "Tell us about offensive, harmful, or wrong content. Reports are only used to fix the results."
+    override val reportReasons = listOf("Offensive or harmful", "Factually wrong", "Possible copyright or trademark issue", "Contains personal information", "Something else")
+    override val reportNoteHint = "What was wrong? (optional)"
+    override fun reportIncludes(what: String) = "Sent along with your report: $what"
+    override val reportWhatQuestion = "the question and options on screen"
+    override val reportWhatIdeas = "the latest batch of ideas"
+    override val reportWhatIdea = "this idea"
+    override val reportWhatDocument = "the current design doc"
+    override val reportSend = "Send report"
+    override val reportSent = "Report sent. We'll review it and fix what we can."
+    override val reportByEmail = "Your email app will open. Check the message and send it."
+    override val privacyPolicy = "Privacy policy"
+    override val privacyUpdated = "Effective November 5, 2026"
+    override val privacySections = EnPolicy.sections
+
+    override val contactUs = "Email support"
+
+    override val notifChannelWork = "Work in progress"
+    override val notifChannelDone = "Finished work"
+    override fun notifWorking(count: Int, title: String) = if (count > 1) "Working on $count tasks" else "Working on “$title”"
+    override val notifWorkingBody = "This keeps going if you leave the app. You'll get a notification when it's done."
+    override fun notifDone(kind: app.ember.ideas.data.OpKind) = when (kind) { app.ember.ideas.data.OpKind.ASKING -> "Your next question is ready"; app.ember.ideas.data.OpKind.IDEAS -> "New ideas are in"; app.ember.ideas.data.OpKind.DESIGN_ASKING -> "Your design question is ready"; app.ember.ideas.data.OpKind.WRITING -> "Your design doc is done"; app.ember.ideas.data.OpKind.REVISING -> "Your design doc was updated" }
+    override val notifFailed = "The task couldn't finish"
+    override val notifyDoneSetting = "Notify when done"
+    override val notifyDoneBody = "Get notified when questions, ideas, or docs are ready while you're away."
+
+    override val crashTitle = "Ember closed unexpectedly last time"
+    override val crashBody = "Sending the crash report helps us find the cause. It only contains device info and where the error happened, never your projects or keys."
+    override val crashSend = "Send report"
+    override val crashRow = "Send crash report"
+    override fun crashCount(n: Int) = if (n == 0) "None" else "$n"
+
+    override val webSearchSetting = "Search real works"
+    override fun webSearchBody(cost: String) = "When suggesting ideas, Claude looks up similar games and apps on the web and leaves links. Each search adds $cost (up to 3)."
+    override val fastQuestionsSetting = "Faster questions"
+    override val fastQuestionsBody = "Question cards come from Sonnet 5.5 to cut waiting and cost. Ideas and docs still use your chosen model."
+    override val fieldReferences = "Sources checked"
+
+    override val attachImage = "Add image"
+    override val removeImage = "Remove image"
+    override val imageHint = "Add a sketch or reference screen and Claude reads its mood into the questions."
+    override val imageFailed = "Couldn't load that image. Try another one."
+    override fun imagesAttached(n: Int) = if (n == 1) "1 reference image" else "$n reference images"
+
+    override val github = "Send to GitHub"
+    override val githubConnect = "Connect GitHub"
+    override val githubTokenBody = "Paste a GitHub personal access token. It's encrypted on this phone and only ever sent to GitHub."
+    override val githubTokenSteps = listOf("Go to github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens.", "Tap Generate new token and set Repository access to All repositories.", "Under Permissions, set Administration, Contents, and Issues to Read and write.", "Copy the token (github_pat_…) and paste it here.")
+    override val githubOpenTokens = "Open the token page"
+    override fun githubConnected(user: String) = "Connected as @$user"
+    override val githubDisconnect = "Disconnect"
+    override val githubNewRepo = "New repository"
+    override val githubIssue = "Send as issues"
+    override val githubRepoName = "Repository name"
+    override val githubPrivate = "Private repository"
+    override val githubPrivateBody = "Only you and people you invite can see it."
+    override val githubRepoFiles = "Uploads README.md, CLAUDE.md, and docs/DESIGN.md. Clone it and Claude Code reads CLAUDE.md right away."
+    override val githubCreateRepo = "Create repository"
+    override val githubPickRepo = "Repository"
+    override val githubPerSection = "One issue per section"
+    override fun githubPerSectionBody(n: Int) = "Creates $n issues, one per top-level section. Off sends the whole doc as one issue."
+    override fun githubSendIssues(n: Int) = if (n > 1) "Create $n issues" else "Create issue"
+    override val githubNoRepos = "No repositories with issues yet. Create a new one first."
+    override val githubDone = "Sent to GitHub"
+    override val githubOpen = "Open on GitHub"
+    override fun githubError(e: app.ember.ideas.handoff.GitHubError) = when (e) { app.ember.ideas.handoff.GitHubError.BadToken -> "The token is wrong or expired. Connect a new one."; app.ember.ideas.handoff.GitHubError.NoPermission -> "The token lacks permissions. Set Administration, Contents, and Issues to Read and write."; app.ember.ideas.handoff.GitHubError.NameTaken -> "A repository with that name already exists. Pick another name."; app.ember.ideas.handoff.GitHubError.Offline -> "Check your internet connection."; is app.ember.ideas.handoff.GitHubError.Other -> "GitHub rejected the request (${e.detail})." }
+
+    override val importAll = "Import from file"
+    override val importAllBody = "Merges projects from an exported backup (.json). For duplicates, the newer copy wins."
+    override fun imported(n: Int) = if (n == 0) "Nothing new to import" else "Imported $n projects"
+    override val importFailed = "That's not an Ember backup. Pick a file made with Export all projects."
+    override val backupNote = "With Android backup on, projects and settings are backed up to your Google account. Keys and tokens are never included."
+    override val eraseAll = "Erase all data"
+    override val eraseAllBody = "Deletes projects, settings, API key, GitHub token, reference images, and crash logs from this phone, then starts over. This can't be undone."
+
+    override val showChanges = "Changes"
+    override fun diffTitle(from: Int, to: Int) = "Changes from v$from to v$to"
+    override fun diffStats(added: Int, removed: Int) = "$added lines added, $removed removed"
+    override fun diffSkip(n: Int) = "$n unchanged lines"
+    override val diffNone = "These two versions are identical."
+
+    override val editShort = "Edit"
+    override fun editSectionTitle(name: String) = "Edit “$name”"
+    override val editSectionSub = "Only this section changes. Saving makes a new version at no cost."
+    override fun editedSectionNote(name: String) = "Edited “$name”"
+    override val tabEdit = "Edit"
+    override val tabPreview = "Preview"
+
+    override val writingQuestion = "Writing your question"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

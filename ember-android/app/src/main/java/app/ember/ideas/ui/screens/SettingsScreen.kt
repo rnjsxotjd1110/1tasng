@@ -1,5 +1,13 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.TravelExplore
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Email
 import android.widget.Toast
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -78,6 +86,12 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
     val container = ctx.container
     val settings by container.settings.settings.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
+    val importer = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+        val n = text?.let { container.store.importJson(it) }
+        Toast.makeText(ctx, if (n == null) s.importFailed else s.imported(n), Toast.LENGTH_LONG).show()
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(20.dp))
@@ -85,15 +99,33 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         Spacer(Modifier.height(12.dp))
 
         Group(s.groupClaude) {
-            NavRow(s.apiKey, if (settings.hasKey) settings.keyHint.takeLast(8) else s.notConnected, onOpenKey, icon = Icons.Rounded.Key)
-            NavRow(s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Memory, body = s.modelSetCost(s.costApprox(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))))
+            NavRow(
+                if (app.ember.ideas.account.ServerConfig.creditsEnabled) s.accessTitle else s.apiKey,
+                when {
+                    settings.usingCredits -> s.creditsAmount(settings.credits.coerceAtLeast(0))
+                    settings.hasKey -> settings.keyHint.takeLast(8)
+                    else -> s.notConnected
+                },
+                onOpenKey, icon = Icons.Rounded.Key,
+            )
+            NavRow(s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Memory, body = s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))))
             ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) }, icon = Icons.Rounded.HourglassTop)
+            ToggleRow(s.webSearchSetting, s.webSearchBody(s.estimate(app.ember.ideas.ai.WEB_SEARCH_USD)), settings.webSearch, { container.settings.setWebSearch(it) }, icon = Icons.Rounded.TravelExplore)
+            if (settings.model == app.ember.ideas.ai.ClaudeModel.OPUS) {
+                ToggleRow(s.fastQuestionsSetting, s.fastQuestionsBody, settings.fastQuestions, { container.settings.setFastQuestions(it) }, icon = Icons.Rounded.Speed)
+            }
         }
         Group(s.groupPersonal) {
+            NavRow(
+                s.githubConnect,
+                if (settings.hasGithub) "@" + settings.githubUser else s.notConnected,
+                { dialog = "github" }, icon = Icons.Rounded.CloudUpload,
+            )
             NavRow(s.devProfile, if (settings.profile.isEmpty()) s.notSet else s.profileSummary(settings.profile.experience, settings.profile.tools), onOpenProfile, icon = Icons.Rounded.Person, body = s.devProfileBody)
             NavRow(s.language, s.languageName(settings.language), { dialog = "language" }, icon = Icons.Rounded.Language)
             NavRow(s.theme, s.themeName(settings.theme), { dialog = "theme" }, icon = Icons.Rounded.DarkMode)
             ToggleRow(s.haptics, null, settings.haptics, { container.settings.setHaptics(it) }, icon = Icons.Rounded.Vibration)
+            ToggleRow(s.notifyDoneSetting, s.notifyDoneBody, settings.notifyDone, { container.settings.setNotifyDone(it) }, icon = Icons.Rounded.Notifications)
         }
         Group(s.groupUsage) {
             val u = settings.totalUsage
@@ -131,11 +163,16 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
                 }
                 ctx.startActivity(android.content.Intent.createChooser(send, s.exportAll))
             }, icon = Icons.Rounded.FileDownload, body = s.exportAllBody)
+            NavRow(s.importAll, null, chevron = false, onClick = { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }, icon = Icons.Rounded.FileUpload, body = s.importAllBody)
             NavRow(s.addSample, null, {
                 container.store.upsert(SampleProject.create(ctx).copy(updatedAt = System.currentTimeMillis()))
                 Toast.makeText(ctx, s.sampleAdded, Toast.LENGTH_SHORT).show()
             }, icon = Icons.Rounded.AddCircleOutline)
+            val crashes = remember { app.ember.ideas.report.CrashLog.files(ctx).size }
+            NavRow(s.crashRow, s.crashCount(crashes), { if (crashes > 0) app.ember.ideas.report.CrashLog.send(ctx, s.crashRow) }, icon = Icons.Rounded.BugReport, chevron = false)
             NavRow(s.deleteAll, null, { dialog = "deleteAll" }, icon = Icons.Rounded.DeleteForever, danger = true)
+            NavRow(s.eraseAll, null, { dialog = "eraseAll" }, icon = Icons.Rounded.DeleteForever, danger = true)
+            Text(s.backupNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
         }
         Group(s.groupAbout) {
             NavRow(s.about, "v${BuildConfig.VERSION_NAME}", onOpenAbout, icon = Icons.Rounded.Info)
@@ -148,7 +185,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         "model" -> EmberDialog(s.model, null, s.close, { dialog = null }, { dialog = null }, content = {
             Column {
                 ClaudeModel.entries.forEach { m ->
-                    ChoiceRow(s.modelName(m), s.modelBody(m) + "\n" + s.modelSetCost(s.costApprox(app.ember.ideas.ai.CostEstimate.fullSet(m))), settings.model == m) { container.settings.setModel(m); dialog = null }
+                    ChoiceRow(s.modelName(m), s.modelBody(m) + "\n" + s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(m))), settings.model == m) { container.settings.setModel(m); dialog = null }
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -177,6 +214,23 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
                 }
             }
         })
+        "github" -> if (settings.hasGithub) {
+            EmberDialog(s.githubConnect, s.githubConnected(settings.githubUser), s.githubDisconnect, { container.settings.setGithub(null, ""); dialog = null }, { dialog = null }, danger = true)
+        } else {
+            EmberDialog(s.githubConnect, null, s.close, { dialog = null }, { dialog = null }, content = {
+                app.ember.ideas.ui.screens.project.GitHubConnectForm { dialog = null }
+            })
+        }
+        "eraseAll" -> EmberDialog(s.eraseAll, s.eraseAllBody, s.delete, {
+            dialog = null
+            container.store.projects.value.forEach { container.engine.cancel(it.id) }
+            container.store.deleteAll()
+            container.settings.clearAll()
+            container.images.cleanup(emptySet(), all = true)
+            app.ember.ideas.report.CrashLog.clear(ctx)
+            ctx.getSharedPreferences("ember_meta", android.content.Context.MODE_PRIVATE).edit().clear().putBoolean("sample_added", true).apply()
+            (ctx as? android.app.Activity)?.recreate()
+        }, { dialog = null }, danger = true)
         "resetUsage" -> EmberDialog(s.resetUsage, s.resetUsageBody, s.reset, { container.settings.resetUsage(); dialog = null }, { dialog = null })
         "deleteAll" -> EmberDialog(s.deleteAll, s.deleteAllBody, s.delete, {
             container.store.projects.value.forEach { container.engine.cancel(it.id) }
@@ -279,7 +333,7 @@ private fun Label(t: String) {
 // ------------------------------------------------------------------ 정보
 
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}) {
     val s = LocalStrings.current
     val c = Ember.colors
     EmberBackground {
@@ -290,7 +344,16 @@ fun AboutScreen(onBack: () -> Unit) {
                 Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium, color = c.textFaint)
                 Spacer(Modifier.height(12.dp))
                 Text(s.aboutBody, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(16.dp))
+                NavRow(s.privacyPolicy, null, onOpenPrivacy, icon = Icons.Rounded.Lock)
+                val email = app.ember.ideas.account.ServerConfig.values.reportEmail
+                if (email.isNotBlank()) {
+                    val ctx = LocalContext.current
+                    NavRow(s.contactUs, email, {
+                        runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:$email"))) }
+                    }, icon = Icons.Rounded.Email, chevron = false)
+                }
+                Spacer(Modifier.height(20.dp))
                 Text(s.licenses, style = MaterialTheme.typography.titleMedium, color = c.text)
                 Spacer(Modifier.height(10.dp))
                 listOf(
@@ -299,6 +362,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     "Jetpack Compose, AndroidX" to "Apache License 2.0 · © The Android Open Source Project",
                     "Kotlin, kotlinx.coroutines, kotlinx.serialization" to "Apache License 2.0 · © JetBrains",
                     "OkHttp" to "Apache License 2.0 · © Square, Inc.",
+                    "Google Play Billing Library" to "Android Software Development Kit License · © Google",
                     "Jackson" to "Apache License 2.0 · © FasterXML",
                     "Material Icons" to "Apache License 2.0 · © Google",
                 ).forEach { (name, lic) ->
@@ -309,6 +373,30 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
                 Spacer(Modifier.height(24.dp))
                 Text(s.trademarkNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+                Spacer(Modifier.height(40.dp))
+            }
+        }
+    }
+}
+
+
+// ------------------------------------------------------------------ 개인정보처리방침
+
+@Composable
+fun PrivacyScreen(onBack: () -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    EmberBackground {
+        Column(Modifier.fillMaxSize()) {
+            EmberTopBar(s.privacyPolicy, onBack)
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+                Text(s.privacyUpdated, style = MaterialTheme.typography.labelMedium, color = c.textFaint)
+                s.privacySections.forEach { (title, body) ->
+                    Spacer(Modifier.height(20.dp))
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = c.text)
+                    Spacer(Modifier.height(6.dp))
+                    Text(body, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
+                }
                 Spacer(Modifier.height(40.dp))
             }
         }

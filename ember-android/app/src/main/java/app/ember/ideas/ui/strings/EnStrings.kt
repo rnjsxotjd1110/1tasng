@@ -105,7 +105,7 @@ object EnStrings : Strings() {
     override val keyGuideSteps = listOf(
         "Sign in at console.anthropic.com.",
         "Go to Settings → API Keys and tap Create Key.",
-        "Add a payment method and credits under Billing.",
+        "Add a payment method and credits under Billing. You can start with $5, which covers about ten explorations plus design docs on Opus.",
         "Copy the key and paste it above.",
     )
     override val openConsole = "Open Anthropic console"
@@ -403,7 +403,7 @@ object EnStrings : Strings() {
     override val pin = "Pin to top"
     override val unpin = "Unpin"
     override fun costApprox(usd: Double) = if (usd < 0.01) "< $0.01" else "~$" + "%.2f".format(java.util.Locale.ENGLISH, usd)
-    override fun costPerDiscovery(cost: String, model: String) = "One exploration costs $cost on $model"
+    override fun costPerDiscovery(cost: String, model: String) = "One exploration $cost ($model)"
     override fun depthMeta(d: DocDepth, cost: String, minutes: String) = when (d) {
         DocDepth.BRIEF -> "2–3 pages · ~3 questions · $cost · ~$minutes"
         DocDepth.STANDARD -> "5–8 pages · ~6 questions · $cost · ~$minutes"
@@ -429,6 +429,21 @@ object EnStrings : Strings() {
     override val moreActions = "More actions"
 
     override fun minutes(lo: Int, hi: Int) = "$lo–$hi min"
+
+    override fun yourAnswer(a: String) = "Your answer · $a"
+    override val previousShort = "Back"
+    override val compare = "Compare"
+    override val compareTitle = "Compare ideas"
+    override val compareSub = "Swipe the table sideways to see every idea."
+    override fun openIdea(title: String) = "Open “$title”"
+    override fun goalShort(g: HandoffGoal) = when (g) {
+        HandoffGoal.START_BUILD -> "Jump into code"
+        HandoffGoal.CONTINUE_DESIGN -> "Fill in decisions"
+        HandoffGoal.REVIEW -> "Check risks"
+        HandoffGoal.BRAINSTORM -> "Widen the idea"
+    }
+    override val exportClaudeMd = "Export CLAUDE.md for Claude Code"
+    override val errorSafeNote = "Failed requests aren't billed, and your answers so far are saved."
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -241,6 +242,26 @@ fun DocumentContent(
                                     Spacer(Modifier.height(8.dp))
                                     Text(s.writingNote, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(end = 10.dp))
                                 }
+                                // 섹션 진행 목록: 다 쓴 섹션은 체크, 남은 섹션은 자리만 보여 준다.
+                                val done = Protocol.sectionTitles(streamingText)
+                                Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                                    done.forEachIndexed { i, title ->
+                                        val writing = i == done.lastIndex
+                                        Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            if (writing) CircularProgressIndicator(Modifier.size(14.dp), color = c.ember, strokeWidth = 2.dp)
+                                            else Icon(Icons.Rounded.CheckCircle, null, tint = c.success, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(10.dp))
+                                            Text("${i + 1}. $title", style = MaterialTheme.typography.bodySmall, color = if (writing) c.text else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                    }
+                                    repeat((expectedSections - done.size).coerceIn(0, 4)) {
+                                        Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
+                                            Spacer(Modifier.width(12.dp))
+                                            Box(Modifier.height(10.dp).fillMaxWidth(0.5f - it * 0.06f).clip(CircleShape).background(c.surface2))
+                                        }
+                                    }
+                                }
                             }
                             if (error != null && blocks.isNotEmpty()) {
                                 Spacer(Modifier.height(12.dp))
@@ -270,8 +291,8 @@ fun DocumentContent(
                 Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                SecondaryButton(s.revise, onRevise, Modifier.weight(1f), icon = Icons.Rounded.Tune)
-                PrimaryButton(s.continueInClaude, onHandoff, Modifier.weight(1.3f), icon = Icons.AutoMirrored.Rounded.Send, height = 52.dp)
+                SecondaryButton(s.revise, onRevise, Modifier.weight(0.85f), icon = Icons.Rounded.Tune)
+                PrimaryButton(s.continueInClaude, onHandoff, Modifier.weight(1.5f), icon = Icons.AutoMirrored.Rounded.Send, height = 52.dp)
             }
         }
     }

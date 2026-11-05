@@ -61,6 +61,7 @@ private sealed interface Sheet {
     data object Versions : Sheet
     data object History : Sheet
     data object DesignHistory : Sheet
+    data object Compare : Sheet
 }
 
 @Composable
@@ -219,6 +220,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         busy = busy,
                         error = error,
                         onOpenIdea = { sheet = Sheet.IdeaDetail(it.id) },
+                        onCompare = { sheet = Sheet.Compare },
                         onDesignIdea = { if (!settings.hasKey && !project.isDemo) onFixKey() else sheet = Sheet.DesignSetup(it.id) },
                         onToggleSave = { engine.toggleSaved(project.id, it.id) },
                         onMoreIdeas = { engine.moreIdeas(project.id) },
@@ -333,7 +335,12 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 Toast.makeText(ctx, s.copied, Toast.LENGTH_SHORT).show()
             },
             onShare = { ch -> Handoff.shareText(ctx, handoffText(ch, sh.ideaId), s.share) },
+            onExportClaudeMd = if (project.design?.latest != null) ({
+                val idea = sh.ideaId?.let { project.idea(it) } ?: project.selectedIdea
+                Handoff.shareMarkdown(ctx, "CLAUDE", Handoff.buildClaudeMd(project, idea, settings.profile, korean), s.share, fileName = "CLAUDE.md")
+            }) else null,
         )
+        Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }) { sheet = Sheet.IdeaDetail(it.id) }
         Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }) { text ->
             sheet = null
             if (!settings.hasKey && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)

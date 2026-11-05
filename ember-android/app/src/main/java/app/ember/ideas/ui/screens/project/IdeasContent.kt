@@ -36,6 +36,8 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.QuestionAnswer
+import androidx.compose.material.icons.rounded.TableChart
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import app.ember.ideas.ui.text.Text
@@ -78,6 +80,7 @@ fun IdeasContent(
     error: AiError?,
     onOpenIdea: (Idea) -> Unit,
     onDesignIdea: (Idea) -> Unit,
+    onCompare: () -> Unit,
     onToggleSave: (Idea) -> Unit,
     onMoreIdeas: () -> Unit,
     onMoreQuestions: () -> Unit,
@@ -115,6 +118,8 @@ fun IdeasContent(
                     EmberChip(s.allIdeas(total), !savedOnly, { savedOnly = false })
                     Spacer(Modifier.width(8.dp))
                     EmberChip(s.savedIdeas(project.savedIdeaIds.size), savedOnly, { savedOnly = true }, icon = Icons.Rounded.Favorite)
+                    Spacer(Modifier.weight(1f))
+                    if (total >= 2) GhostButton(s.compare, onCompare, icon = Icons.Rounded.TableChart, color = c.textMuted, modifier = Modifier.offset(x = 12.dp))
                 }
                 Spacer(Modifier.height(8.dp))
                 AnimatedVisibility(busy, enter = fadeIn() + expandVertically()) {
@@ -188,42 +193,37 @@ private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
 fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, onToggleSave: () -> Unit, projectTitle: String? = null, onDesign: (() -> Unit)? = null) {
     val s = LocalStrings.current
     val c = Ember.colors
-    EmberCard(Modifier.fillMaxWidth().animateContentSize(), onClick = onClick, highlight = chosen) {
+    EmberCard(Modifier.fillMaxWidth().animateContentSize(), onClick = onClick, highlight = chosen, padding = PaddingValues(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 8.dp)) {
         Column {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    if (projectTitle != null) {
-                        Text(projectTitle, style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    if (chosen) {
-                        Tag(s.chosenIdea, color = c.ember, strong = true)
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    Text(idea.title, style = MaterialTheme.typography.titleLarge, color = c.text)
+            if (projectTitle != null || chosen) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)) {
+                    if (chosen) { Tag(s.chosenIdea, color = c.ember, strong = true); Spacer(Modifier.width(8.dp)) }
+                    if (projectTitle != null) Text(projectTitle, style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(idea.title, style = MaterialTheme.typography.titleLarge, color = c.text, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 HeartButton(saved, onToggleSave)
             }
-            Spacer(Modifier.height(8.dp))
-            Text(idea.logline, style = MaterialTheme.typography.bodyMedium, color = c.text.copy(alpha = 0.88f))
-            if (idea.coreHook.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surface2).padding(12.dp)) {
-                    Text("✦", style = MaterialTheme.typography.bodyMedium, color = c.gold)
-                    Spacer(Modifier.width(8.dp))
-                    Text(idea.coreHook, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.padding(end = 12.dp)) {
+                Text(idea.logline, style = MaterialTheme.typography.bodyMedium, color = c.text.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                if (idea.coreHook.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Text("✦", style = MaterialTheme.typography.bodySmall, color = c.gold)
+                        Spacer(Modifier.width(6.dp))
+                        Text(idea.coreHook, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime).filter { it.isNotBlank() }.forEach { Tag(it) }
+                    Tag(s.difficulty(idea.difficulty), color = difficultyColor(idea.difficulty), strong = true)
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime).filter { it.isNotBlank() }.forEach { Tag(it) }
-                Tag(s.difficulty(idea.difficulty), color = difficultyColor(idea.difficulty), strong = true)
-            }
             if (onDesign != null) {
-                Spacer(Modifier.height(8.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GhostButton(s.details, onClick, color = c.textMuted)
+                Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    GhostButton(s.details, onClick, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
                     Spacer(Modifier.weight(1f))
                     GhostButton(s.designThisShort, onDesign, icon = Icons.AutoMirrored.Rounded.ArrowForward)
                 }

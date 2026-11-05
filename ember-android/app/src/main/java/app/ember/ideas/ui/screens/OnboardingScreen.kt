@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -62,7 +63,7 @@ fun OnboardingScreen(onFinish: () -> Unit, initialPage: Int = 0) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Ember", style = MaterialTheme.typography.titleLarge, color = c.text, modifier = Modifier.padding(start = 12.dp).weight(1f))
-                if (pager.currentPage < 2) GhostButton(s.skip, onFinish, color = c.textMuted)
+                GhostButton(s.skip, onFinish, color = c.textMuted, modifier = Modifier.alpha(if (pager.currentPage < 2) 1f else 0f), enabled = pager.currentPage < 2)
             }
             HorizontalPager(pager, Modifier.weight(1f)) { page ->
                 val (title, body, art) = pages[page]

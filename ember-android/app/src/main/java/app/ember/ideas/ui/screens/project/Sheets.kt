@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -140,9 +141,15 @@ fun IdeaDetailSheet(
             }
             Spacer(Modifier.height(14.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                (listOf(idea.category, idea.genre) + idea.platforms).filter { it.isNotBlank() }.distinct().forEach { Tag(it) }
+                (listOf(idea.genre.ifBlank { idea.category }) + idea.platforms).filter { it.isNotBlank() }.distinct().forEach { Tag(it) }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth().offset(x = (-12).dp)) {
+                GhostButton(s.vary, onVary, icon = Icons.Rounded.Shuffle, enabled = !busy)
+                if (hasOtherIdeas) GhostButton(s.combine, onCombine, icon = Icons.Rounded.CallMerge, enabled = !busy)
+                GhostButton(s.copy, onCopy, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
+            }
+            Spacer(Modifier.height(8.dp))
             StatRow(idea)
             DetailBlock(s.fieldCoreHook, idea.coreHook)
             if (idea.keyFeatures.isNotEmpty()) {
@@ -158,15 +165,8 @@ fun IdeaDetailSheet(
             DetailBlock(s.fieldAudience, idea.targetAudience)
             DetailBlock(s.fieldMonetization, idea.monetization)
             DetailBlock(s.fieldFit, idea.fitReason, accent = true)
-            DetailTitle(s.tryDifferently)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SecondaryButton(s.vary, onVary, Modifier.weight(1f), icon = Icons.Rounded.Shuffle, enabled = !busy, height = 48.dp)
-                if (hasOtherIdeas) SecondaryButton(s.combine, onCombine, Modifier.weight(1f), icon = Icons.Rounded.CallMerge, enabled = !busy, height = 48.dp)
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                GhostButton(s.sendIdeaToClaude, onSendToClaude, icon = Icons.AutoMirrored.Rounded.Send, color = c.textMuted)
-                GhostButton(s.copy, onCopy, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
-            }
+            Spacer(Modifier.height(8.dp))
+            GhostButton(s.sendIdeaToClaude, onSendToClaude, icon = Icons.AutoMirrored.Rounded.Send, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.topFade(c.surface).padding(horizontal = 20.dp, vertical = 10.dp)) {
@@ -421,6 +421,7 @@ fun HandoffSheet(
     onOpen: (HandoffChoice) -> Unit,
     onCopy: (HandoffChoice) -> Unit,
     onShare: (HandoffChoice) -> Unit,
+    onExportClaudeMd: (() -> Unit)? = null,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -439,6 +440,20 @@ fun HandoffSheet(
             if (docTitle != null) {
                 Text(s.handoffDocName(docTitle), style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
             }
+            HandoffGoal.entries.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pair.forEach { g -> GoalTile(s.goalTitle(g), s.goalShort(g), goal == g, Modifier.weight(1f)) { goal = g } }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            Text(s.goalBody(goal), style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+            Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
+            ToggleRow(s.includeAnswers, null, answers, { answers = it })
+            if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
+            ToggleRow(s.includeProfile, null, profile, { profile = it })
+            Spacer(Modifier.height(8.dp))
+            EmberTextField(extra, { extra = it }, s.handoffExtraPlaceholder, minHeight = 56.dp, maxLength = 500)
+            Spacer(Modifier.height(12.dp))
             // 미리 보기: 처음 몇 줄을 항상 보여 주고 눌러서 펼친다.
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface2).clickable { showPreview = !showPreview }.padding(14.dp),
@@ -454,23 +469,15 @@ fun HandoffSheet(
                     if (showPreview) text.take(4000) + if (text.length > 4000) "\n…" else "" else text,
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textMuted,
-                    maxLines = if (showPreview) Int.MAX_VALUE else 3,
+                    maxLines = if (showPreview) Int.MAX_VALUE else 4,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(14.dp))
-            HandoffGoal.entries.forEach { g ->
-                ChoiceRow(s.goalTitle(g), s.goalBody(g), goal == g) { goal = g }
-                Spacer(Modifier.height(8.dp))
-            }
-            Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
-            ToggleRow(s.includeAnswers, null, answers, { answers = it })
-            if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
-            ToggleRow(s.includeProfile, null, profile, { profile = it })
-            Spacer(Modifier.height(8.dp))
-            EmberTextField(extra, { extra = it }, s.handoffExtraPlaceholder, minHeight = 64.dp, maxLength = 500)
             if (!claudeInstalled) {
                 Text(s.claudeWebNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
+            }
+            if (onExportClaudeMd != null) {
+                GhostButton(s.exportClaudeMd, onExportClaudeMd, icon = Icons.Rounded.Description, modifier = Modifier.offset(x = (-12).dp).padding(top = 4.dp))
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -535,3 +542,54 @@ private val unusedCheck = Icons.Rounded.CheckCircle
 
 /** 아이디어를 공유·복사할 때 쓰는 일반 텍스트. */
 fun ideaAsText(idea: Idea): String = Protocol.ideaBrief(idea).removePrefix("### ")
+
+
+// ------------------------------------------------------------------ 아이디어 비교
+
+@Composable
+fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Unit) {
+    val s = LocalStrings.current
+    EmberSheet(onDismiss) {
+        SheetTitle(s.compareTitle, s.compareSub)
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+            val header = listOf("") + ideas.map { it.title }
+            val rows = listOf(
+                listOf(s.fieldScope) + ideas.map { it.scope },
+                listOf(s.fieldDevTime) + ideas.map { it.devTime },
+                listOf(s.fieldDifficulty) + ideas.map { "${it.difficulty}/5" },
+                listOf(s.fieldCoreHook) + ideas.map { it.coreHook },
+                listOf(s.fieldMonetization) + ideas.map { it.monetization },
+                listOf(s.fieldUnique) + ideas.map { it.uniquePoint },
+            )
+            app.ember.ideas.ui.markdown.MarkdownBlockView(app.ember.ideas.ui.markdown.MdBlock.Table(header, rows))
+            Spacer(Modifier.height(8.dp))
+            ideas.forEach { idea ->
+                GhostButton(s.openIdea(idea.title), { onOpen(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+
+@Composable
+private fun GoalTile(title: String, body: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = Ember.colors
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier
+            .heightIn(min = 76.dp)
+            .clip(shape)
+            .background(if (selected) c.emberSoft else c.surface)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) c.ember else c.outline, shape)
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
+            if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = c.ember, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}

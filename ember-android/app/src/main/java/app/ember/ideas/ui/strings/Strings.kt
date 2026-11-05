@@ -202,6 +202,15 @@ abstract class Strings {
     abstract val recommended: String
     abstract val moreActions: String
     abstract fun minutes(lo: Int, hi: Int): String
+    abstract fun yourAnswer(a: String): String
+    abstract val previousShort: String
+    abstract val compare: String
+    abstract val compareTitle: String
+    abstract val compareSub: String
+    abstract fun openIdea(title: String): String
+    abstract fun goalShort(g: HandoffGoal): String
+    abstract val exportClaudeMd: String
+    abstract val errorSafeNote: String
 
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String

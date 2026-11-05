@@ -150,7 +150,7 @@ fun ToggleRow(title: String, body: String?, checked: Boolean, onChange: (Boolean
                 checkedBorderColor = c.ember,
                 uncheckedThumbColor = c.textFaint,
                 uncheckedTrackColor = c.surface3,
-                uncheckedBorderColor = c.outline,
+                uncheckedBorderColor = c.control,
             ),
         )
     }

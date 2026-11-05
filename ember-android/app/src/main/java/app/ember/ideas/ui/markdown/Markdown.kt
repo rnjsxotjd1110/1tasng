@@ -158,7 +158,7 @@ object MarkdownParser {
                     val end = text.indexOf('`', i + 1)
                     if (end > i + 1) {
                         withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 0.86.em, background = c.surface2, color = c.gold)) {
-                            append("\u2009" + text.substring(i + 1, end) + "\u2009")
+                            append(text.substring(i + 1, end))
                         }
                         i = end + 1
                     } else { append('`'); i++ }
@@ -272,14 +272,14 @@ private fun TableView(table: MdBlock.Table, modifier: Modifier) {
         Column {
             Row(Modifier.background(c.surface2).height(IntrinsicSize.Min)) {
                 table.header.forEachIndexed { i, h ->
-                    Cell(h, header = true, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(colWidth))
+                    Cell(h, header = true, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(if (i == 0) 112.dp else colWidth))
                 }
             }
             table.rows.forEachIndexed { r, row ->
                 Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
                 Row(Modifier.background(if (r % 2 == 1) c.surface2.copy(alpha = 0.4f) else c.surface).height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
                     row.forEachIndexed { i, cell ->
-                        Cell(cell, header = false, first = i == 0, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(colWidth))
+                        Cell(cell, header = false, first = i == 0, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(if (i == 0) 112.dp else colWidth))
                     }
                 }
             }

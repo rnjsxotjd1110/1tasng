@@ -59,6 +59,7 @@ import app.ember.ideas.ui.components.EmberTopBar
 import app.ember.ideas.ui.components.NavRow
 import app.ember.ideas.ui.components.PrimaryButton
 import app.ember.ideas.ui.components.ToggleRow
+import app.ember.ideas.ui.components.topFade
 import app.ember.ideas.ui.components.EmberBackground
 import app.ember.ideas.ui.screens.project.ChoiceRow
 import app.ember.ideas.ui.screens.project.EmberDialog
@@ -126,7 +127,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
             NavRow(s.about, "v${BuildConfig.VERSION_NAME}", onOpenAbout, icon = Icons.Rounded.Info)
             Text(s.privacyNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
         }
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(64.dp))
     }
 
     when (dialog) {
@@ -203,7 +204,7 @@ fun ProfileScreen(onBack: () -> Unit) {
     EmberBackground {
         Column(Modifier.fillMaxSize().imePadding()) {
             EmberTopBar(s.devProfile, onBack)
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
                 Text(s.profileIntro, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
                 Spacer(Modifier.height(24.dp))
                 Label(s.profileExperience)
@@ -234,9 +235,9 @@ fun ProfileScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(24.dp))
                 Label(s.profileNotes)
                 EmberTextField(notes, { notes = it }, s.profileNotesPlaceholder, minHeight = 96.dp, maxLength = 600)
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(56.dp))
             }
-            Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp, vertical = 12.dp)) {
+            Column(Modifier.topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                 PrimaryButton(s.save, {
                     val extra = customTool.trim()
                     val finalTools = if (extra.isNotEmpty() && extra !in tools) tools + extra else tools
@@ -262,7 +263,7 @@ fun AboutScreen(onBack: () -> Unit) {
     EmberBackground {
         Column(Modifier.fillMaxSize()) {
             EmberTopBar(s.about, onBack)
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
                 Text("Ember", style = MaterialTheme.typography.displaySmall, color = c.text)
                 Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium, color = c.textFaint)
                 Spacer(Modifier.height(12.dp))

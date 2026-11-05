@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -301,14 +302,18 @@ fun EmberChip(
             .background(bg)
             .border(1.dp, border, CircleShape)
             .clickable(role = Role.Checkbox, onClick = onClick)
+            .semantics { stateDescription = if (selected) "✓" else "" }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
-            Icon(icon, null, tint = if (selected) c.ember else c.textMuted, modifier = Modifier.size(18.dp))
+        if (selected) {
+            Icon(Icons.Rounded.Check, null, tint = c.ember, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+        } else if (icon != null) {
+            Icon(icon, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
         }
-        if (leading != null) {
+        if (leading != null && !selected) {
             Text(leading, style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.width(6.dp))
         }
@@ -461,6 +466,10 @@ fun ErrorPanel(
                     Text(s.errorTitle(error), style = MaterialTheme.typography.titleSmall, color = c.text)
                     Spacer(Modifier.height(2.dp))
                     Text(s.errorBody(error), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+                    if (error !is AiError.InvalidKey && error !is AiError.NoKey && error !is AiError.Refused) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(s.errorSafeNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+                    }
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -512,11 +521,11 @@ fun SelectMark(selected: Boolean, multi: Boolean, modifier: Modifier = Modifier)
         modifier
             .size(24.dp)
             .clip(shape)
-            .then(if (selected) Modifier.background(c.buttonGradient) else Modifier.border(1.5.dp, c.control, shape)),
+            .then(if (selected) Modifier.background(c.ember) else Modifier.border(1.5.dp, c.control, shape)),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedVisibility(selected, enter = scaleIn(tween(140)) + fadeIn(), exit = scaleOut(tween(100)) + fadeOut()) {
-            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Check, null, tint = c.onEmber, modifier = Modifier.size(16.dp))
         }
     }
 }

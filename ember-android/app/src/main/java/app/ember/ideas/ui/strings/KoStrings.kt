@@ -58,7 +58,7 @@ object KoStrings : Strings() {
         n >= 10_000 -> "%.1f만".format(n / 10_000.0)
         else -> "%,d".format(n)
     }
-    override fun money(usd: Double) = if (usd < 0.01 && usd > 0) "< $0.01" else "$%.2f".format(usd)
+    override fun money(usd: Double) = if (usd <= 0.0) "₩0" else costApprox(usd).removePrefix("약 ")
 
     override fun errorTitle(e: AiError) = when (e) {
         AiError.NoKey -> "API 키가 필요해요"
@@ -107,7 +107,7 @@ object KoStrings : Strings() {
     override val keyGuideSteps = listOf(
         "console.anthropic.com에 접속해 로그인해요.",
         "Settings → API Keys에서 Create Key를 눌러요.",
-        "Billing에서 결제 수단을 등록하고 크레딧을 충전해요.",
+        "Billing에서 결제 수단을 등록하고 크레딧을 충전해요. 최소 $5(약 7,000원)부터 충전할 수 있고, Opus 기준 아이디어 탐색과 설계서를 열 번쯤 만들 수 있어요.",
         "만든 키를 복사해 위 칸에 붙여 넣어요.",
     )
     override val openConsole = "Anthropic 콘솔 열기"
@@ -362,7 +362,7 @@ object KoStrings : Strings() {
     override val usageRequests = "요청"
     override val usageTokens = "토큰"
     override val usageCost = "예상 비용"
-    override val usageNote = "공개 단가로 계산한 추정치예요. 정확한 청구액은 Anthropic 콘솔에서 확인하세요."
+    override val usageNote = "공개 단가와 1달러 1,400원으로 계산한 추정치예요. 실제 청구는 달러로 되며 Anthropic 콘솔에서 확인할 수 있어요."
     override val resetUsage = "사용량 초기화"
     override val resetUsageBody = "누적 요청·토큰·비용 기록을 0으로 되돌려요."
     override val exportAll = "모든 프로젝트 내보내기"
@@ -412,7 +412,7 @@ object KoStrings : Strings() {
             else -> "약 ₩" + "%,d".format(((krw / 100).toInt()) * 100)
         }
     }
-    override fun costPerDiscovery(cost: String, model: String) = "탐색 한 번에 $cost · $model 기준"
+    override fun costPerDiscovery(cost: String, model: String) = "탐색 1회 $cost ($model)"
     override fun depthMeta(d: DocDepth, cost: String, minutes: String) = when (d) {
         DocDepth.BRIEF -> "2~3쪽 분량 · 질문 약 3개 · $cost · 약 $minutes"
         DocDepth.STANDARD -> "5~8쪽 분량 · 질문 약 6개 · $cost · 약 $minutes"
@@ -438,6 +438,21 @@ object KoStrings : Strings() {
     override val moreActions = "더 많은 동작"
 
     override fun minutes(lo: Int, hi: Int) = "$lo~${hi}분"
+
+    override fun yourAnswer(a: String) = "내 답변 · $a"
+    override val previousShort = "이전"
+    override val compare = "비교"
+    override val compareTitle = "아이디어 비교"
+    override val compareSub = "표를 옆으로 밀어 모든 아이디어를 볼 수 있어요."
+    override fun openIdea(title: String) = "‘$title’ 자세히 보기"
+    override fun goalShort(g: HandoffGoal) = when (g) {
+        HandoffGoal.START_BUILD -> "코드로 바로 시작"
+        HandoffGoal.CONTINUE_DESIGN -> "빠진 결정 채우기"
+        HandoffGoal.REVIEW -> "위험과 약점 점검"
+        HandoffGoal.BRAINSTORM -> "아이디어 넓히기"
+    }
+    override val exportClaudeMd = "Claude Code용 CLAUDE.md 내보내기"
+    override val errorSafeNote = "실패한 요청에는 요금이 청구되지 않고, 지금까지의 답변은 그대로 저장되어 있어요."
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

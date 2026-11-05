@@ -51,6 +51,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -101,6 +106,13 @@ fun QuestionFlow(
     val current = turns.lastOrNull()?.takeIf { it.answer == null }
     val answered = turns.count { it.answer != null }
     val index = turns.size
+    var lastSubmitted by remember { mutableStateOf<String?>(null) }
+    val submit: (Answer) -> Unit = { a ->
+        lastSubmitted = current?.let { t ->
+            if (a.skipped) s.skipped else t.copy(answer = a).answerSummary().ifBlank { null }
+        }
+        onSubmit(a)
+    }
 
     Column(Modifier.fillMaxSize().imePadding()) {
         // 진행 표시줄
@@ -113,30 +125,44 @@ fun QuestionFlow(
                 }
                 Text(s.questionOf(index.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                 if (answered > 0) {
-                    IconCircleButton(Icons.Rounded.History, s.answersTitle, onShowHistory, filled = false, tint = c.textMuted)
+                    GhostButton(s.answersSoFar(answered), onShowHistory, icon = Icons.Rounded.History, color = c.textMuted, modifier = Modifier.offset(x = 12.dp))
                 }
             }
             EmberProgress((current?.progress ?: turns.lastOrNull()?.progress ?: 3) / 100f)
-            if (canFinish && current != null && !busy && error == null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    GhostButton(finishLabel, onFinish, icon = Icons.AutoMirrored.Rounded.ArrowForward)
-                }
-            }
         }
 
         Box(Modifier.weight(1f)) {
             when {
-                error != null -> Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
+                error != null && current == null -> Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
                     ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater)
                 }
-                busy || current == null -> Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    ThinkingIndicator(thinkingLines, title = thinkingTitle)
-                    Spacer(Modifier.height(20.dp))
-                    Text(s.waitingNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 300.dp))
-                    if (onStop != null && busy) {
-                        Spacer(Modifier.height(8.dp))
-                        GhostButton(s.stop, onStop, icon = Icons.Rounded.Stop, color = c.textMuted)
+                busy || current == null -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                    Spacer(Modifier.height(16.dp))
+                    if (busy && lastSubmitted != null) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.emberSoft).padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = c.ember, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(s.yourAnswer(lastSubmitted!!), style = MaterialTheme.typography.bodyMedium, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Spacer(Modifier.height(20.dp))
                     }
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        ThinkingIndicator(thinkingLines, title = thinkingTitle)
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    // 다음 질문 카드 자리를 미리 보여 준다(스켈레톤).
+                    SkeletonCards()
+                    Spacer(Modifier.weight(1f))
+                    Text(s.waitingNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    if (onStop != null && busy) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            GhostButton(s.stop, onStop, icon = Icons.Rounded.Stop, color = c.textMuted)
+                        }
+                    }
+                    Spacer(Modifier.navigationBarsPadding().height(12.dp))
                 }
                 else -> AnimatedContent(
                     targetState = current,
@@ -151,8 +177,11 @@ fun QuestionFlow(
                         turn = turn,
                         draft = draft,
                         canUndo = turns.size >= 2,
-                        onSubmit = onSubmit,
+                        onSubmit = submit,
                         onUndo = onUndo,
+                        finishLabel = if (canFinish) finishLabel else null,
+                        onFinish = onFinish,
+                        errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater) }) else null,
                     )
                 }
             }
@@ -167,12 +196,16 @@ private fun QuestionCard(
     canUndo: Boolean,
     onSubmit: (Answer) -> Unit,
     onUndo: () -> Unit,
+    finishLabel: String?,
+    onFinish: () -> Unit,
+    errorBanner: (@Composable () -> Unit)?,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
     val q = turn.question
     val key = q.title
-    var selected by rememberSaveable(key) { mutableStateOf(draft?.selectedIds ?: emptyList()) }
+    val recommendedId = q.options.firstOrNull { o -> o.description.startsWith("추천 · ") || o.description.startsWith("Recommended · ") }?.id
+    var selected by rememberSaveable(key) { mutableStateOf(draft?.selectedIds ?: if (!q.multiSelect && recommendedId != null) listOf(recommendedId) else emptyList()) }
     var custom by rememberSaveable(key) { mutableStateOf(draft?.customText ?: "") }
     var customOpen by rememberSaveable(key) { mutableStateOf((draft?.customText ?: "").isNotEmpty()) }
     val hasAnswer = selected.isNotEmpty() || custom.isNotBlank()
@@ -187,7 +220,11 @@ private fun QuestionCard(
                 .verticalScroll(scroll)
                 .padding(horizontal = 20.dp),
         ) {
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
+            if (errorBanner != null) {
+                errorBanner()
+                Spacer(Modifier.height(16.dp))
+            }
             if (turn.insight.isNotBlank()) {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface2).padding(12.dp),
@@ -237,7 +274,19 @@ private fun QuestionCard(
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            if (finishLabel != null) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(onClick = onFinish).padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.AutoAwesome, null, tint = c.ember, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(finishLabel, style = MaterialTheme.typography.titleSmall, color = c.ember, modifier = Modifier.weight(1f))
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.ember, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(32.dp))
         }
 
         // 하단 동작: 되돌리기 · 건너뛰기 · 다음
@@ -250,11 +299,10 @@ private fun QuestionCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (canUndo) {
-                IconCircleButton(Icons.AutoMirrored.Rounded.Undo, s.previousQuestion, onUndo, tint = c.textMuted)
-                Spacer(Modifier.width(4.dp))
+                GhostButton(s.previousShort, onUndo, icon = Icons.AutoMirrored.Rounded.Undo, color = c.textMuted, modifier = Modifier.offset(x = (-8).dp))
             }
-            GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted)
-            Spacer(Modifier.width(8.dp))
+            GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted, modifier = Modifier.offset(x = if (canUndo) (-8).dp else (-12).dp))
+            Spacer(Modifier.width(4.dp))
             PrimaryButton(
                 text = s.next,
                 onClick = { onSubmit(Answer(selectedIds = selected, customText = if (customOpen) custom.trim() else "")) },
@@ -328,5 +376,21 @@ private fun CustomRow(open: Boolean, filled: Boolean, multi: Boolean, onClick: (
         Spacer(Modifier.width(14.dp))
         Text(s.customAnswer, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         SelectMark(open || filled, multi = multi)
+    }
+}
+
+
+@Composable
+private fun SkeletonCards() {
+    val c = Ember.colors
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "skel")
+    val a by t.animateFloat(0.35f, 0.7f, androidx.compose.animation.core.infiniteRepeatable(tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "skelA")
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth(0.7f).height(22.dp).clip(RoundedCornerShape(8.dp)).background(c.surface3.copy(alpha = a)))
+        Spacer(Modifier.height(16.dp))
+        repeat(3) {
+            Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(18.dp)).background(c.surface2.copy(alpha = a + 0.2f)))
+            Spacer(Modifier.height(10.dp))
+        }
     }
 }

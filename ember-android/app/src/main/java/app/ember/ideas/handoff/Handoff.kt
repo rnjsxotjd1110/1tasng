@@ -96,6 +96,38 @@ object Handoff {
         else "Use the idea below as a starting point for a free brainstorm. Suggest ways to strengthen its core appeal and some surprising variations."
     }
 
+    /** Claude Code 가 저장소 루트에서 읽는 CLAUDE.md 형식으로 설계를 정리한다. */
+    fun buildClaudeMd(project: Project, idea: Idea?, profile: DevProfile, korean: Boolean): String = buildString {
+        val title = idea?.title ?: project.title
+        appendLine("# $title")
+        appendLine()
+        if (korean) {
+            appendLine("이 저장소는 Ember 에서 설계한 프로젝트예요. 작업을 시작하기 전에 아래 설계서를 모두 읽고, 설계서의 '개발 로드맵' 순서대로 진행해 주세요.")
+            appendLine()
+            appendLine("## 작업 규칙")
+            appendLine("- 설계서와 다르게 구현해야 하면 먼저 이유를 설명하고 확인을 받아 주세요.")
+            appendLine("- 마일스톤마다 실행 가능한 상태를 유지하고, 끝나면 무엇을 했는지 짧게 보고해 주세요.")
+            appendLine("- 정해지지 않은 부분은 설계서의 (제안) 표시를 기본값으로 삼아 주세요.")
+        } else {
+            appendLine("This repository implements a project designed in Ember. Read the full design doc below before starting, and follow its roadmap in order.")
+            appendLine()
+            appendLine("## Working rules")
+            appendLine("- If you need to deviate from the design, explain why and ask first.")
+            appendLine("- Keep every milestone runnable and report briefly when one is done.")
+            appendLine("- Treat items marked (suggested) as defaults for open decisions.")
+        }
+        if (!profile.isEmpty()) {
+            appendLine()
+            appendLine(Protocol.profileBlock(profile))
+        }
+        project.design?.latest?.markdown?.let {
+            appendLine()
+            appendLine(if (korean) "## 설계서" else "## Design document")
+            appendLine()
+            appendLine(it.replace(Regex("(?m)^#"), "##"))
+        }
+    }
+
     fun isClaudeInstalled(context: Context): Boolean = runCatching {
         context.packageManager.getPackageInfo(CLAUDE_PACKAGE, 0); true
     }.getOrDefault(false)
@@ -149,9 +181,9 @@ object Handoff {
         title.replace(Regex("[\\\\/:*?\"<>|\\n\\r\\t]"), " ").trim().replace(Regex("\\s+"), "_").take(48).ifEmpty { "ember" }
 
     /** Markdown 파일을 만들어 공유 시트로 보낸다. */
-    fun shareMarkdown(context: Context, title: String, markdown: String, chooserTitle: String) {
+    fun shareMarkdown(context: Context, title: String, markdown: String, chooserTitle: String, fileName: String? = null) {
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
-        val file = File(dir, safeFileName(title) + ".md")
+        val file = File(dir, fileName ?: (safeFileName(title) + ".md"))
         file.writeText(markdown)
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
         val send = Intent(Intent.ACTION_SEND).apply {

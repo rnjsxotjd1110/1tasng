@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -157,14 +158,14 @@ fun HomeScreen(
                 Spacer(Modifier.height(12.dp))
                 PrimaryButton(
                     text = when {
-                        kind == null -> s.pickKindFirst
                         !settings.hasKey -> s.connectToStart
+                        kind == null -> s.pickKindFirst
                         else -> s.startDiscovery
                     },
-                    onClick = ::start,
-                    enabled = kind != null,
+                    onClick = { if (!settings.hasKey) onNeedKey() else start() },
+                    enabled = kind != null || !settings.hasKey,
                     modifier = Modifier.fillMaxWidth(),
-                    icon = if (kind != null && !settings.hasKey) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
+                    icon = if (!settings.hasKey) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
                 )
                 if (settings.hasKey) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
@@ -174,7 +175,7 @@ fun HomeScreen(
                             color = c.textFaint,
                             modifier = Modifier.weight(1f).padding(start = 4.dp),
                         )
-                        GhostButton(s.quickIdeas, { start(quick = true) }, enabled = kind != null, color = c.textMuted)
+                        if (kind != null) GhostButton(s.quickIdeas, { start(quick = true) }, color = c.textMuted, modifier = Modifier.offset(x = 12.dp))
                     }
                 } else {
                     Spacer(Modifier.height(4.dp))

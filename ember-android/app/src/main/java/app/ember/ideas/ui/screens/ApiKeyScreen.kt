@@ -66,6 +66,7 @@ import app.ember.ideas.ui.components.EmberTopBar
 import app.ember.ideas.ui.components.GhostButton
 import app.ember.ideas.ui.components.IconCircleButton
 import app.ember.ideas.ui.components.PrimaryButton
+import app.ember.ideas.ui.components.topFade
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
 import kotlinx.coroutines.delay
@@ -116,7 +117,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                 Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 20.dp),
             ) {
                 Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(c.emberGradient), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Lock, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(28.dp))
@@ -165,6 +166,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     Spacer(Modifier.width(6.dp))
                     Text(if (settings.secureStorageAvailable) s.keySecureNote else s.keyStoredNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
                 }
+                Text(s.keyCostNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
                 Spacer(Modifier.height(24.dp))
                 EmberCard(Modifier.fillMaxWidth()) {
                     Column {
@@ -190,14 +192,13 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                                 GhostButton(s.openConsole, {
                                     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys"))) }
                                 }, icon = Icons.AutoMirrored.Rounded.OpenInNew)
-                                Text(s.keyCostNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 4.dp))
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(48.dp))
             }
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 PrimaryButton(
                     text = if (success) s.keyConnected else s.keyConnect,
                     onClick = ::submit,

@@ -80,6 +80,9 @@ data class Idea(
     @SerialName("dev_time") val devTime: String = "",
     val difficulty: Int = 3,
     @SerialName("fit_reason") val fitReason: String = "",
+    @SerialName("similar_works") val similarWorks: List<String> = emptyList(),
+    val risks: List<String> = emptyList(),
+    val validation: String = "",
 )
 
 @Serializable

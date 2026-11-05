@@ -29,6 +29,8 @@ data class Settings(
     val onboarded: Boolean = false,
     val profile: DevProfile = DevProfile(),
     val totalUsage: Usage = Usage(),
+    val monthUsage: Usage = Usage(),
+    val monthlyBudgetUsd: Double = 0.0,
     val haptics: Boolean = true,
 )
 
@@ -76,10 +78,29 @@ class SettingsStore(context: Context) {
 
     fun addUsage(u: Usage) {
         val total = _settings.value.totalUsage + u
-        put { putString("usage", Protocol.json.encodeToString(Usage.serializer(), total)) }
+        val month = currentMonth()
+        val prevMonth = if (prefs.getString("usage_month_key", null) == month) _settings.value.monthUsage else Usage()
+        put {
+            putString("usage", Protocol.json.encodeToString(Usage.serializer(), total))
+            putString("usage_month", Protocol.json.encodeToString(Usage.serializer(), prevMonth + u))
+            putString("usage_month_key", month)
+        }
     }
 
-    fun resetUsage() = put { remove("usage") }
+    fun setMonthlyBudget(usd: Double) = put { putFloat("budget", usd.toFloat()) }
+
+    /** 월 예산을 넘었으면 true. 예산이 없으면 항상 false. */
+    fun overBudget(): Boolean {
+        val st = _settings.value
+        return st.monthlyBudgetUsd > 0 && st.monthUsage.costUsd >= st.monthlyBudgetUsd
+    }
+
+    private fun currentMonth(): String {
+        val c = java.util.Calendar.getInstance()
+        return "${c.get(java.util.Calendar.YEAR)}-${c.get(java.util.Calendar.MONTH) + 1}"
+    }
+
+    fun resetUsage() = put { remove("usage"); remove("usage_month"); remove("usage_month_key") }
 
     fun clearAll() {
         prefs.edit { clear() }
@@ -107,6 +128,10 @@ class SettingsStore(context: Context) {
             profile = prefs.getString("profile", null)?.let { runCatching { Protocol.json.decodeFromString(DevProfile.serializer(), it) }.getOrNull() } ?: DevProfile(),
             totalUsage = prefs.getString("usage", null)?.let { runCatching { Protocol.json.decodeFromString(Usage.serializer(), it) }.getOrNull() } ?: Usage(),
             haptics = prefs.getBoolean("haptics", true),
+            monthUsage = if (prefs.getString("usage_month_key", null) == currentMonth()) {
+                prefs.getString("usage_month", null)?.let { runCatching { Protocol.json.decodeFromString(Usage.serializer(), it) }.getOrNull() } ?: Usage()
+            } else Usage(),
+            monthlyBudgetUsd = prefs.getFloat("budget", 0f).toDouble(),
         )
     }
 

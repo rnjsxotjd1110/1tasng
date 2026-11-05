@@ -83,6 +83,7 @@ fun DocumentContent(
     revising: Boolean,
     streamingText: String,
     error: AiError?,
+    startedAt: Long = System.currentTimeMillis(),
     onRevise: () -> Unit,
     onHandoff: () -> Unit,
     onStop: () -> Unit,
@@ -229,8 +230,12 @@ fun DocumentContent(
                                         Spacer(Modifier.width(10.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(if (revising) s.revisingTitle else s.writingTitle, style = MaterialTheme.typography.titleSmall, color = c.text)
+                                            val doneSections = (writtenSections - 1).coerceAtLeast(0)
+                                            val expectedChars = app.ember.ideas.ai.CostEstimate.docOut(design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD) * 1.6
+                                            val elapsed = (System.currentTimeMillis() - startedAt).coerceAtLeast(1)
+                                            val remainMin = if (streamingText.length > 300) ((expectedChars - streamingText.length).coerceAtLeast(0.0) / (streamingText.length / (elapsed / 60000.0))).toInt() + 1 else null
                                             Text(
-                                                s.sectionProgress(writtenSections.coerceAtMost(expectedSections), expectedSections) + " · " + s.charCount(streamingText.length),
+                                                listOfNotNull(s.sectionProgress(doneSections.coerceAtMost(expectedSections), expectedSections), s.charCount(streamingText.length), remainMin?.let { s.remaining(it) }).joinToString(" · "),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = c.textMuted,
                                             )

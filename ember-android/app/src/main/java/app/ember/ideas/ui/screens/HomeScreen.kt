@@ -31,6 +31,8 @@ import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SportsEsports
@@ -121,9 +123,36 @@ fun HomeScreen(
                 GhostButton(s.profileButton, onOpenProfile, icon = Icons.Rounded.Person, color = c.textMuted)
             }
         }
+        if (settings.monthlyBudgetUsd > 0 && settings.monthUsage.costUsd >= settings.monthlyBudgetUsd * 0.8) {
+            item {
+                val pct = (settings.monthUsage.costUsd / settings.monthlyBudgetUsd * 100).toInt()
+                Row(
+                    Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.gold.copy(alpha = 0.14f)).padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Savings, null, tint = c.gold, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(s.budgetWarn(pct), style = MaterialTheme.typography.bodySmall, color = c.text)
+                }
+            }
+        }
+        if (inProgress.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(16.dp))
+                SectionLabel(s.continueSection, Modifier.padding(horizontal = 20.dp))
+            }
+            item {
+                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(inProgress, key = { it.id }) { p ->
+                        ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
+                    }
+                }
+            }
+        }
+
         item {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(if (inProgress.isNotEmpty()) 24.dp else 28.dp))
                 Text(s.greeting(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)), style = MaterialTheme.typography.titleSmall, color = c.ember)
                 Spacer(Modifier.height(8.dp))
                 Text(s.homeHeadline, style = MaterialTheme.typography.displaySmall, color = c.text)
@@ -168,14 +197,16 @@ fun HomeScreen(
                     icon = if (!settings.hasKey) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
                 )
                 if (settings.hasKey) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                        Text(
-                            s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = c.textFaint,
-                            modifier = Modifier.weight(1f).padding(start = 4.dp),
-                        )
-                        if (kind != null) GhostButton(s.quickIdeas, { start(quick = true) }, color = c.textMuted, modifier = Modifier.offset(x = 12.dp))
+                    Text(
+                        s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textFaint,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                    if (kind != null) {
+                        Spacer(Modifier.height(8.dp))
+                        SecondaryButton(s.quickIdeas, { start(quick = true) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Bolt, height = 48.dp)
                     }
                 } else {
                     Spacer(Modifier.height(4.dp))
@@ -184,20 +215,6 @@ fun HomeScreen(
                         onOpenProject(p.id)
                     }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PlayArrow)
                     Text(s.noKeyHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 10.dp, start = 4.dp))
-                }
-            }
-        }
-
-        if (inProgress.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(32.dp))
-                SectionLabel(s.continueSection, Modifier.padding(horizontal = 20.dp))
-            }
-            item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(inProgress, key = { it.id }) { p ->
-                        ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
-                    }
                 }
             }
         }

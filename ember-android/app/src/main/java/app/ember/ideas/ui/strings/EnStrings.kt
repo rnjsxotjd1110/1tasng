@@ -69,6 +69,7 @@ object EnStrings : Strings() {
         AiError.Refused -> "Claude can't help with this request"
         AiError.BadResponse -> "Couldn't read the response"
         AiError.ModelUnavailable -> "That model isn't available"
+        AiError.OverBudget -> "Monthly budget reached"
         is AiError.Other -> "Something went wrong"
     }
     override fun errorBody(e: AiError) = when (e) {
@@ -81,6 +82,7 @@ object EnStrings : Strings() {
         AiError.Refused -> "Try rephrasing or taking a different direction."
         AiError.BadResponse -> "The response was malformed. Trying again usually fixes it."
         AiError.ModelUnavailable -> "Choose another model in Settings, or check this key's model access."
+        AiError.OverBudget -> "Requests are paused because you hit your monthly budget. Raise or turn it off in Settings → Monthly budget."
         is AiError.Other -> e.detail.take(160).ifBlank { "Please try again in a moment." }
     }
     override val fixKey = "Reconnect key"
@@ -135,7 +137,7 @@ object EnStrings : Strings() {
         ProjectKind.WEB -> "New web idea"
         ProjectKind.ANY -> "New idea"
     }
-    override val seedPlaceholder = "Any words or thoughts on your mind? (optional)\ne.g. cats, my commute, studying alone"
+    override val seedPlaceholder = "Any words on your mind? e.g. cats, my commute, studying alone"
     override val inspireMe = "Inspire me"
     override val inspirations = listOf(
         "Rainy days by the window", "A 20-minute subway commute", "Old photo albums", "Growing houseplants", "Studying alone",
@@ -411,9 +413,9 @@ object EnStrings : Strings() {
     }
     override fun reviseCost(cost: String) = "Each new version costs $cost"
     override fun modelShort(m: ClaudeModel) = when (m) {
-        ClaudeModel.OPUS -> "Opus 5.5"
-        ClaudeModel.SONNET -> "Sonnet 5.5"
-        ClaudeModel.HAIKU -> "Haiku 5.5"
+        ClaudeModel.OPUS -> "Opus\u00A05.5"
+        ClaudeModel.SONNET -> "Sonnet\u00A05.5"
+        ClaudeModel.HAIKU -> "Haiku\u00A05.5"
     }
     override fun modelSetCost(cost: String) = "Exploration + standard doc: $cost"
     override val quickIdeas = "Skip questions, get ideas now"
@@ -444,6 +446,20 @@ object EnStrings : Strings() {
     }
     override val exportClaudeMd = "Export CLAUDE.md for Claude Code"
     override val errorSafeNote = "Failed requests aren't billed, and your answers so far are saved."
+
+    override val fieldSimilar = "Similar works"
+    override val fieldRisks = "Biggest risks"
+    override val fieldValidation = "Cheapest way to validate"
+    override val easiest = "Easiest"
+    override val exportClaudeMdBody = "A design file Claude Code on your PC reads from the repo"
+    override val monthlyBudget = "Monthly budget"
+    override val budgetBody = "Requests pause and you're told when this month's estimated cost reaches the budget."
+    override val budgetOptionsUsd = listOf(0.0, 5.0, 10.0, 25.0)
+    override fun budgetLabel(usd: Double) = if (usd <= 0) "None" else money(usd)
+    override fun thisMonth(used: String, budget: String?) = if (budget == null) "This month $used" else "This month $used of $budget"
+    override fun budgetWarn(pct: Int) = "You've used $pct% of this month's budget"
+    override fun writingNow(title: String) = "Writing · $title"
+    override fun remaining(min: Int) = if (min <= 1) "Under a minute left" else "About $min min left"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

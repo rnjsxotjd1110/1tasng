@@ -139,7 +139,7 @@ object SampleProject {
 
 - `scenes/puzzle/Board.tscn`: 격자, 빛 경로 계산(`light_tracer.gd`)
 - 지도 데이터는 `data/maps/*.tres` 리소스로 관리합니다.
-- 저장은 `user://save.json` 에 별 개수와 해금 상태만 기록합니다.
+- 저장은 `user://save.json`에 별 개수와 해금 상태만 기록합니다.
 
 ## 수익 모델
 

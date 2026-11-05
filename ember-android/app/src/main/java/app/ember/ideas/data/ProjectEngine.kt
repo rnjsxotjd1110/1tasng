@@ -409,6 +409,11 @@ class ProjectEngine(
     private fun launchOp(id: String, kind: OpKind, retry: () -> Unit, block: suspend () -> Unit) {
         if (isBusy(id)) return
         retries[id] = retry
+        // 월 예산을 넘었으면 요청을 보내지 않는다(체험 프로젝트는 비용이 없으므로 예외).
+        if (store.get(id)?.isDemo != true && settings.overBudget()) {
+            _ops.update { it + (id to OpState(kind, running = false, error = AiError.OverBudget)) }
+            return
+        }
         _ops.update { it + (id to OpState(kind)) }
         val job = scope.launch(start = CoroutineStart.LAZY) {
             var success = false

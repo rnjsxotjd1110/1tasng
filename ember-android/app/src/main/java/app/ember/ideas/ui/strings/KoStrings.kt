@@ -70,6 +70,7 @@ object KoStrings : Strings() {
         AiError.Refused -> "이 요청에는 답할 수 없어요"
         AiError.BadResponse -> "응답을 읽지 못했어요"
         AiError.ModelUnavailable -> "선택한 모델을 쓸 수 없어요"
+        AiError.OverBudget -> "이번 달 예산을 다 썼어요"
         is AiError.Other -> "문제가 생겼어요"
     }
 
@@ -83,6 +84,7 @@ object KoStrings : Strings() {
         AiError.Refused -> "표현을 바꾸거나 다른 방향으로 요청해 주세요."
         AiError.BadResponse -> "응답 형식이 어긋났어요. 다시 시도하면 대부분 해결돼요."
         AiError.ModelUnavailable -> "설정에서 다른 모델을 고르거나, 이 키에 모델 권한이 있는지 확인해 주세요."
+        AiError.OverBudget -> "설정한 월 예산에 도달해 요청을 멈췄어요. 설정 → 월 예산에서 한도를 올리거나 끌 수 있어요."
         is AiError.Other -> e.detail.take(160).ifBlank { "잠시 후 다시 시도해 주세요." }
     }
     override val fixKey = "키 다시 연결"
@@ -420,9 +422,9 @@ object KoStrings : Strings() {
     }
     override fun reviseCost(cost: String) = "새 버전 한 번에 $cost"
     override fun modelShort(m: ClaudeModel) = when (m) {
-        ClaudeModel.OPUS -> "Opus 5.5"
-        ClaudeModel.SONNET -> "Sonnet 5.5"
-        ClaudeModel.HAIKU -> "Haiku 5.5"
+        ClaudeModel.OPUS -> "Opus\u00A05.5"
+        ClaudeModel.SONNET -> "Sonnet\u00A05.5"
+        ClaudeModel.HAIKU -> "Haiku\u00A05.5"
     }
     override fun modelSetCost(cost: String) = "탐색과 표준 설계서 한 세트 $cost"
     override val quickIdeas = "질문 없이 바로 아이디어 받기"
@@ -453,6 +455,20 @@ object KoStrings : Strings() {
     }
     override val exportClaudeMd = "Claude Code용 CLAUDE.md 내보내기"
     override val errorSafeNote = "실패한 요청에는 요금이 청구되지 않고, 지금까지의 답변은 그대로 저장되어 있어요."
+
+    override val fieldSimilar = "참고할 작품"
+    override val fieldRisks = "가장 큰 위험"
+    override val fieldValidation = "가장 싸게 검증하는 법"
+    override val easiest = "가장 쉬움"
+    override val exportClaudeMdBody = "PC의 Claude Code가 저장소에서 바로 읽는 설계 파일이에요"
+    override val monthlyBudget = "월 예산"
+    override val budgetBody = "이번 달 예상 비용이 예산에 닿으면 요청을 멈추고 알려 드려요."
+    override val budgetOptionsUsd = listOf(0.0, 5000 / 1400.0, 10000 / 1400.0, 30000 / 1400.0)
+    override fun budgetLabel(usd: Double) = if (usd <= 0) "없음" else money(usd)
+    override fun thisMonth(used: String, budget: String?) = if (budget == null) "이번 달 $used" else "이번 달 $used / 예산 $budget"
+    override fun budgetWarn(pct: Int) = "이번 달 예산의 $pct%를 썼어요"
+    override fun writingNow(title: String) = "지금 쓰는 중 · $title"
+    override fun remaining(min: Int) = if (min <= 1) "1분 안에 끝나요" else "약 ${min}분 남았어요"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

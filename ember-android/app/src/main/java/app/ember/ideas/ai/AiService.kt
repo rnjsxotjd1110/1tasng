@@ -61,6 +61,7 @@ sealed class AiError(message: String) : Exception(message) {
     data object Refused : AiError("refused") { private fun readResolve(): Any = Refused }
     data object BadResponse : AiError("bad_response") { private fun readResolve(): Any = BadResponse }
     data object ModelUnavailable : AiError("model_unavailable") { private fun readResolve(): Any = ModelUnavailable }
+    data object OverBudget : AiError("over_budget") { private fun readResolve(): Any = OverBudget }
     class Other(val detail: String) : AiError(detail)
 }
 

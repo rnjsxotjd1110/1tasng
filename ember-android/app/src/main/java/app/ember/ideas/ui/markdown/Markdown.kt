@@ -157,7 +157,7 @@ object MarkdownParser {
                 text[i] == '`' -> {
                     val end = text.indexOf('`', i + 1)
                     if (end > i + 1) {
-                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 0.86.em, background = c.surface2, color = c.gold)) {
+                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 0.86.em, background = c.surface3, color = c.text)) {
                             append(text.substring(i + 1, end))
                         }
                         i = end + 1

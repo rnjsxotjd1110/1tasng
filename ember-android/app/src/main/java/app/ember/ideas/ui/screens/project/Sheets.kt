@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.CallMerge
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Description
@@ -69,6 +70,7 @@ import app.ember.ideas.handoff.HandoffGoal
 import app.ember.ideas.ui.components.EmberChip
 import app.ember.ideas.ui.components.EmberTextField
 import app.ember.ideas.ui.components.GhostButton
+import app.ember.ideas.ui.components.IconCircleButton
 import app.ember.ideas.ui.components.PrimaryButton
 import app.ember.ideas.ui.components.SecondaryButton
 import app.ember.ideas.ui.components.SelectMark
@@ -138,10 +140,11 @@ fun IdeaDetailSheet(
                     Text(idea.logline, style = MaterialTheme.typography.bodyLarge, color = c.text.copy(alpha = 0.9f))
                 }
                 HeartButton(saved, onToggleSave)
+                IconCircleButton(Icons.Rounded.Close, s.close, onDismiss, filled = false, tint = c.textMuted)
             }
             Spacer(Modifier.height(14.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                (listOf(idea.genre.ifBlank { idea.category }) + idea.platforms).filter { it.isNotBlank() }.distinct().forEach { Tag(it) }
+                (listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime) + idea.platforms).filter { it.isNotBlank() }.distinct().forEach { Tag(it) }
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().offset(x = (-12).dp)) {
@@ -165,6 +168,9 @@ fun IdeaDetailSheet(
             DetailBlock(s.fieldAudience, idea.targetAudience)
             DetailBlock(s.fieldMonetization, idea.monetization)
             DetailBlock(s.fieldFit, idea.fitReason, accent = true)
+            if (idea.similarWorks.isNotEmpty()) BulletBlock(s.fieldSimilar, idea.similarWorks)
+            if (idea.risks.isNotEmpty()) BulletBlock(s.fieldRisks, idea.risks)
+            DetailBlock(s.fieldValidation, idea.validation)
             Spacer(Modifier.height(8.dp))
             GhostButton(s.sendIdeaToClaude, onSendToClaude, icon = Icons.AutoMirrored.Rounded.Send, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.height(16.dp))
@@ -211,8 +217,20 @@ private fun Stat(label: String, value: String) {
 }
 
 @Composable
+private fun BulletBlock(title: String, items: List<String>) {
+    val c = Ember.colors
+    DetailTitle(title)
+    items.forEach { f ->
+        Row(Modifier.padding(vertical = 3.dp)) {
+            Box(Modifier.padding(top = 8.dp, end = 10.dp).size(6.dp).clip(CircleShape).background(c.textFaint))
+            Text(f, style = MaterialTheme.typography.bodyMedium, color = c.text)
+        }
+    }
+}
+
+@Composable
 private fun DetailTitle(t: String) {
-    Text(t, style = MaterialTheme.typography.labelLarge, color = Ember.colors.ember, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+    Text(t, style = MaterialTheme.typography.labelLarge, color = Ember.colors.textMuted, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
 }
 
 @Composable
@@ -438,7 +456,7 @@ fun HandoffSheet(
         SheetTitle(s.handoffTitle, if (claudeInstalled) s.handoffSubApp else s.handoffSubWeb)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
             if (docTitle != null) {
-                Text(s.handoffDocName(docTitle), style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+                Text(s.handoffDocName(docTitle), style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 8.dp))
             }
             HandoffGoal.entries.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -446,7 +464,21 @@ fun HandoffSheet(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            Text(s.goalBody(goal), style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+            Text(s.goalBody(goal), style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(bottom = 4.dp))
+            if (onExportClaudeMd != null && goal == HandoffGoal.START_BUILD) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2).clickable(onClick = onExportClaudeMd).padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Description, null, tint = c.ember, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(s.exportClaudeMd, style = MaterialTheme.typography.titleSmall, color = c.text)
+                        Text(s.exportClaudeMdBody, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+                    }
+                    Icon(Icons.Rounded.Share, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
+                }
+            }
             Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
             ToggleRow(s.includeAnswers, null, answers, { answers = it })
             if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
@@ -475,9 +507,6 @@ fun HandoffSheet(
             }
             if (!claudeInstalled) {
                 Text(s.claudeWebNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
-            }
-            if (onExportClaudeMd != null) {
-                GhostButton(s.exportClaudeMd, onExportClaudeMd, icon = Icons.Rounded.Description, modifier = Modifier.offset(x = (-12).dp).padding(top = 4.dp))
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -547,30 +576,48 @@ fun ideaAsText(idea: Idea): String = Protocol.ideaBrief(idea).removePrefix("### 
 // ------------------------------------------------------------------ 아이디어 비교
 
 @Composable
-fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Unit) {
+fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Unit, onDesign: (Idea) -> Unit) {
     val s = LocalStrings.current
+    val c = Ember.colors
     EmberSheet(onDismiss) {
         SheetTitle(s.compareTitle, s.compareSub)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-            val header = listOf("") + ideas.map { it.title }
-            val rows = listOf(
-                listOf(s.fieldScope) + ideas.map { it.scope },
-                listOf(s.fieldDevTime) + ideas.map { it.devTime },
-                listOf(s.fieldDifficulty) + ideas.map { "${it.difficulty}/5" },
-                listOf(s.fieldCoreHook) + ideas.map { it.coreHook },
-                listOf(s.fieldMonetization) + ideas.map { it.monetization },
-                listOf(s.fieldUnique) + ideas.map { it.uniquePoint },
-            )
-            app.ember.ideas.ui.markdown.MarkdownBlockView(app.ember.ideas.ui.markdown.MdBlock.Table(header, rows))
-            Spacer(Modifier.height(8.dp))
+            val easiest = ideas.minByOrNull { it.difficulty }?.id
             ideas.forEach { idea ->
-                GhostButton(s.openIdea(idea.title), { onOpen(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface2).padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(idea.title, style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+                        if (idea.id == easiest) Tag(s.easiest, color = c.success, strong = true)
+                        Spacer(Modifier.width(12.dp))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    CompareLine(s.fieldScope, "${idea.scope} · ${idea.devTime}")
+                    CompareLine(s.fieldDifficulty, "${idea.difficulty}/5")
+                    CompareLine(s.fieldCoreHook, idea.coreHook)
+                    CompareLine(s.fieldMonetization, idea.monetization)
+                    CompareLine(s.fieldUnique, idea.uniquePoint)
+                    Row(Modifier.fillMaxWidth()) {
+                        GhostButton(s.details, { onOpen(idea) }, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
+                        Spacer(Modifier.weight(1f))
+                        GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
 
+@Composable
+private fun CompareLine(label: String, value: String) {
+    if (value.isBlank()) return
+    val c = Ember.colors
+    Row(Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = c.textFaint, modifier = Modifier.width(84.dp))
+        Text(value, style = MaterialTheme.typography.bodySmall, color = c.text, modifier = Modifier.weight(1f))
+    }
+}
 
 @Composable
 private fun GoalTile(title: String, body: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {

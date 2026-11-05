@@ -51,6 +51,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -107,7 +111,10 @@ fun QuestionFlow(
     val answered = turns.count { it.answer != null }
     val index = turns.size
     var lastSubmitted by remember { mutableStateOf<String?>(null) }
+    // 요청이 실패했을 때 고른 답을 그대로 되살리기 위해 마지막 답을 기억한다.
+    var pendingAnswer by remember { mutableStateOf<Answer?>(null) }
     val submit: (Answer) -> Unit = { a ->
+        pendingAnswer = a
         lastSubmitted = current?.let { t ->
             if (a.skipped) s.skipped else t.copy(answer = a).answerSummary().ifBlank { null }
         }
@@ -123,12 +130,23 @@ fun QuestionFlow(
                     Tag(stage, color = c.ember, strong = true)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(s.questionOf(index.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
-                if (answered > 0) {
-                    GhostButton(s.answersSoFar(answered), onShowHistory, icon = Icons.Rounded.History, color = c.textMuted, modifier = Modifier.offset(x = 12.dp))
+                // 답을 보내는 즉시 카운터와 진행 막대를 한 칸 올린다.
+                val sending = busy && lastSubmitted != null
+                val shownIndex = if (sending) index + 1 else index
+                Text(s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
+                if (canFinish && !busy && error == null && current != null) {
+                    Row(
+                        Modifier.clip(CircleShape).background(c.emberSoft).clickable(onClick = onFinish).heightIn(min = 40.dp).padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(finishLabel, style = MaterialTheme.typography.labelLarge, color = c.ember)
+                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.ember, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
-            EmberProgress((current?.progress ?: turns.lastOrNull()?.progress ?: 3) / 100f)
+            val base = current?.progress ?: turns.lastOrNull()?.progress ?: 3
+            EmberProgress((if (busy && lastSubmitted != null) (base + 100 / expectedTotal).coerceAtMost(96) else base) / 100f)
         }
 
         Box(Modifier.weight(1f)) {
@@ -175,12 +193,12 @@ fun QuestionFlow(
                 ) { turn ->
                     QuestionCard(
                         turn = turn,
-                        draft = draft,
+                        draft = if (error != null && pendingAnswer != null && !pendingAnswer!!.skipped) pendingAnswer else draft,
                         canUndo = turns.size >= 2,
                         onSubmit = submit,
                         onUndo = onUndo,
-                        finishLabel = if (canFinish) finishLabel else null,
-                        onFinish = onFinish,
+                        historyLabel = if (answered > 0) s.answersSoFar(answered) else null,
+                        onShowHistory = onShowHistory,
                         errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater) }) else null,
                     )
                 }
@@ -196,8 +214,8 @@ private fun QuestionCard(
     canUndo: Boolean,
     onSubmit: (Answer) -> Unit,
     onUndo: () -> Unit,
-    finishLabel: String?,
-    onFinish: () -> Unit,
+    historyLabel: String?,
+    onShowHistory: () -> Unit,
     errorBanner: (@Composable () -> Unit)?,
 ) {
     val s = LocalStrings.current
@@ -225,14 +243,20 @@ private fun QuestionCard(
                 errorBanner()
                 Spacer(Modifier.height(16.dp))
             }
-            if (turn.insight.isNotBlank()) {
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface2).padding(12.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Icon(Icons.Rounded.Lightbulb, null, tint = c.gold, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(turn.insight, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            if (turn.insight.isNotBlank() || historyLabel != null) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface2).padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 2.dp)) {
+                    if (turn.insight.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(end = 8.dp)) {
+                            Icon(Icons.Rounded.Lightbulb, null, tint = c.gold, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(turn.insight, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+                        }
+                    }
+                    if (historyLabel != null) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            GhostButton(historyLabel, onShowHistory, icon = Icons.Rounded.History, color = c.textMuted)
+                        }
+                    } else Spacer(Modifier.height(8.dp))
                 }
                 Spacer(Modifier.height(20.dp))
             }
@@ -274,18 +298,6 @@ private fun QuestionCard(
                     }
                 }
             }
-            if (finishLabel != null) {
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(onClick = onFinish).padding(horizontal = 14.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.AutoAwesome, null, tint = c.ember, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text(finishLabel, style = MaterialTheme.typography.titleSmall, color = c.ember, modifier = Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.ember, modifier = Modifier.size(18.dp))
-                }
-            }
             Spacer(Modifier.height(32.dp))
         }
 
@@ -298,10 +310,8 @@ private fun QuestionCard(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (canUndo) {
-                GhostButton(s.previousShort, onUndo, icon = Icons.AutoMirrored.Rounded.Undo, color = c.textMuted, modifier = Modifier.offset(x = (-8).dp))
-            }
-            GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted, modifier = Modifier.offset(x = if (canUndo) (-8).dp else (-12).dp))
+            GhostButton(s.previousShort, onUndo, icon = Icons.AutoMirrored.Rounded.ArrowBack, color = c.textMuted, enabled = canUndo, modifier = Modifier.offset(x = (-12).dp))
+            GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.width(4.dp))
             PrimaryButton(
                 text = s.next,
@@ -375,7 +385,7 @@ private fun CustomRow(open: Boolean, filled: Boolean, multi: Boolean, onClick: (
         }
         Spacer(Modifier.width(14.dp))
         Text(s.customAnswer, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        SelectMark(open || filled, multi = multi)
+        Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = if (filled) c.ember else c.textMuted)
     }
 }
 

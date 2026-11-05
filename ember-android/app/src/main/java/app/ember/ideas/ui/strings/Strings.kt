@@ -202,6 +202,19 @@ abstract class Strings {
     abstract val recommended: String
     abstract val moreActions: String
     abstract fun minutes(lo: Int, hi: Int): String
+    abstract val fieldSimilar: String
+    abstract val fieldRisks: String
+    abstract val fieldValidation: String
+    abstract val easiest: String
+    abstract val exportClaudeMdBody: String
+    abstract val monthlyBudget: String
+    abstract val budgetBody: String
+    abstract val budgetOptionsUsd: List<Double>
+    abstract fun budgetLabel(usd: Double): String
+    abstract fun thisMonth(used: String, budget: String?): String
+    abstract fun budgetWarn(pct: Int): String
+    abstract fun writingNow(title: String): String
+    abstract fun remaining(min: Int): String
     abstract fun yourAnswer(a: String): String
     abstract val previousShort: String
     abstract val compare: String

@@ -127,7 +127,7 @@ class ScreenshotTest {
     private fun ideasProject(): Project {
         val r = Protocol.parseReply(
             """{"kind":"ideas","stage":"아이디어","progress":100,"insight":"","question":{"title":"","subtitle":"","multi_select":false,"options":[],"allow_custom":false,"custom_hint":""},"ideas_intro":"아늑하고 짧은 퍼즐을 좋아하는 취향과 혼자 3개월이라는 규모를 함께 고려했어요.","ideas":[
-            {"id":"1","title":"지하철 정원사","logline":"한 정거장마다 씨앗 하나를 심어 노선도를 꽃길로 바꾸는 3~5분짜리 퍼즐 게임.","category":"퍼즐","platforms":["Android","iOS"],"genre":"배치 퍼즐","target_audience":"출퇴근하는 20~40대","core_hook":"정거장 사이 짧은 시간 안에 꽃이 피는 조합을 찾는 쾌감","key_features":["노선도 위 타일 배치","정거장 수만큼 남은 턴","계절마다 바뀌는 꽃 조합","오프라인 플레이"],"unique_point":"실제 이동 시간과 한 판 길이가 맞물려요.","monetization":"유료 4,400원","scope":"소형","dev_time":"1인 3개월","difficulty":2,"fit_reason":"짧은 세션, 아늑한 분위기, 혼자 개발 규모를 모두 반영했어요."},
+            {"id":"1","title":"지하철 정원사","logline":"한 정거장마다 씨앗 하나를 심어 노선도를 꽃길로 바꾸는 3~5분짜리 퍼즐 게임.","category":"퍼즐","platforms":["Android","iOS"],"genre":"배치 퍼즐","target_audience":"출퇴근하는 20~40대","core_hook":"정거장 사이 짧은 시간 안에 꽃이 피는 조합을 찾는 쾌감","key_features":["노선도 위 타일 배치","정거장 수만큼 남은 턴","계절마다 바뀌는 꽃 조합","오프라인 플레이"],"unique_point":"실제 이동 시간과 한 판 길이가 맞물려요.","monetization":"유료 4,400원","scope":"소형","dev_time":"1인 3개월","difficulty":2,"fit_reason":"짧은 세션, 아늑한 분위기, 혼자 개발 규모를 모두 반영했어요.","similar_works":["Mini Metro — 노선도 위 퍼즐이라는 점은 같지만 경쟁 대신 가꾸기가 중심이에요","Viridi — 식물을 돌보는 아늑함은 같지만 퍼즐 목표가 있어요"],"risks":["퍼즐 깊이가 금방 바닥날 수 있어요","노선도 테마가 낯선 해외 사용자"],"validation":"종이로 노선 3개짜리 퍼즐을 만들어 지인 5명에게 출퇴근길에 풀어 보게 해요."},
             {"id":"2","title":"우산 대여소","logline":"비 오는 도시에서 사람들의 동선을 읽고 우산을 빌려주는 경영 퍼즐.","category":"시뮬레이션","platforms":["Android"],"genre":"경영","target_audience":"코지 게임 팬","core_hook":"날씨 예보를 읽고 미리 준비하는 전략","key_features":["날씨 예보","손님 이야기","가게 꾸미기"],"unique_point":"비가 그치면 하루가 끝나요.","monetization":"무료 + 꾸미기 아이템","scope":"중형","dev_time":"1인 5개월","difficulty":3,"fit_reason":"아늑함과 전략을 함께 원해서 골랐어요."},
             {"id":"3","title":"별빛 배달부","logline":"잠든 마을에 꿈을 배달하는 한 손 리듬 러너.","category":"액션","platforms":["Android","iOS"],"genre":"리듬 러너","target_audience":"캐주얼 게이머","core_hook":"음악에 맞춰 지붕을 건너는 손맛","key_features":["한 손 탭 조작","20곡 수록","꿈 수집"],"unique_point":"배달한 꿈이 다음 곡을 바꿔요.","monetization":"유료","scope":"중형","dev_time":"1인 6개월","difficulty":4,"fit_reason":"몽환적인 분위기를 반영했어요."},
             {"id":"4","title":"고양이 서점","logline":"고양이가 추천하는 책을 손님에게 연결하는 대화형 퍼즐.","category":"퍼즐","platforms":["Android"],"genre":"내러티브","target_audience":"책과 고양이를 좋아하는 사람","core_hook":"손님의 사연에 맞는 책을 찾았을 때의 뿌듯함","key_features":["사연 읽기","책장 정리","고양이 수집"],"unique_point":"실제 고전 문학의 한 구절을 단서로 써요.","monetization":"유료","scope":"소형","dev_time":"1인 4개월","difficulty":2,"fit_reason":"아늑함과 이야기 선호를 반영했어요."}]}""",
@@ -208,9 +208,11 @@ class ScreenshotTest {
         withKey()
         ai.turnReplies += Result.failure(AiError.Offline)
         c.store.upsert(interviewProject())
-        c.engine.answer("p_interview", Answer(listOf("a")))
-        ShadowLooper.idleMainLooper()
         setContent { ProjectScreen("p_interview", {}, {}) }
+        click("아늑하고 따뜻한")
+        click("몽환적인")
+        click("다음")
+        ShadowLooper.idleMainLooper()
         shot("08_interview_error")
     }
 
@@ -240,7 +242,7 @@ class ScreenshotTest {
 
     @Test fun s12_design_question() {
         withKey()
-        val dq = """{"kind":"question","stage":"기술","progress":35,"insight":"한 판 3~5분의 노선도 퍼즐로 방향을 정했어요.","question":{"title":"어떤 엔진으로 만들까요?","subtitle":"프로필에 적힌 도구를 기준으로 추천했어요.","multi_select":false,"options":[{"id":"a","label":"Godot 4","description":"추천 · 가볍고 2D 퍼즐에 최적, 무료","emoji":"🤖"},{"id":"b","label":"Unity","description":"에셋이 많지만 빌드가 무거워요","emoji":"🧊"},{"id":"c","label":"Flutter + Flame","description":"앱 UI 와 섞기 쉬워요","emoji":"🦋"}],"allow_custom":true,"custom_hint":""},"ready_summary":""}"""
+        val dq = """{"kind":"question","stage":"기술","progress":35,"insight":"한 판 3~5분의 노선도 퍼즐로 방향을 정했어요.","question":{"title":"어떤 엔진으로 만들까요?","subtitle":"프로필에 적힌 도구를 기준으로 추천했어요.","multi_select":false,"options":[{"id":"a","label":"Godot 4","description":"추천 · 가볍고 2D 퍼즐에 최적, 무료","emoji":"🤖"},{"id":"b","label":"Unity","description":"에셋이 많지만 빌드가 무거워요","emoji":"🧊"},{"id":"c","label":"Flutter + Flame","description":"앱 UI와 섞기 쉬워요","emoji":"🦋"}],"allow_custom":true,"custom_hint":""},"ready_summary":""}"""
         val base = ideasProject()
         val r = Protocol.parseReply(dq)
         c.settings.setProfile(DevProfile("1~3년", listOf("Godot", "Unity", "Flutter"), "혼자", ""))
@@ -298,6 +300,7 @@ class ScreenshotTest {
         withKey()
         c.settings.setProfile(DevProfile("1~3년", listOf("Godot", "Unity", "Unreal Engine"), "혼자", ""))
         c.settings.addUsage(Usage(48_200, 21_400, 9_000, 3_000, 0.71, 23))
+        c.settings.setMonthlyBudget(10000 / 1400.0)
         setContent { MainTabs({}, {}, {}, {}, initialTab = 2) }
         shot("18_settings")
     }

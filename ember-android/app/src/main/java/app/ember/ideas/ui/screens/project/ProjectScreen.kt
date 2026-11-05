@@ -257,6 +257,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         busy = busy && (op?.kind == OpKind.WRITING || op?.kind == OpKind.REVISING),
                         revising = op?.kind == OpKind.REVISING,
                         streamingText = op?.streamingText.orEmpty(),
+                        startedAt = op?.startedAt ?: System.currentTimeMillis(),
                         error = error,
                         onRevise = { sheet = Sheet.Revise },
                         onHandoff = { sheet = Sheet.Handoff(project.design?.ideaId, HandoffGoal.START_BUILD) },
@@ -340,7 +341,9 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 Handoff.shareMarkdown(ctx, "CLAUDE", Handoff.buildClaudeMd(project, idea, settings.profile, korean), s.share, fileName = "CLAUDE.md")
             }) else null,
         )
-        Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }) { sheet = Sheet.IdeaDetail(it.id) }
+        Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }, { sheet = Sheet.IdeaDetail(it.id) }) {
+            if (!settings.hasKey && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(it.id)
+        }
         Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }) { text ->
             sheet = null
             if (!settings.hasKey && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)

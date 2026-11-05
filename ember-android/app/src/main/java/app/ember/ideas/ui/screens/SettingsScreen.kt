@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material3.MaterialTheme
 import app.ember.ideas.ui.text.Text
@@ -95,6 +96,16 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         Group(s.groupUsage) {
             val u = settings.totalUsage
             Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp)) {
+                val m = settings.monthUsage
+                Text(
+                    s.thisMonth(s.money(m.costUsd), settings.monthlyBudgetUsd.takeIf { it > 0 }?.let { s.money(it) }),
+                    style = MaterialTheme.typography.titleSmall, color = c.text,
+                )
+                if (settings.monthlyBudgetUsd > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    app.ember.ideas.ui.components.EmberProgress((m.costUsd / settings.monthlyBudgetUsd).toFloat(), height = 6.dp)
+                }
+                Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth()) {
                     UsageStat(s.usageRequests, u.requests.toString(), Modifier.weight(1f))
                     UsageStat(s.usageTokens, s.compactNumber(u.inputTokens + u.outputTokens + u.cacheReadTokens), Modifier.weight(1f))
@@ -103,7 +114,8 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
                 Spacer(Modifier.height(8.dp))
                 Text(s.usageNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
             }
-            NavRow(s.resetUsage, null, { dialog = "resetUsage" }, icon = Icons.Rounded.RestartAlt)
+            NavRow(s.monthlyBudget, s.budgetLabel(settings.monthlyBudgetUsd), { dialog = "budget" }, icon = Icons.Rounded.Savings, body = s.budgetBody)
+            NavRow(s.resetUsage, null, { dialog = "resetUsage" }, icon = Icons.Rounded.RestartAlt, chevron = false)
         }
         Group(s.groupData) {
             NavRow(s.exportAll, null, chevron = false, onClick = {
@@ -155,6 +167,14 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
                 }
             }
         })
+        "budget" -> EmberDialog(s.monthlyBudget, s.budgetBody, s.close, { dialog = null }, { dialog = null }, content = {
+            Column {
+                s.budgetOptionsUsd.forEach { b ->
+                    ChoiceRow(s.budgetLabel(b), "", kotlin.math.abs(settings.monthlyBudgetUsd - b) < 0.01) { container.settings.setMonthlyBudget(b); dialog = null }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        })
         "resetUsage" -> EmberDialog(s.resetUsage, s.resetUsageBody, s.reset, { container.settings.resetUsage(); dialog = null }, { dialog = null })
         "deleteAll" -> EmberDialog(s.deleteAll, s.deleteAllBody, s.delete, {
             container.store.projects.value.forEach { container.engine.cancel(it.id) }
@@ -170,7 +190,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
 private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     val c = Ember.colors
     Spacer(Modifier.height(18.dp))
-    Text(title, style = MaterialTheme.typography.labelLarge, color = c.ember, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+    Text(title, style = MaterialTheme.typography.labelLarge, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).padding(horizontal = 12.dp, vertical = 6.dp),
         content = content,

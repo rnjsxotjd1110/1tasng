@@ -153,9 +153,9 @@ fun DocumentContent(
                             "${n + 1}. $title",
                             modifier = Modifier
                                 .minimumInteractiveComponentSize()
-                                .clip(CircleShape)
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (active) c.emberSoft else c.surface2)
-                                .border(1.dp, if (active) c.ember else androidx.compose.ui.graphics.Color.Transparent, CircleShape)
+                                .border(1.dp, if (active) c.ember else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(8.dp))
                                 .clickable { scope.launch { listState.animateScrollToItem(headerCount + idx) } }
                                 .padding(horizontal = 14.dp, vertical = 9.dp),
                             style = MaterialTheme.typography.labelMedium,
@@ -210,7 +210,7 @@ fun DocumentContent(
                                     }
                                 }
                                 AnimatedVisibility(summaryOpen) {
-                                    Column(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                    Column(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp)).background(c.surface).padding(horizontal = 14.dp, vertical = 6.dp)) {
                                         if (design.readySummary.isNotBlank()) {
                                             MarkdownParser.parse(design.readySummary).forEach { MarkdownBlockView(it) }
                                         } else {
@@ -233,7 +233,7 @@ fun DocumentContent(
                                 }
                             }
                             if (busy) {
-                                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.emberSoft).padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)) {
+                                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.emberSoft).padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         CircularProgressIndicator(Modifier.size(16.dp), color = c.ember, strokeWidth = 2.dp)
                                         Spacer(Modifier.width(10.dp))
@@ -274,7 +274,7 @@ fun DocumentContent(
                                     upcoming.take(shownUpcoming).forEachIndexed { i, title ->
                                         Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                                             if (done.isEmpty() && i == 0) CircularProgressIndicator(Modifier.size(14.dp), color = c.ember, strokeWidth = 2.dp)
-                                            else Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
+                                            else Box(Modifier.size(12.dp).border(1.5.dp, c.control, RoundedCornerShape(3.dp)))
                                             Spacer(Modifier.width(12.dp))
                                             Text("${done.size + i + 1}. $title", style = MaterialTheme.typography.bodySmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }

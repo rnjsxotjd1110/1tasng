@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -71,6 +72,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -88,42 +90,19 @@ import androidx.compose.ui.unit.dp
 import app.ember.ideas.ai.AiError
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
+import app.ember.ideas.ui.theme.EmberShape
 import kotlinx.coroutines.delay
 
 // ------------------------------------------------------------------ 배경
 
-/** 화면 상단에 은은한 불빛이 번지는 기본 배경. */
+/** 모든 화면의 바탕. 장식 없이 단색으로 두어 글과 선택지가 먼저 보이게 한다. */
 @Composable
-fun EmberBackground(modifier: Modifier = Modifier, glow: Boolean = true, content: @Composable BoxScope.() -> Unit) {
+fun EmberBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val c = Ember.colors
-    Box(
-        modifier
-            .fillMaxSize()
-            .background(c.bg)
-            .drawBehind {
-                if (glow) {
-                    drawCircle(
-                        Brush.radialGradient(
-                            listOf(c.ember.copy(alpha = if (c.isDark) 0.16f else 0.10f), Color.Transparent),
-                            center = Offset(size.width * 0.85f, -size.width * 0.05f),
-                            radius = size.width * 0.9f,
-                        ),
-                        radius = size.width * 0.9f,
-                        center = Offset(size.width * 0.85f, -size.width * 0.05f),
-                    )
-                }
-            },
-        content = content,
-    )
+    Box(modifier.fillMaxSize().background(c.bg), content = content)
 }
 
 // ------------------------------------------------------------------ 버튼
-
-@Composable
-private fun pressScale(source: MutableInteractionSource): Float {
-    val pressed by source.collectIsPressedAsState()
-    return animateFloatAsState(if (pressed) 0.97f else 1f, tween(120), label = "press").value
-}
 
 @Composable
 fun PrimaryButton(
@@ -139,12 +118,22 @@ fun PrimaryButton(
     val haptic = LocalHapticFeedback.current
     val source = remember { MutableInteractionSource() }
     val active = enabled && !loading
+    val pressed by source.collectIsPressedAsState()
+    // 누르면 살짝 어두워진다. 크기는 바꾸지 않는다.
+    val fill by animateColorAsState(
+        when {
+            !active && !loading -> c.surface3
+            pressed -> lerp(c.ember, Color.Black, 0.18f)
+            else -> c.ember
+        },
+        tween(120), label = "primary",
+    )
+    val ink = if (active || loading) c.onEmber else c.textFaint
     Box(
         modifier
-            .scale(pressScale(source))
             .heightIn(min = height)
-            .clip(CircleShape)
-            .background(if (active || loading) c.buttonGradient else Brush.linearGradient(listOf(c.surface3, c.surface3)))
+            .clip(EmberShape.control)
+            .background(fill)
             .clickable(source, null, enabled = active, role = Role.Button) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
@@ -154,26 +143,21 @@ fun PrimaryButton(
     ) {
         AnimatedContent(loading, transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) }, label = "btn") { isLoading ->
             if (isLoading) {
-                CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.5.dp)
+                CircularProgressIndicator(Modifier.size(22.dp), color = ink, strokeWidth = 2.5.dp)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    // 앞으로 가는 동작의 화살표는 글자 뒤에 둔다.
-                    val trailing = icon == Icons.AutoMirrored.Rounded.ArrowForward
-                    if (icon != null && !trailing) {
-                        Icon(icon, null, tint = if (active) Color.White else c.textFaint, modifier = Modifier.size(20.dp))
+                    // 버튼 글자가 동작을 말하므로 '앞으로' 화살표는 붙이지 않는다.
+                    if (icon != null && icon != Icons.AutoMirrored.Rounded.ArrowForward) {
+                        Icon(icon, null, tint = ink, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
                         text,
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = if (active) Color.White else c.textFaint,
+                        color = ink,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (icon != null && trailing) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(icon, null, tint = if (active) Color.White else c.textFaint, modifier = Modifier.size(20.dp))
-                    }
                 }
             }
         }
@@ -191,13 +175,14 @@ fun SecondaryButton(
 ) {
     val c = Ember.colors
     val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val fill by animateColorAsState(if (pressed) c.surface3 else c.surface2, tween(120), label = "secondary")
     Row(
         modifier
-            .scale(pressScale(source))
             .heightIn(min = height)
-            .clip(CircleShape)
-            .background(c.surface2)
-            .border(1.dp, c.outline, CircleShape)
+            .clip(EmberShape.control)
+            .background(fill)
+            .border(1.dp, c.outline, EmberShape.control)
             .clickable(source, null, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -218,22 +203,17 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
     val tint = if (!enabled) c.textFaint else color ?: c.ember
     Row(
         modifier
-            .clip(CircleShape)
+            .clip(EmberShape.chip)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val trailing = icon == Icons.AutoMirrored.Rounded.ArrowForward
-        if (icon != null && !trailing) {
+        if (icon != null && icon != Icons.AutoMirrored.Rounded.ArrowForward) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
         }
         Text(text, style = MaterialTheme.typography.labelLarge, color = tint, maxLines = 1)
-        if (icon != null && trailing) {
-            Spacer(Modifier.width(6.dp))
-            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
-        }
     }
 }
 
@@ -243,7 +223,7 @@ fun IconCircleButton(icon: ImageVector, contentDescription: String, onClick: () 
     Box(
         modifier
             .size(44.dp)
-            .clip(CircleShape)
+            .clip(if (filled) EmberShape.control else CircleShape)
             .then(if (filled) Modifier.background(c.surface2) else Modifier)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
@@ -280,7 +260,7 @@ fun EmberTopBar(
         Column(
             Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(EmberShape.chip)
                 .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier)
                 .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
@@ -311,9 +291,9 @@ fun EmberChip(
         modifier
             .minimumInteractiveComponentSize()
             .heightIn(min = 40.dp)
-            .clip(CircleShape)
+            .clip(EmberShape.chip)
             .background(bg)
-            .border(1.dp, border, CircleShape)
+            .border(1.dp, border, EmberShape.chip)
             .clickable(role = Role.Checkbox, onClick = onClick)
             .semantics { stateDescription = if (selected) "✓" else "" }
             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -341,7 +321,7 @@ fun Tag(text: String, modifier: Modifier = Modifier, color: Color? = null, stron
     Text(
         text,
         modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(EmberShape.tag)
             .background(if (strong) tint.copy(alpha = 0.16f) else c.surface2)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         style = MaterialTheme.typography.labelSmall,
@@ -363,16 +343,15 @@ fun EmberCard(
     content: @Composable () -> Unit,
 ) {
     val c = Ember.colors
-    val shape = RoundedCornerShape(22.dp)
+    val shape = EmberShape.panel
     val source = remember { MutableInteractionSource() }
     Box(
         modifier
-            .then(if (onClick != null) Modifier.scale(pressScale(source)) else Modifier)
             .clip(shape)
             .background(c.surface)
             .then(
                 when {
-                    highlight -> Modifier.border(BorderStroke(1.5.dp, c.emberGradient), shape)
+                    highlight -> Modifier.border(BorderStroke(1.5.dp, c.ember), shape)
                     border -> Modifier.border(1.dp, c.outline, shape)
                     else -> Modifier
                 },
@@ -385,33 +364,35 @@ fun EmberCard(
 // ------------------------------------------------------------------ 진행 표시
 
 @Composable
-fun EmberProgress(progress: Float, modifier: Modifier = Modifier, height: Dp = 6.dp) {
+fun EmberProgress(progress: Float, modifier: Modifier = Modifier, height: Dp = 4.dp) {
     val c = Ember.colors
     val p by animateFloatAsState(progress.coerceIn(0f, 1f), tween(600, easing = FastOutSlowInEasing), label = "progress")
     Box(
         modifier
             .fillMaxWidth()
             .height(height)
-            .clip(CircleShape)
+            .clip(EmberShape.bar)
             .background(c.surface3),
     ) {
         Box(
             Modifier
                 .fillMaxWidth(p.coerceAtLeast(0.02f))
                 .height(height)
-                .clip(CircleShape)
-                .background(c.emberGradient),
+                .background(c.ember),
         )
     }
 }
 
-/** 불씨가 숨 쉬는 듯한 생각 중 표시. 문구는 몇 초마다 바뀐다. */
+/**
+ * 생각 중 표시. 문서의 줄이 한 줄씩 채워지는 모양으로, Ember 가 '설계서를 쓰는 앱'이라는 것을 보여 준다.
+ * 문구는 몇 초마다 바뀐다.
+ */
 @Composable
 fun ThinkingIndicator(lines: List<String>, modifier: Modifier = Modifier, title: String? = null) {
     val c = Ember.colors
     val t = rememberInfiniteTransition(label = "think")
-    val rot by t.animateFloat(0f, 360f, infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "rot")
-    val pulse by t.animateFloat(0.86f, 1f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
+    // 0~4: 세 줄을 차례로 채우고 잠깐 멈춘 뒤 다시 시작한다.
+    val phase by t.animateFloat(0f, 4f, infiniteRepeatable(tween(2400, easing = LinearEasing)), label = "phase")
     var index by remember { mutableIntStateOf(0) }
     LaunchedEffect(lines) {
         while (lines.size > 1) {
@@ -420,23 +401,13 @@ fun ThinkingIndicator(lines: List<String>, modifier: Modifier = Modifier, title:
         }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(84.dp)) {
-                rotate(rot) {
-                    drawArc(
-                        brush = Brush.sweepGradient(listOf(Color.Transparent, c.ember, c.gold)),
-                        startAngle = 0f, sweepAngle = 300f, useCenter = false,
-                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Butt),
-                    )
+        Column(Modifier.width(132.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            listOf(1f, 0.82f, 0.56f).forEachIndexed { i, w ->
+                val fill = (phase - i).coerceIn(0f, 1f)
+                Box(Modifier.fillMaxWidth(w).height(6.dp).clip(EmberShape.bar).background(c.surface3)) {
+                    Box(Modifier.fillMaxWidth(fill).fillMaxHeight().background(if (i == 0) c.ember else c.ember.copy(alpha = 0.7f)))
                 }
             }
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .scale(pulse)
-                    .clip(CircleShape)
-                    .background(c.emberGradient),
-            )
         }
         Spacer(Modifier.height(20.dp))
         if (title != null) {
@@ -470,12 +441,10 @@ fun ErrorPanel(
         is AiError.InvalidKey, is AiError.NoKey -> Icons.Rounded.Key
         else -> Icons.Rounded.ErrorOutline
     }
-    EmberCard(modifier.fillMaxWidth().border(1.dp, c.danger.copy(alpha = 0.45f), RoundedCornerShape(22.dp)), highlight = false, border = false) {
+    EmberCard(modifier.fillMaxWidth().border(1.dp, c.danger.copy(alpha = 0.45f), EmberShape.panel), highlight = false, border = false) {
         Column {
             Row(verticalAlignment = Alignment.Top) {
-                Box(Modifier.size(36.dp).clip(CircleShape).background(c.danger.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = c.danger, modifier = Modifier.size(20.dp))
-                }
+                Icon(icon, null, tint = c.danger, modifier = Modifier.padding(top = 1.dp).size(20.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(s.errorTitle(error), style = MaterialTheme.typography.titleSmall, color = c.text)
@@ -509,10 +478,8 @@ fun ErrorPanel(
 fun EmptyState(icon: ImageVector, title: String, body: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
     val c = Ember.colors
     Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(72.dp).clip(CircleShape).background(c.emberSoft), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = c.ember, modifier = Modifier.size(34.dp))
-        }
-        Spacer(Modifier.height(18.dp))
+        Icon(icon, null, tint = c.textFaint, modifier = Modifier.size(36.dp))
+        Spacer(Modifier.height(16.dp))
         Text(title, style = MaterialTheme.typography.titleLarge, color = c.text, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(body, style = MaterialTheme.typography.bodyMedium, color = c.textMuted, textAlign = TextAlign.Center)
@@ -536,7 +503,8 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, trailing: (@Compos
 @Composable
 fun SelectMark(selected: Boolean, multi: Boolean, modifier: Modifier = Modifier) {
     val c = Ember.colors
-    val shape = if (multi) RoundedCornerShape(7.dp) else CircleShape
+    // 다중 선택은 체크 상자, 단일 선택은 라디오 원(안드로이드 관례).
+    val shape = if (multi) EmberShape.tag else CircleShape
     Box(
         modifier
             .size(24.dp)

@@ -33,6 +33,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import app.ember.ideas.ui.theme.EmberShape
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Edit
@@ -138,12 +142,10 @@ fun QuestionFlow(
                 Text(s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                 if (canFinish && !busy && current != null && error == null) {
                     Row(
-                        Modifier.clip(CircleShape).border(1.dp, c.ember.copy(alpha = 0.5f), CircleShape).clickable(onClick = onFinish).heightIn(min = 36.dp).padding(horizontal = 12.dp),
+                        Modifier.clip(EmberShape.chip).border(1.dp, c.ember.copy(alpha = 0.5f), EmberShape.chip).clickable(onClick = onFinish).heightIn(min = 36.dp).padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(finishLabel, style = MaterialTheme.typography.labelMedium, color = c.ember)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.ember, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -160,7 +162,7 @@ fun QuestionFlow(
                     Spacer(Modifier.height(16.dp))
                     if (busy && lastSubmitted != null) {
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.emberSoft).padding(horizontal = 14.dp, vertical = 12.dp),
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.emberSoft).padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Rounded.CheckCircle, null, tint = c.ember, modifier = Modifier.size(18.dp))
@@ -246,12 +248,13 @@ private fun QuestionCard(
                 Spacer(Modifier.height(16.dp))
             }
             if (turn.insight.isNotBlank() || historyLabel != null) {
+                // 지금까지 파악한 내용. 왼쪽 선 하나로 질문과 구분한다.
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface2).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Rounded.Lightbulb, null, tint = c.gold, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.width(2.dp).fillMaxHeight().padding(vertical = 4.dp).background(c.gold.copy(alpha = 0.8f)))
+                    Spacer(Modifier.width(12.dp))
                     Text(
                         turn.insight.ifBlank { " " },
                         style = MaterialTheme.typography.bodySmall,
@@ -329,7 +332,7 @@ private fun QuestionCard(
 @Composable
 private fun OptionRow(opt: QuestionOption, letter: String, selected: Boolean, multi: Boolean, onClick: () -> Unit) {
     val c = Ember.colors
-    val shape = RoundedCornerShape(18.dp)
+    val shape = EmberShape.control
     val bg by animateColorAsState(if (selected) c.emberSoft else c.surface, tween(160), label = "optbg")
     val border by animateColorAsState(if (selected) c.ember else c.outline, tween(160), label = "optborder")
     Row(
@@ -340,17 +343,21 @@ private fun OptionRow(opt: QuestionOption, letter: String, selected: Boolean, mu
             .background(bg)
             .border(if (selected) 1.5.dp else 1.dp, border, shape)
             .clickable(role = if (multi) Role.Checkbox else Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .height(IntrinsicSize.Min)
+            .padding(end = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) c.ember else c.surface2),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(letter, style = MaterialTheme.typography.titleSmall, color = if (selected) c.onEmber else c.textMuted)
-        }
+        // 선택지 글자는 색인 카드의 여백 칸처럼 왼쪽에 크게 두고, 세로 선으로 본문과 나눈다.
+        Text(
+            letter,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = if (selected) c.ember else c.textFaint,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(48.dp),
+        )
+        Box(Modifier.width(1.dp).fillMaxHeight().background(if (selected) c.ember.copy(alpha = 0.5f) else c.outline))
         Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
             val rec = listOf("추천 · ", "Recommended · ").firstOrNull { opt.description.startsWith(it) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(opt.label, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f, fill = false))
@@ -374,7 +381,7 @@ private fun OptionRow(opt: QuestionOption, letter: String, selected: Boolean, mu
 private fun CustomRow(open: Boolean, filled: Boolean, multi: Boolean, onClick: () -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
-    val shape = RoundedCornerShape(18.dp)
+    val shape = EmberShape.control
     Row(
         Modifier
             .fillMaxWidth()
@@ -382,12 +389,14 @@ private fun CustomRow(open: Boolean, filled: Boolean, multi: Boolean, onClick: (
             .clip(shape)
             .border(1.dp, if (open || filled) c.ember else c.outline, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .height(IntrinsicSize.Min)
+            .padding(end = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Edit, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
+        Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Edit, null, tint = c.textFaint, modifier = Modifier.size(18.dp))
         }
+        Box(Modifier.width(1.dp).fillMaxHeight().background(c.outline))
         Spacer(Modifier.width(14.dp))
         Text(s.customAnswer, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = if (filled) c.ember else c.textMuted)
@@ -404,7 +413,7 @@ private fun SkeletonCards() {
         Box(Modifier.fillMaxWidth(0.7f).height(22.dp).clip(RoundedCornerShape(8.dp)).background(c.surface3.copy(alpha = a)))
         Spacer(Modifier.height(16.dp))
         repeat(3) {
-            Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(18.dp)).background(c.surface2.copy(alpha = a + 0.2f)))
+            Box(Modifier.fillMaxWidth().height(64.dp).clip(EmberShape.control).background(c.surface2.copy(alpha = a + 0.2f)))
             Spacer(Modifier.height(10.dp))
         }
     }

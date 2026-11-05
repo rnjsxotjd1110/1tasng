@@ -6,6 +6,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -76,7 +78,6 @@ fun OnboardingScreen(onFinish: () -> Unit, initialPage: Int = 0) {
                 val (title, body, art) = pages[page]
                 Column(Modifier.fillMaxSize().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Box(Modifier.size(width = 300.dp, height = 280.dp), contentAlignment = Alignment.Center) {
-                        Canvas(Modifier.size(280.dp)) { drawCircle(Brush.radialGradient(listOf(c.ember.copy(alpha = 0.20f), Color.Transparent)), radius = size.width * 0.5f) }
                         OnboardingMock(art)
                     }
                     Spacer(Modifier.height(36.dp))
@@ -86,11 +87,10 @@ fun OnboardingScreen(onFinish: () -> Unit, initialPage: Int = 0) {
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.Center) {
+                // 세 단계를 같은 길이의 막대로 보여 주고, 지나온 단계까지 채운다.
                 repeat(3) { i ->
-                    val selected = pager.currentPage == i
-                    val w by animateDpAsState(if (selected) 26.dp else 8.dp, label = "dot")
-                    val col by animateColorAsState(if (selected) c.ember else c.surface3, label = "dotc")
-                    Box(Modifier.padding(horizontal = 4.dp).height(8.dp).width(w).clip(CircleShape).background(col))
+                    val col by animateColorAsState(if (i <= pager.currentPage) c.ember else c.surface3, label = "stepc")
+                    Box(Modifier.padding(horizontal = 3.dp).height(3.dp).width(28.dp).background(col))
                 }
             }
             PrimaryButton(
@@ -104,72 +104,6 @@ fun OnboardingScreen(onFinish: () -> Unit, initialPage: Int = 0) {
     }
 }
 
-/** 페이지별 일러스트: 질문 카드 → 아이디어 카드 → 설계서. 모두 벡터로 그려 어떤 해상도에서도 선명하다. */
-private fun DrawScope.drawArt(kind: Int, c: EmberColors) {
-    val w = size.width
-    val h = size.height
-    val grad = Brush.linearGradient(listOf(Color(0xFFFFB067), Color(0xFFFF6A3D), Color(0xFFEE3F5C)), Offset(0f, 0f), Offset(w, h))
-    drawCircle(Brush.radialGradient(listOf(c.ember.copy(alpha = 0.22f), Color.Transparent)), radius = w * 0.5f)
-    val r = CornerRadius(w * 0.06f)
-    when (kind) {
-        0 -> {
-            // 질문 카드와 선택지
-            drawRoundRect(c.surface2, Offset(w * 0.14f, h * 0.12f), Size(w * 0.72f, h * 0.76f), r)
-            drawRoundRect(c.surface3, Offset(w * 0.22f, h * 0.2f), Size(w * 0.44f, h * 0.05f), CornerRadius(20f))
-            drawRoundRect(c.surface3, Offset(w * 0.22f, h * 0.28f), Size(w * 0.30f, h * 0.035f), CornerRadius(20f))
-            for (i in 0 until 3) {
-                val y = h * (0.40f + i * 0.14f)
-                val sel = i == 1
-                drawRoundRect(if (sel) c.ember.copy(alpha = 0.18f) else c.surface, Offset(w * 0.22f, y), Size(w * 0.56f, h * 0.10f), CornerRadius(w * 0.03f))
-                if (sel) drawRoundRect(grad, Offset(w * 0.22f, y), Size(w * 0.56f, h * 0.10f), CornerRadius(w * 0.03f), style = Stroke(4f))
-                drawCircle(if (sel) c.ember else c.surface3, w * 0.025f, Offset(w * 0.29f, y + h * 0.05f))
-                drawRoundRect(c.surface3, Offset(w * 0.35f, y + h * 0.035f), Size(w * (0.28f - i * 0.04f), h * 0.03f), CornerRadius(20f))
-            }
-        }
-        1 -> {
-            // 겹쳐진 아이디어 카드 세 장
-            for (i in 2 downTo 0) {
-                val off = i * w * 0.07f
-                drawRoundRect(if (i == 0) c.surface else c.surface2, Offset(w * 0.16f + off, h * 0.18f - off * 0.6f), Size(w * 0.56f, h * 0.62f), r)
-            }
-            drawRoundRect(grad, Offset(w * 0.16f, h * 0.18f), Size(w * 0.56f, h * 0.62f), r, style = Stroke(5f))
-            drawCircle(grad, w * 0.07f, Offset(w * 0.30f, h * 0.32f))
-            drawRoundRect(c.surface3, Offset(w * 0.24f, h * 0.45f), Size(w * 0.40f, h * 0.045f), CornerRadius(20f))
-            drawRoundRect(c.surface3, Offset(w * 0.24f, h * 0.53f), Size(w * 0.32f, h * 0.035f), CornerRadius(20f))
-            drawRoundRect(c.surface3, Offset(w * 0.24f, h * 0.60f), Size(w * 0.36f, h * 0.035f), CornerRadius(20f))
-            // 반짝임
-            spark(Offset(w * 0.80f, h * 0.20f), w * 0.05f, c.gold)
-            spark(Offset(w * 0.86f, h * 0.36f), w * 0.03f, c.ember)
-        }
-        else -> {
-            // 설계서와 Claude 로 넘어가는 화살표
-            drawRoundRect(c.surface2, Offset(w * 0.12f, h * 0.14f), Size(w * 0.50f, h * 0.72f), r)
-            drawRoundRect(grad, Offset(w * 0.18f, h * 0.22f), Size(w * 0.26f, h * 0.04f), CornerRadius(20f))
-            for (i in 0 until 6) {
-                drawRoundRect(c.surface3, Offset(w * 0.18f, h * (0.32f + i * 0.08f)), Size(w * (0.38f - (i % 3) * 0.06f), h * 0.03f), CornerRadius(20f))
-            }
-            drawCircle(grad, w * 0.13f, Offset(w * 0.74f, h * 0.52f))
-            val p = androidx.compose.ui.graphics.Path().apply {
-                moveTo(w * 0.69f, h * 0.47f); lineTo(w * 0.79f, h * 0.52f); lineTo(w * 0.69f, h * 0.57f)
-            }
-            drawPath(p, Color.White, style = Stroke(w * 0.022f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-        }
-    }
-}
-
-private fun DrawScope.spark(center: Offset, r: Float, color: Color) {
-    val p = androidx.compose.ui.graphics.Path().apply {
-        moveTo(center.x, center.y - r)
-        quadraticTo(center.x, center.y, center.x + r, center.y)
-        quadraticTo(center.x, center.y, center.x, center.y + r)
-        quadraticTo(center.x, center.y, center.x - r, center.y)
-        quadraticTo(center.x, center.y, center.x, center.y - r)
-        close()
-    }
-    drawPath(p, color)
-}
-
-
 /** 온보딩 그림: 실제 화면 요소를 축소해 보여 준다. */
 @Composable
 private fun OnboardingMock(page: Int) {
@@ -179,7 +113,7 @@ private fun OnboardingMock(page: Int) {
     val t = MaterialTheme.typography
     @Composable
     fun card(modifier: Modifier = Modifier, content: @Composable () -> Unit) = Box(
-        modifier.clip(RoundedCornerShape(20.dp)).background(c.surface).border(1.dp, c.outline, RoundedCornerShape(20.dp)).padding(14.dp),
+        modifier.clip(RoundedCornerShape(8.dp)).background(c.surface).border(1.dp, c.outline, RoundedCornerShape(8.dp)).padding(14.dp),
     ) { content() }
     when (page) {
         0 -> card(Modifier.width(260.dp)) {
@@ -188,18 +122,17 @@ private fun OnboardingMock(page: Int) {
                 Spacer(Modifier.height(10.dp))
                 listOf(if (ko) "아늑하고 따뜻한" else "Cozy", if (ko) "몽환적인" else "Dreamy", if (ko) "긴장감 넘치는" else "Tense").forEachIndexed { i, label ->
                     val sel = i == 1
+                    val shape = RoundedCornerShape(8.dp)
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp))
-                            .background(if (sel) c.emberSoft else c.surface2)
-                            .border(if (sel) 1.5.dp else 0.dp, if (sel) c.ember else Color.Transparent, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(shape)
+                            .background(if (sel) c.emberSoft else c.surface)
+                            .border(if (sel) 1.5.dp else 1.dp, if (sel) c.ember else c.outline, shape)
+                            .height(IntrinsicSize.Min),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(if (sel) c.ember else c.surface3), contentAlignment = Alignment.Center) {
-                            Text(('A' + i).toString(), style = t.labelSmall, color = if (sel) c.onEmber else c.textMuted)
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(label, style = t.labelMedium, color = c.text)
+                        Text(('A' + i).toString(), style = t.titleSmall, color = if (sel) c.ember else c.textFaint, textAlign = TextAlign.Center, modifier = Modifier.width(34.dp))
+                        Box(Modifier.width(1.dp).fillMaxHeight().background(if (sel) c.ember.copy(alpha = 0.5f) else c.outline))
+                        Text(label, style = t.labelMedium, color = c.text, modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp))
                     }
                 }
             }
@@ -226,13 +159,13 @@ private fun OnboardingMock(page: Int) {
         else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
             card(Modifier.width(250.dp)) {
                 Column {
-                    Box(Modifier.width(26.dp).height(3.dp).clip(CircleShape).background(c.emberGradient))
+                    Box(Modifier.width(26.dp).height(3.dp).background(c.ember))
                     Spacer(Modifier.height(6.dp))
                     Text(if (ko) "2. 핵심 재미와 루프" else "2. Core loop", style = t.titleSmall, color = c.text)
                     Spacer(Modifier.height(6.dp))
                     listOf(if (ko) "30초: 씨앗을 놓고 꽃을 피워요" else "30s: place a seed, watch it bloom", if (ko) "5분: 노선 하나를 꽃길로" else "5m: fill a whole line").forEach {
                         Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(5.dp).clip(CircleShape).background(c.ember)); Spacer(Modifier.width(8.dp))
+                            Box(Modifier.size(width = 6.dp, height = 2.dp).background(c.ember)); Spacer(Modifier.width(8.dp))
                             Text(it, style = t.bodySmall, color = c.textMuted)
                         }
                     }
@@ -240,7 +173,7 @@ private fun OnboardingMock(page: Int) {
             }
             Spacer(Modifier.height(14.dp))
             Row(
-                Modifier.clip(CircleShape).background(c.surface2).border(1.dp, c.outline, CircleShape).padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.clip(RoundedCornerShape(8.dp)).background(c.surface2).border(1.dp, c.outline, RoundedCornerShape(8.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.AutoMirrored.Rounded.Send, null, tint = c.ember, modifier = Modifier.size(14.dp))

@@ -196,7 +196,7 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
             .padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        KindBadge(p.kind, 48)
+        KindBadge(p.kind, 36)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -45,10 +44,6 @@ data class EmberColors(
     val control: Color,
     val isDark: Boolean,
 ) {
-    /** 장식용 밝은 그라데이션(아이콘·진행 막대 등 글자가 올라가지 않는 곳). */
-    val emberGradient: Brush get() = Brush.linearGradient(listOf(Color(0xFFFFB067), Color(0xFFFF6A3D), Color(0xFFEE3F5C)))
-    /** 흰 글자가 올라가는 버튼용 그라데이션. 모든 지점에서 흰 글자 대비 4.5:1 이상. */
-    val buttonGradient: Brush get() = Brush.linearGradient(listOf(Color(0xFFCC4126), Color(0xFFC2362F), Color(0xFFB8304A)))
     val emberSoft: Color get() = ember.copy(alpha = if (isDark) 0.14f else 0.10f)
 }
 
@@ -130,12 +125,25 @@ val EmberTypography = Typography(
     labelSmall = style(11f, 15, FontWeight.Medium, 0.2f),
 )
 
+/**
+ * 모서리 위계. 크기가 클수록 조금 더 둥글게 하되 모두 작게 유지해 단단한 인상을 준다.
+ * 큰 면(카드·시트) 12, 누르는 것(버튼·선택지·입력칸) 10, 작은 조각(칩) 8, 태그·체크 4.
+ */
+object EmberShape {
+    val panel = RoundedCornerShape(12.dp)
+    val control = RoundedCornerShape(10.dp)
+    val chip = RoundedCornerShape(8.dp)
+    val tag = RoundedCornerShape(4.dp)
+    val bar = RoundedCornerShape(2.dp)
+    val sheet = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+}
+
 val EmberShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp),
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(10.dp),
+    large = RoundedCornerShape(12.dp),
+    extraLarge = RoundedCornerShape(16.dp),
 )
 
 val LocalEmber = staticCompositionLocalOf { DarkEmber }

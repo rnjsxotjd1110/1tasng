@@ -105,7 +105,7 @@ object Protocol {
         "multi_select" to bool(),
         "options" to buildJsonObject {
             put("type", "array")
-            put("items", obj("id" to str(), "label" to str(), "description" to str(), "emoji" to str()))
+            put("items", obj("id" to str(), "label" to str(), "description" to str()))
         },
         "allow_custom" to bool(),
         "custom_hint" to str(),
@@ -169,7 +169,6 @@ object Protocol {
 ## 질문 설계
 - 질문은 한 번에 하나만 합니다. 이미 답을 알 수 있는 내용은 다시 묻지 않습니다.
 - 선택지는 4~6개를 주며 서로 겹치지 않게 구체적으로 씁니다. label 은 짧게(최대 18자), description 은 한 줄 설명(최대 40자)입니다.
-- emoji 에는 선택지를 상징하는 이모지 1개를 넣습니다.
 - 여러 개를 고르는 것이 자연스러운 질문(장르 취향, 영감을 받은 작품, 기능 등)은 multi_select 를 true 로 합니다.
 - allow_custom 은 대부분 true 로 두고, custom_hint 에 직접 입력 예시를 적습니다.
 - subtitle 에는 이 질문을 왜 하는지 한 문장으로 적습니다.
@@ -203,7 +202,7 @@ object Protocol {
 
 ## 질문 설계
 - 이 아이디어를 구현할 때 실제로 갈리는 결정만 묻습니다(예: 핵심 루프의 형태, 조작 방식, 아트 스타일, 엔진·프레임워크, 화면 구성, 저장/계정 방식, 진행·보상 구조, 수익 모델, 첫 버전 범위).
-- 선택지는 3~5개, label 은 짧게, description 은 그 선택의 장단점을 한 줄로 씁니다. emoji 1개를 넣습니다.
+- 선택지는 3~5개, label 은 짧게, description 은 그 선택의 장단점을 한 줄로 씁니다.
 - 추천하는 선택지가 있으면 description 앞에 "${if (lang == ReplyLanguage.KO) "추천" else "Recommended"} · " 을 붙입니다(하나만). 사용자의 개발 경험·도구에 맞춰 추천합니다.
 """.trimIndent()
 

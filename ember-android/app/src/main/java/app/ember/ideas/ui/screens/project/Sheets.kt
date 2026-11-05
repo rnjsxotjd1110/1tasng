@@ -97,8 +97,9 @@ fun EmberSheet(onDismiss: () -> Unit, state: SheetState = rememberModalBottomShe
         containerColor = c.surface,
         contentColor = c.text,
         scrimColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f),
+        shape = app.ember.ideas.ui.theme.EmberShape.sheet,
         dragHandle = {
-            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(c.surface3))
+            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 3.dp).background(c.surface3))
         },
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding(), content = content)
@@ -161,7 +162,7 @@ fun IdeaDetailSheet(
                 DetailTitle(s.fieldFeatures)
                 idea.keyFeatures.forEach { f ->
                     Row(Modifier.padding(vertical = 4.dp)) {
-                        Box(Modifier.padding(top = 8.dp, end = 10.dp).size(6.dp).clip(CircleShape).background(c.ember))
+                        Box(Modifier.padding(top = 10.dp, end = 10.dp).size(width = 6.dp, height = 2.dp).background(c.ember))
                         Text(f, style = MaterialTheme.typography.bodyMedium, color = c.text)
                     }
                 }
@@ -192,7 +193,7 @@ private fun StatRow(idea: Idea) {
     val s = LocalStrings.current
     val c = Ember.colors
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface2).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.surface2).padding(vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         Stat(s.fieldScope, idea.scope.ifBlank { "—" })
@@ -202,7 +203,7 @@ private fun StatRow(idea: Idea) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 repeat(5) { i ->
-                    Box(Modifier.padding(horizontal = 2.dp).size(8.dp).clip(CircleShape).background(if (i < idea.difficulty) difficultyColor(idea.difficulty) else c.control))
+                    Box(Modifier.padding(horizontal = 1.5.dp).size(width = 10.dp, height = 4.dp).background(if (i < idea.difficulty) difficultyColor(idea.difficulty) else c.control))
                 }
                 Spacer(Modifier.width(6.dp))
                 Text("${idea.difficulty}/5", style = MaterialTheme.typography.labelMedium, color = c.text)
@@ -228,7 +229,7 @@ private fun BulletBlock(title: String, items: List<String>) {
     DetailTitle(title)
     items.forEach { f ->
         Row(Modifier.padding(vertical = 3.dp)) {
-            Box(Modifier.padding(top = 8.dp, end = 10.dp).size(6.dp).clip(CircleShape).background(c.textFaint))
+            Box(Modifier.padding(top = 10.dp, end = 10.dp).size(width = 6.dp, height = 2.dp).background(c.textFaint))
             Text(f, style = MaterialTheme.typography.bodyMedium, color = c.text)
         }
     }
@@ -245,7 +246,7 @@ private fun DetailBlock(title: String, body: String, accent: Boolean = false) {
     val c = Ember.colors
     DetailTitle(title)
     if (accent) {
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = c.text, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(c.emberSoft).padding(12.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = c.text, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.emberSoft).padding(12.dp))
     } else {
         Text(body, style = MaterialTheme.typography.bodyMedium, color = c.text)
     }
@@ -269,7 +270,7 @@ fun DesignSetupSheet(idea: Idea, model: app.ember.ideas.ai.ClaudeModel, onDismis
                 Spacer(Modifier.height(8.dp))
             }
             Spacer(Modifier.height(4.dp))
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).border(1.dp, Ember.colors.outline, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(1.dp, Ember.colors.outline, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
                 ToggleRow(s.askDesignQuestions, s.askDesignQuestionsBody, ask, { ask = it })
             }
             Spacer(Modifier.height(12.dp))
@@ -282,7 +283,7 @@ fun DesignSetupSheet(idea: Idea, model: app.ember.ideas.ai.ClaudeModel, onDismis
 @Composable
 fun ChoiceRow(title: String, body: String, selected: Boolean, onClick: () -> Unit) {
     val c = Ember.colors
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(10.dp)
     val border by animateColorAsState(if (selected) c.ember else c.outline, label = "choice")
     Row(
         Modifier
@@ -380,7 +381,7 @@ fun VersionsSheet(versions: List<DocVersion>, onDismiss: () -> Unit, onRestore: 
             versions.withIndex().reversed().forEach { (i, v) ->
                 val isLatest = i == versions.lastIndex
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (isLatest) c.emberSoft else c.surface2).padding(14.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (isLatest) c.emberSoft else c.surface2).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -414,10 +415,8 @@ fun HistorySheet(title: String, turns: List<Turn>, onDismiss: () -> Unit) {
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
             turns.filter { it.answer != null }.forEachIndexed { i, t ->
                 Row(Modifier.padding(vertical = 8.dp)) {
-                    Box(Modifier.size(26.dp).clip(CircleShape).background(c.surface2), contentAlignment = Alignment.Center) {
-                        Text("${i + 1}", style = MaterialTheme.typography.labelSmall, color = c.textMuted)
-                    }
-                    Spacer(Modifier.width(12.dp))
+                    Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = c.textFaint, modifier = Modifier.width(24.dp))
+                    Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
                         Text(t.question.title, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
                         Spacer(Modifier.height(2.dp))
@@ -470,7 +469,7 @@ fun HandoffSheet(
             }
             // 미리 보기: 처음 몇 줄을 항상 보여 주고 눌러서 펼친다.
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface2).clickable { showPreview = !showPreview }.padding(14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.surface2).clickable { showPreview = !showPreview }.padding(14.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(s.previewPrompt, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
@@ -494,7 +493,7 @@ fun HandoffSheet(
             }
             Spacer(Modifier.height(4.dp))
             Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(top = 10.dp))
-            Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(18.dp)).border(1.dp, c.outline, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, c.outline, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
                 ToggleRow(s.includeAnswers, null, answers, { answers = it })
                 if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
                 ToggleRow(s.includeProfile, null, profile, { profile = it })
@@ -533,7 +532,7 @@ fun EmberDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.surface,
-        shape = RoundedCornerShape(28.dp),
+        shape = app.ember.ideas.ui.theme.EmberShape.panel,
         title = { Text(title, style = MaterialTheme.typography.titleLarge, color = c.text) },
         text = {
             Column {
@@ -605,7 +604,7 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
                     // 머리 행: 아이디어 제목
                     Row(Modifier.height(IntrinsicSize.Min).onSizeChanged { heights[0] = it.height }) {
                         ideas.forEach { idea ->
-                            Column(Modifier.width(colW).fillMaxHeight().padding(end = 8.dp).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(12.dp)) {
+                            Column(Modifier.width(colW).fillMaxHeight().padding(end = 8.dp).clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(12.dp)) {
                                 Text(idea.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 if (idea.id == easiest) { Spacer(Modifier.height(4.dp)); Tag(s.easiest, color = c.success, strong = true) }
                             }
@@ -627,7 +626,7 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
                     }
                     Row {
                         ideas.forEach { idea ->
-                            Column(Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 4.dp)) {
+                            Column(Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 4.dp)) {
                                 GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
                             }
                         }
@@ -652,7 +651,7 @@ private fun CompareLine(label: String, value: String) {
 @Composable
 private fun GoalTile(title: String, body: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val c = Ember.colors
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(10.dp)
     Column(
         modifier
             .heightIn(min = 56.dp)
@@ -688,7 +687,7 @@ fun EditDocumentSheet(markdown: String, onDismiss: () -> Unit, onSave: (String) 
                 onValueChange = { text = it },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = c.text),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(c.ember),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp).clip(RoundedCornerShape(16.dp)).background(c.surface2).padding(14.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp).clip(RoundedCornerShape(10.dp)).background(c.surface2).padding(14.dp).verticalScroll(rememberScrollState()),
             )
         }
         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {

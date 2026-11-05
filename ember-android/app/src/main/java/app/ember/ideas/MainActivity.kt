@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -190,7 +191,7 @@ fun MainTabs(
         }
     }
 
-    EmberBackground(glow = tab == 0) {
+    EmberBackground {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) {
                 AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "tab") { t ->
@@ -206,7 +207,7 @@ fun MainTabs(
                         containerColor = c.surface3,
                         contentColor = c.text,
                         actionColor = c.ember,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(10.dp),
                     )
                 }
             }
@@ -221,7 +222,7 @@ private fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
     val c = Ember.colors
     Column(Modifier.fillMaxWidth().topFade(c.bg, 20.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline.copy(alpha = 0.6f)))
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 6.dp)) {
             TabItem(Icons.Rounded.Home, s.tabHome, selected == 0, Modifier.weight(1f)) { onSelect(0) }
             TabItem(Icons.Rounded.Inventory2, s.tabLibrary, selected == 1, Modifier.weight(1f)) { onSelect(1) }
             TabItem(Icons.Rounded.Settings, s.tabSettings, selected == 2, Modifier.weight(1f)) { onSelect(2) }
@@ -235,23 +236,19 @@ private fun TabItem(icon: ImageVector, label: String, selected: Boolean, modifie
     val haptic = LocalHapticFeedback.current
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(role = Role.Tab) {
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 onClick()
             }
-            .padding(vertical = 6.dp),
+            .padding(bottom = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            Modifier
-                .clip(CircleShape)
-                .background(if (selected) c.emberSoft else androidx.compose.ui.graphics.Color.Transparent)
-                .padding(horizontal = 18.dp, vertical = 4.dp),
-        ) {
-            Icon(icon, label, tint = if (selected) c.ember else c.textFaint, modifier = Modifier.size(24.dp))
-        }
-        Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = if (selected) c.text else c.textFaint)
+        // 선택한 탭은 위쪽 구분선 위에 짧은 선을 얹어 표시한다.
+        Box(Modifier.width(32.dp).height(2.dp).background(if (selected) c.ember else androidx.compose.ui.graphics.Color.Transparent))
+        Spacer(Modifier.height(8.dp))
+        Icon(icon, label, tint = if (selected) c.ember else c.textFaint, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium), color = if (selected) c.text else c.textFaint)
     }
 }

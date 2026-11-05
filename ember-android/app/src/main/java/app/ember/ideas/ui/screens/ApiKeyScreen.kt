@@ -120,17 +120,15 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
             ) {
-                Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(c.emberGradient), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Lock, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(28.dp))
-                }
-                Spacer(Modifier.height(20.dp))
+                Icon(Icons.Rounded.Lock, null, tint = c.ember, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.height(16.dp))
                 Text(s.keyHeadline, style = MaterialTheme.typography.headlineMedium, color = c.text)
                 Spacer(Modifier.height(10.dp))
                 Text(s.keyBody, style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
                 if (current.hasKey) {
                     Spacer(Modifier.height(16.dp))
                     Row(
-                        Modifier.clip(RoundedCornerShape(12.dp)).background(c.success.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(c.success.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Rounded.CheckCircle, null, tint = c.success, modifier = Modifier.size(18.dp))
@@ -183,7 +181,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                 EmberCard(Modifier.fillMaxWidth()) {
                     Column {
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { guideOpen = !guideOpen }.padding(vertical = 4.dp),
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { guideOpen = !guideOpen }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(s.keyGuideTitle, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
@@ -193,10 +191,8 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                             Column(Modifier.padding(top = 12.dp)) {
                                 s.keyGuideSteps.forEachIndexed { i, step ->
                                     Row(Modifier.padding(vertical = 6.dp)) {
-                                        Box(Modifier.size(24.dp).clip(CircleShape).background(c.emberSoft), contentAlignment = Alignment.Center) {
-                                            Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = c.ember)
-                                        }
-                                        Spacer(Modifier.width(12.dp))
+                                        Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = c.ember, modifier = Modifier.width(20.dp))
+                                        Spacer(Modifier.width(8.dp))
                                         Text(step, style = MaterialTheme.typography.bodyMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                                     }
                                 }

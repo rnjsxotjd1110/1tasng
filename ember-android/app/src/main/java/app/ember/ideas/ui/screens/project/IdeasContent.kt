@@ -30,6 +30,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Description
@@ -109,7 +113,7 @@ fun IdeasContent(
                             Icon(Icons.Rounded.Description, null, tint = c.ember)
                             Spacer(Modifier.width(12.dp))
                             Text(s.docReadyBanner, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
-                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textMuted, modifier = Modifier.size(20.dp))
                         }
                     }
                     Spacer(Modifier.height(16.dp))
@@ -160,7 +164,7 @@ fun IdeasContent(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             SecondaryButton(s.moreQuestions, onMoreQuestions, Modifier.weight(1f), icon = Icons.Rounded.QuestionAnswer, enabled = !busy)
-            SecondaryButton(s.moreIdeas, onMoreIdeas, Modifier.weight(1f), icon = Icons.Rounded.AutoAwesome, enabled = !busy)
+            SecondaryButton(s.moreIdeas, onMoreIdeas, Modifier.weight(1f), icon = Icons.Rounded.Add, enabled = !busy)
         }
     }
 }
@@ -209,9 +213,10 @@ fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, o
                 Text(idea.logline, style = MaterialTheme.typography.bodyMedium, color = c.text.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (idea.coreHook.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    Row {
-                        Text("✦", style = MaterialTheme.typography.bodySmall, color = c.gold)
-                        Spacer(Modifier.width(6.dp))
+                    // 핵심 재미는 왼쪽 선으로 본문과 구분한다.
+                    Row(Modifier.height(IntrinsicSize.Min)) {
+                        Box(Modifier.width(2.dp).fillMaxHeight().background(c.gold.copy(alpha = 0.8f)))
+                        Spacer(Modifier.width(10.dp))
                         Text(idea.coreHook, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }

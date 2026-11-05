@@ -200,8 +200,9 @@ fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier, headingActi
             }
             Column(modifier.fillMaxWidth().padding(top = if (block.level <= 2) 22.dp else 12.dp, bottom = 6.dp)) {
                 if (block.level == 2) {
-                    Box(Modifier.width(28.dp).height(3.dp).clip(CircleShape).background(c.emberGradient))
-                    Spacer(Modifier.height(10.dp))
+                    // 큰 단락은 가는 구분선으로 나눈다. 색 강조는 본문 요약과 버튼에만 쓴다.
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
+                    Spacer(Modifier.height(18.dp))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(MarkdownParser.inline(block.text, c), style = style, color = c.text, modifier = Modifier.weight(1f))
@@ -219,7 +220,7 @@ fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier, headingActi
             block.items.forEach { item ->
                 Row(Modifier.padding(start = (item.depth * 16).dp, top = 3.dp, bottom = 3.dp)) {
                     if (item.marker == "•") {
-                        Box(Modifier.padding(top = 10.dp, end = 10.dp).size(6.dp).clip(CircleShape).background(c.ember))
+                        Box(Modifier.padding(top = 11.dp, end = 10.dp).size(width = 6.dp, height = 2.dp).background(c.ember))
                     } else {
                         Text(item.marker, style = t.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = c.ember, modifier = Modifier.widthIn(min = 22.dp).padding(end = 6.dp))
                     }
@@ -231,18 +232,18 @@ fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier, headingActi
             modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(c.emberSoft)
                 .height(IntrinsicSize.Min),
         ) {
-            Box(Modifier.width(4.dp).fillMaxHeight().background(c.emberGradient))
+            Box(Modifier.width(3.dp).fillMaxHeight().background(c.ember))
             Text(MarkdownParser.inline(block.text, c), style = t.bodyLarge.copy(fontWeight = FontWeight.Medium), color = c.text, modifier = Modifier.padding(14.dp))
         }
         is MdBlock.Code -> SelectionContainer(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(c.surface2)
                     .horizontalScroll(rememberScrollState())
                     .padding(14.dp),
@@ -263,7 +264,7 @@ private fun TableView(table: MdBlock.Table, modifier: Modifier) {
     // 2열 표는 화면 폭에 맞추고, 3열 이상은 가로 스크롤한다.
     val fit = cols <= 2
     val colWidth = if (cols >= 4) 150.dp else 170.dp
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(10.dp)
     Box(
         modifier
             .fillMaxWidth()

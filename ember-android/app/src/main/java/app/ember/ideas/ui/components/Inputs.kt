@@ -75,7 +75,7 @@ fun EmberTextField(
         },
         tween(150), label = "fieldborder",
     )
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(10.dp)
     BasicTextField(
         value = value,
         onValueChange = { if (it.length <= maxLength) onValueChange(it) },
@@ -124,7 +124,7 @@ fun ToggleRow(title: String, body: String?, checked: Boolean, onChange: (Boolean
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(role = Role.Switch) { onChange(!checked) }
             .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -163,7 +163,7 @@ fun NavRow(title: String, value: String?, onClick: () -> Unit, modifier: Modifie
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 52.dp)
             .padding(horizontal = 4.dp, vertical = 10.dp),

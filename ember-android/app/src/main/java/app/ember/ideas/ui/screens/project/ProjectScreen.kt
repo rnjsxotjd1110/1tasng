@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
@@ -91,7 +93,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         EmberBackground {
             Column(Modifier.fillMaxSize()) {
                 EmberTopBar("", onBack)
-                EmptyState(Icons.Rounded.Lightbulb, s.projectMissingTitle, s.projectMissingBody) {
+                EmptyState(Icons.Rounded.FolderOff, s.projectMissingTitle, s.projectMissingBody) {
                     PrimaryButton(s.back, onBack)
                 }
             }
@@ -118,7 +120,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         )
     }
 
-    EmberBackground(glow = stage != ProjectStage.DOCUMENT) {
+    EmberBackground {
         Column(Modifier.fillMaxSize()) {
             EmberTopBar(
                 title = project.title,
@@ -142,7 +144,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             menu = false; engine.setFavorite(project.id, !project.favorite)
                         }
                         if (project.allIdeas.isNotEmpty() && stage != ProjectStage.IDEAS) {
-                            MenuItem(s.viewIdeas, Icons.Rounded.Lightbulb) { menu = false; viewStage = ProjectStage.IDEAS }
+                            MenuItem(s.viewIdeas, Icons.Rounded.ViewAgenda) { menu = false; viewStage = ProjectStage.IDEAS }
                         }
                         if (stage == ProjectStage.IDEAS && project.design?.latest != null) {
                             MenuItem(s.viewDocument, Icons.Rounded.History) { menu = false; viewStage = ProjectStage.DOCUMENT }
@@ -170,7 +172,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                     Modifier
                         .padding(horizontal = 20.dp, vertical = 4.dp)
                         .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                         .background(c.gold.copy(alpha = 0.12f))
                         .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -186,7 +188,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         val emptyAndIdle = project.turns.isEmpty() && !busy && error == null
                         if (emptyAndIdle) {
                             // 첫 질문 요청이 앱 종료 등으로 끊긴 경우
-                            EmptyState(Icons.Rounded.Lightbulb, s.resumeTitle, s.resumeBody) {
+                            EmptyState(Icons.Rounded.History, s.resumeTitle, s.resumeBody) {
                                 PrimaryButton(s.resume, { engine.startInterview(project.id) })
                             }
                         } else {

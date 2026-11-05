@@ -25,6 +25,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Casino
@@ -115,9 +118,7 @@ fun HomeScreen(
                 Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 8.dp, top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(c.emberGradient), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(17.dp))
-                }
+                Icon(androidx.compose.ui.res.painterResource(app.ember.ideas.R.drawable.ic_ember_mark), null, tint = Color.Unspecified, modifier = Modifier.size(width = 18.dp, height = 28.dp))
                 Spacer(Modifier.width(10.dp))
                 Text("Ember", style = MaterialTheme.typography.titleLarge, color = c.text, modifier = Modifier.weight(1f))
                 GhostButton(s.profileButton, onOpenProfile, icon = Icons.Rounded.Person, color = c.textMuted)
@@ -127,7 +128,7 @@ fun HomeScreen(
             item {
                 val pct = (settings.monthUsage.costUsd / settings.monthlyBudgetUsd * 100).toInt()
                 Row(
-                    Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.gold.copy(alpha = 0.14f)).padding(horizontal = 14.dp, vertical = 12.dp),
+                    Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.gold.copy(alpha = 0.14f)).padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Rounded.Savings, null, tint = c.gold, modifier = Modifier.size(20.dp))
@@ -228,7 +229,7 @@ fun HomeScreen(
                     )
                     if (kind != null) {
                         Spacer(Modifier.height(8.dp))
-                        SecondaryButton(s.quickIdeas, { start(quick = true) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Bolt, height = 48.dp)
+                        SecondaryButton(s.quickIdeas, { start(quick = true) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.FastForward, height = 48.dp)
                     }
                 } else {
                     Spacer(Modifier.height(12.dp))
@@ -259,16 +260,14 @@ fun HomeScreen(
                 Spacer(Modifier.height(24.dp))
                 EmberCard(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), onClick = onOpenProfile) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(44.dp).clip(CircleShape).background(c.emberSoft), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Person, null, tint = c.ember)
-                        }
+                        Icon(Icons.Rounded.Person, null, tint = c.ember)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(s.profileTipTitle, style = MaterialTheme.typography.titleSmall, color = c.text)
                             Spacer(Modifier.height(2.dp))
                             Text(s.profileTipBody, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
                         }
-                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.textFaint, modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textFaint, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -280,14 +279,7 @@ fun kindIcon(k: ProjectKind): androidx.compose.ui.graphics.vector.ImageVector = 
     ProjectKind.GAME -> Icons.Rounded.SportsEsports
     ProjectKind.APP -> Icons.Rounded.PhoneAndroid
     ProjectKind.WEB -> Icons.Rounded.Language
-    ProjectKind.ANY -> Icons.Rounded.AutoAwesome
-}
-
-fun kindEmoji(k: ProjectKind) = when (k) {
-    ProjectKind.GAME -> "🎮"
-    ProjectKind.APP -> "📱"
-    ProjectKind.WEB -> "🌐"
-    ProjectKind.ANY -> "✨"
+    ProjectKind.ANY -> Icons.Rounded.Category
 }
 
 @Composable
@@ -340,9 +332,7 @@ private fun DocRow(p: Project, onClick: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Description, null, tint = c.ember, modifier = Modifier.size(22.dp))
-        }
+        Icon(Icons.Rounded.Description, null, tint = c.textFaint, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -367,7 +357,7 @@ private fun DocRow(p: Project, onClick: () -> Unit) {
 }
 
 
-/** 분야별 색과 아이콘으로 프로젝트를 구분하는 작은 배지. */
+/** 분야별 색 아이콘으로 프로젝트를 구분한다. 바탕 타일 없이 아이콘만 둔다. */
 @Composable
 fun KindBadge(kind: ProjectKind, sizeDp: Int) {
     val c = Ember.colors
@@ -377,7 +367,7 @@ fun KindBadge(kind: ProjectKind, sizeDp: Int) {
         ProjectKind.WEB -> c.success
         ProjectKind.ANY -> c.gold
     }
-    Box(Modifier.size(sizeDp.dp).clip(RoundedCornerShape((sizeDp / 3).dp)).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-        Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size((sizeDp * 0.56f).dp))
+    Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
+        Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size((sizeDp * 0.62f).dp))
     }
 }

@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.DarkMode
@@ -84,8 +86,8 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
 
         Group(s.groupClaude) {
             NavRow(s.apiKey, if (settings.hasKey) settings.keyHint.takeLast(8) else s.notConnected, onOpenKey, icon = Icons.Rounded.Key)
-            NavRow(s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Psychology, body = s.modelSetCost(s.costApprox(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))))
-            ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) }, icon = Icons.Rounded.Bolt)
+            NavRow(s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Memory, body = s.modelSetCost(s.costApprox(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))))
+            ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) }, icon = Icons.Rounded.HourglassTop)
         }
         Group(s.groupPersonal) {
             NavRow(s.devProfile, if (settings.profile.isEmpty()) s.notSet else s.profileSummary(settings.profile.experience, settings.profile.tools), onOpenProfile, icon = Icons.Rounded.Person, body = s.devProfileBody)
@@ -192,7 +194,7 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     Spacer(Modifier.height(18.dp))
     Text(title, style = MaterialTheme.typography.labelLarge, color = c.textMuted, modifier = Modifier.padding(vertical = 6.dp))
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.surface).padding(horizontal = 12.dp, vertical = 6.dp),
         content = content,
     )
 }

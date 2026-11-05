@@ -61,6 +61,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -125,7 +126,7 @@ fun QuestionFlow(
         // 진행 표시줄
         Column(Modifier.padding(horizontal = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 48.dp)) {
-                val stage = current?.stage ?: turns.lastOrNull()?.stage ?: ""
+                val stage = if (busy && lastSubmitted != null) s.nextQuestionTag else current?.stage ?: turns.lastOrNull()?.stage ?: ""
                 if (stage.isNotBlank()) {
                     Tag(stage, color = c.ember, strong = true)
                     Spacer(Modifier.width(8.dp))
@@ -134,7 +135,7 @@ fun QuestionFlow(
                 val sending = busy && lastSubmitted != null
                 val shownIndex = if (sending) index + 1 else index
                 Text(s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
-                if (canFinish && !busy && error == null && current != null) {
+                if (canFinish && !busy && current != null) {
                     Row(
                         Modifier.clip(CircleShape).background(c.emberSoft).clickable(onClick = onFinish).heightIn(min = 40.dp).padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -244,19 +245,19 @@ private fun QuestionCard(
                 Spacer(Modifier.height(16.dp))
             }
             if (turn.insight.isNotBlank() || historyLabel != null) {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface2).padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 2.dp)) {
-                    if (turn.insight.isNotBlank()) {
-                        Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(end = 8.dp)) {
-                            Icon(Icons.Rounded.Lightbulb, null, tint = c.gold, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(turn.insight, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
-                        }
-                    }
-                    if (historyLabel != null) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            GhostButton(historyLabel, onShowHistory, icon = Icons.Rounded.History, color = c.textMuted)
-                        }
-                    } else Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface2).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Lightbulb, null, tint = c.gold, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        turn.insight.ifBlank { " " },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textMuted,
+                        modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+                    )
+                    if (historyLabel != null) GhostButton(historyLabel, onShowHistory, color = c.ember)
                 }
                 Spacer(Modifier.height(20.dp))
             }
@@ -310,13 +311,13 @@ private fun QuestionCard(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GhostButton(s.previousShort, onUndo, icon = Icons.AutoMirrored.Rounded.ArrowBack, color = c.textMuted, enabled = canUndo, modifier = Modifier.offset(x = (-12).dp))
+            GhostButton(s.previousShort, onUndo, icon = Icons.AutoMirrored.Rounded.ArrowBack, color = c.textMuted, enabled = canUndo, modifier = Modifier.offset(x = (-12).dp).alpha(if (canUndo) 1f else 0f))
             GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.width(4.dp))
             PrimaryButton(
                 text = s.next,
                 onClick = { onSubmit(Answer(selectedIds = selected, customText = if (customOpen) custom.trim() else "")) },
-                enabled = hasAnswer,
+                enabled = hasAnswer && errorBanner == null,
                 modifier = Modifier.weight(1f),
                 icon = Icons.AutoMirrored.Rounded.ArrowForward,
             )

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -85,7 +86,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
     var checking by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf(false) }
-    var guideOpen by remember { mutableStateOf(!fromSettings) }
+    var guideOpen by remember { mutableStateOf(false) }
     val current by settings.settings.collectAsState()
 
     fun submit() {
@@ -167,7 +168,10 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     Text(if (settings.secureStorageAvailable) s.keySecureNote else s.keyStoredNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
                 }
                 Text(s.keyCostNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
-                Spacer(Modifier.height(24.dp))
+                GhostButton(s.openConsole, {
+                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys"))) }
+                }, icon = Icons.AutoMirrored.Rounded.OpenInNew, modifier = Modifier.offset(x = (-12).dp).padding(top = 8.dp))
+                Spacer(Modifier.height(12.dp))
                 EmberCard(Modifier.fillMaxWidth()) {
                     Column {
                         Row(
@@ -188,10 +192,6 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                                         Text(step, style = MaterialTheme.typography.bodyMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                                     }
                                 }
-                                Spacer(Modifier.height(6.dp))
-                                GhostButton(s.openConsole, {
-                                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys"))) }
-                                }, icon = Icons.AutoMirrored.Rounded.OpenInNew)
                             }
                         }
                     }

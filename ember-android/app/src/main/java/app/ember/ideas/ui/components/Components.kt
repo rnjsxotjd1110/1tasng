@@ -44,6 +44,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -155,7 +156,9 @@ fun PrimaryButton(
                 CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.5.dp)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    if (icon != null) {
+                    // 앞으로 가는 동작의 화살표는 글자 뒤에 둔다.
+                    val trailing = icon == Icons.AutoMirrored.Rounded.ArrowForward
+                    if (icon != null && !trailing) {
                         Icon(icon, null, tint = if (active) Color.White else c.textFaint, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                     }
@@ -166,6 +169,10 @@ fun PrimaryButton(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (icon != null && trailing) {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(icon, null, tint = if (active) Color.White else c.textFaint, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
         }
@@ -216,11 +223,16 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
+        val trailing = icon == Icons.AutoMirrored.Rounded.ArrowForward
+        if (icon != null && !trailing) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
         }
         Text(text, style = MaterialTheme.typography.labelLarge, color = tint, maxLines = 1)
+        if (icon != null && trailing) {
+            Spacer(Modifier.width(6.dp))
+            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
@@ -332,7 +344,7 @@ fun Tag(text: String, modifier: Modifier = Modifier, color: Color? = null, stron
             .background(if (strong) tint.copy(alpha = 0.16f) else c.surface2)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         style = MaterialTheme.typography.labelSmall,
-        color = if (strong) tint else c.textMuted,
+        color = if (strong) (if (c.isDark) tint else androidx.compose.ui.graphics.lerp(tint, Color.Black, 0.3f)) else c.textMuted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -413,7 +425,7 @@ fun ThinkingIndicator(lines: List<String>, modifier: Modifier = Modifier, title:
                     drawArc(
                         brush = Brush.sweepGradient(listOf(Color.Transparent, c.ember, c.gold)),
                         startAngle = 0f, sweepAngle = 300f, useCenter = false,
-                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round),
+                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Butt),
                     )
                 }
             }

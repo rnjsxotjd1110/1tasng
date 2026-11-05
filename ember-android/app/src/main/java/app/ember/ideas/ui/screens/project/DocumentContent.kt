@@ -55,6 +55,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -99,7 +100,13 @@ fun DocumentContent(
     val showing = if (busy && streamingText.isNotEmpty()) streamingText else latest?.markdown.orEmpty()
     // 제목(H1)은 상단 바에 이미 보이므로 본문에서는 뺀다.
     val blocks = remember(showing) {
-        MarkdownParser.parse(showing).let { b -> if (b.firstOrNull() is MdBlock.Heading && (b.first() as MdBlock.Heading).level == 1) b.drop(1) else b }
+        MarkdownParser.parse(showing)
+            .let { b -> if (b.firstOrNull() is MdBlock.Heading && (b.first() as MdBlock.Heading).level == 1) b.drop(1) else b }
+            .let { b ->
+                // 목차 칩과 같은 번호를 본문 섹션 제목에도 붙인다.
+                var n = 0
+                b.map { if (it is MdBlock.Heading && it.level == 2 && !it.text.first().isDigit()) { n++; it.copy(text = "$n. ${it.text}") } else it }
+            }
     }
     val listState = rememberLazyListState()
     val tocState = rememberLazyListState()
@@ -109,7 +116,7 @@ fun DocumentContent(
 
     val headerCount = 1
     val sectionIndices = remember(blocks) {
-        blocks.mapIndexedNotNull { i, b -> if (b is MdBlock.Heading && b.level == 2) i to b.text else null }
+        blocks.mapIndexedNotNull { i, b -> if (b is MdBlock.Heading && b.level == 2) i to b.text.substringAfter(". ") else null }
     }
     val expectedSections = 12
     val writtenSections = remember(streamingText) { streamingText.lineSequence().count { it.startsWith("## ") } }
@@ -259,11 +266,12 @@ fun DocumentContent(
                                             Text("${i + 1}. $title", style = MaterialTheme.typography.bodySmall, color = if (writing) c.text else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
-                                    repeat((expectedSections - done.size).coerceIn(0, 4)) {
-                                        Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    val planned = Protocol.plannedSections(project.kind, s.isKorean)
+                                    planned.drop(done.size).forEachIndexed { i, title ->
+                                        Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
                                             Spacer(Modifier.width(12.dp))
-                                            Box(Modifier.height(10.dp).fillMaxWidth(0.5f - it * 0.06f).clip(CircleShape).background(c.surface2))
+                                            Text("${done.size + i + 1}. $title", style = MaterialTheme.typography.bodySmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
                                 }
@@ -275,9 +283,11 @@ fun DocumentContent(
                         }
                     }
                     itemsIndexed(blocks) { _, b -> MarkdownBlockView(b) }
-                    if (busy) {
+                    if (busy && blocks.isNotEmpty()) {
                         item {
-                            Box(Modifier.padding(top = 8.dp).size(10.dp).clip(CircleShape).background(c.ember))
+                            val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "caret")
+                            val a by t.animateFloat(1f, 0f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse), label = "caretA")
+                            Box(Modifier.padding(top = 4.dp).size(width = 3.dp, height = 22.dp).background(c.ember.copy(alpha = a)))
                         }
                     }
                 }

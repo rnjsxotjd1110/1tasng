@@ -107,7 +107,7 @@ object EnStrings : Strings() {
     override val keyGuideSteps = listOf(
         "Sign in at console.anthropic.com.",
         "Go to Settings → API Keys and tap Create Key.",
-        "Add a payment method and credits under Billing. You can start with $5, which covers about ten explorations plus design docs on Opus.",
+        "Add a payment method and credits under Billing. You can start with $5, which covers about seven exploration + design-doc sets on Opus, or over a hundred on Haiku.",
         "Copy the key and paste it above.",
     )
     override val openConsole = "Open Anthropic console"
@@ -165,7 +165,7 @@ object EnStrings : Strings() {
     override fun ideasCount(n: Int) = "$n ideas"
 
     override fun questionN(n: Int) = "Question $n"
-    override fun answersSoFar(n: Int) = "$n answers"
+    override fun answersSoFar(n: Int) = "My $n answers"
     override val multiHint = "Pick as many as you like"
     override val singleHint = "Pick one"
     override val customAnswer = "Write my own"
@@ -254,7 +254,7 @@ object EnStrings : Strings() {
     override val reviseTitle = "What should change?"
     override val reviseSub = "A new version is created and older ones stay in the history."
     override val revisePresets = listOf("Simpler", "More detail", "Smaller MVP", "Stronger monetization", "Concrete tech stack", "Realistic schedule")
-    override val revisePlaceholder = "e.g. Replace multiplayer with async leaderboards"
+    override val revisePlaceholder = "Anything else? (optional) e.g. async leaderboards instead of multiplayer"
     override val applyRevision = "Create new version"
     override val versionsTitle = "Version history"
     override val versionsSub = "Restoring adds the old version as a new one."
@@ -265,8 +265,8 @@ object EnStrings : Strings() {
     override val viewDocument = "Back to design doc"
 
     override val handoffTitle = "Continue in Claude"
-    override val handoffSubApp = "Sends everything to a new chat in the Claude app. The prompt is also copied."
-    override val handoffSubWeb = "The Claude app isn't installed, so claude.ai opens. The prompt is also copied."
+    override val handoffSubApp = "Sends everything to a new chat in the Claude app. Using the Claude app doesn't spend API credits."
+    override val handoffSubWeb = "Opens a new chat on claude.ai. It doesn't use API credits; it runs on your Claude account (free plan works)."
     override fun goalTitle(g: HandoffGoal) = when (g) {
         HandoffGoal.START_BUILD -> "Start building"
         HandoffGoal.CONTINUE_DESIGN -> "Refine the design"
@@ -361,7 +361,7 @@ object EnStrings : Strings() {
     override val haptics = "Haptic feedback"
     override val usageRequests = "Requests"
     override val usageTokens = "Tokens"
-    override val usageCost = "Est. cost"
+    override val usageCost = "All-time cost"
     override val usageNote = "Estimated from public pricing. See the Anthropic console for exact billing."
     override val resetUsage = "Reset usage"
     override val resetUsageBody = "Sets the request, token and cost counters back to zero."
@@ -392,7 +392,7 @@ object EnStrings : Strings() {
 
     override fun questionOf(n: Int, total: Int) = "Question $n of ~${maxOf(total, n)}"
     override val waitingNote = "This keeps going if you leave the app and is saved to this project."
-    override val doLater = "Do it later"
+    override val doLater = "Leave and continue later"
     override val designThisShort = "Design this"
     override val details = "Details"
     override val tryDifferently = "Try something different"
@@ -436,7 +436,7 @@ object EnStrings : Strings() {
     override val previousShort = "Back"
     override val compare = "Compare"
     override val compareTitle = "Compare ideas"
-    override val compareSub = "Swipe the table sideways to see every idea."
+    override val compareSub = "Scope, difficulty, appeal, monetization and edge for each idea, in the same order."
     override fun openIdea(title: String) = "Open “$title”"
     override fun goalShort(g: HandoffGoal) = when (g) {
         HandoffGoal.START_BUILD -> "Jump into code"
@@ -460,6 +460,9 @@ object EnStrings : Strings() {
     override fun budgetWarn(pct: Int) = "You've used $pct% of this month's budget"
     override fun writingNow(title: String) = "Writing · $title"
     override fun remaining(min: Int) = if (min <= 1) "Under a minute left" else "About $min min left"
+
+    override val nextQuestionTag = "Next"
+    override val newIdeaHeadline = "Find a new idea"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

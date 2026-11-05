@@ -25,6 +25,7 @@ class AppContainer(context: Context, aiOverride: AiService? = null) {
         val prefs = context.getSharedPreferences("ember_meta", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("sample_added", false)) {
             store.upsert(SampleProject.create(context))
+            if (store.get("sample_ko") != null) store.upsert(SampleProject.koreanApp())
             prefs.edit().putBoolean("sample_added", true).apply()
         }
     }

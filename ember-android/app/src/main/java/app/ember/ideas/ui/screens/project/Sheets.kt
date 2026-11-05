@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -133,15 +135,13 @@ fun IdeaDetailSheet(
     val c = Ember.colors
     EmberSheet(onDismiss) {
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(idea.title, style = MaterialTheme.typography.headlineMedium, color = c.text)
-                    Spacer(Modifier.height(8.dp))
-                    Text(idea.logline, style = MaterialTheme.typography.bodyLarge, color = c.text.copy(alpha = 0.9f))
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(idea.title, style = MaterialTheme.typography.headlineMedium, color = c.text, modifier = Modifier.weight(1f))
                 HeartButton(saved, onToggleSave)
                 IconCircleButton(Icons.Rounded.Close, s.close, onDismiss, filled = false, tint = c.textMuted)
             }
+            Spacer(Modifier.height(6.dp))
+            Text(idea.logline, style = MaterialTheme.typography.bodyLarge, color = c.text.copy(alpha = 0.9f))
             Spacer(Modifier.height(14.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 (listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime) + idea.platforms).filter { it.isNotBlank() }.distinct().forEach { Tag(it) }
@@ -343,18 +343,20 @@ fun CombineSheet(base: Idea, others: List<Idea>, onDismiss: () -> Unit, onSubmit
 @Composable
 fun ReviseSheet(costUsd: Double, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
     val s = LocalStrings.current
+    var preset by rememberSaveable { mutableStateOf<String?>(null) }
     var text by rememberSaveable { mutableStateOf("") }
+    val instruction = listOfNotNull(preset, text.trim().takeIf { it.isNotEmpty() }).joinToString(". ")
     EmberSheet(onDismiss) {
         SheetTitle(s.reviseTitle, s.reviseSub)
         Column(Modifier.padding(horizontal = 20.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                s.revisePresets.forEach { p -> EmberChip(p, text == p, { text = p }) }
+                s.revisePresets.forEach { p -> EmberChip(p, preset == p, { preset = if (preset == p) null else p }) }
             }
             Spacer(Modifier.height(12.dp))
             EmberTextField(text, { text = it }, s.revisePlaceholder, minHeight = 96.dp, maxLength = 800)
-            Text(s.reviseCost(s.costApprox(costUsd)), style = MaterialTheme.typography.bodySmall, color = Ember.colors.textFaint, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+            Text(s.reviseCost(s.costApprox(costUsd)), style = MaterialTheme.typography.bodySmall, color = Ember.colors.textFaint, modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.height(14.dp))
-            PrimaryButton(s.applyRevision, { onSubmit(text) }, Modifier.fillMaxWidth(), enabled = text.isNotBlank())
+            PrimaryButton(s.applyRevision, { onSubmit(instruction) }, Modifier.fillMaxWidth(), enabled = instruction.isNotBlank())
             Spacer(Modifier.height(12.dp))
         }
     }
@@ -458,27 +460,13 @@ fun HandoffSheet(
             if (docTitle != null) {
                 Text(s.handoffDocName(docTitle), style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 8.dp))
             }
-            HandoffGoal.entries.chunked(2).forEach { pair ->
+            (listOf(defaultGoal) + HandoffGoal.entries.filter { it != defaultGoal }).chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     pair.forEach { g -> GoalTile(s.goalTitle(g), s.goalShort(g), goal == g, Modifier.weight(1f)) { goal = g } }
                 }
                 Spacer(Modifier.height(8.dp))
             }
             Text(s.goalBody(goal), style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(bottom = 4.dp))
-            if (onExportClaudeMd != null && goal == HandoffGoal.START_BUILD) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2).clickable(onClick = onExportClaudeMd).padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Description, null, tint = c.ember, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(s.exportClaudeMd, style = MaterialTheme.typography.titleSmall, color = c.text)
-                        Text(s.exportClaudeMdBody, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
-                    }
-                    Icon(Icons.Rounded.Share, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
-                }
-            }
             Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
             ToggleRow(s.includeAnswers, null, answers, { answers = it })
             if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
@@ -505,8 +493,19 @@ fun HandoffSheet(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!claudeInstalled) {
-                Text(s.claudeWebNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
+            if (onExportClaudeMd != null && true) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2).clickable(onClick = onExportClaudeMd).padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Description, null, tint = c.ember, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(s.exportClaudeMd, style = MaterialTheme.typography.titleSmall, color = c.text)
+                        Text(s.exportClaudeMdBody, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+                    }
+                    Icon(Icons.Rounded.Share, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
+                }
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -579,32 +578,63 @@ fun ideaAsText(idea: Idea): String = Protocol.ideaBrief(idea).removePrefix("### 
 fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Unit, onDesign: (Idea) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
+    val easiest = ideas.minByOrNull { it.difficulty }?.id
+    val rows: List<Pair<String, (Idea) -> String>> = listOf(
+        s.fieldScope to { it.scope },
+        s.fieldDevTime to { it.devTime },
+        s.fieldDifficulty to { "${it.difficulty}/5" },
+        s.fieldCoreHook to { it.coreHook },
+        s.fieldMonetization to { it.monetization },
+        s.fieldUnique to { it.uniquePoint },
+    )
+    val labelW = 76.dp
+    val colW = 176.dp
     EmberSheet(onDismiss) {
         SheetTitle(s.compareTitle, s.compareSub)
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-            val easiest = ideas.minByOrNull { it.difficulty }?.id
-            ideas.forEach { idea ->
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface2).padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(idea.title, style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
-                        if (idea.id == easiest) Tag(s.easiest, color = c.success, strong = true)
-                        Spacer(Modifier.width(12.dp))
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    CompareLine(s.fieldScope, "${idea.scope} · ${idea.devTime}")
-                    CompareLine(s.fieldDifficulty, "${idea.difficulty}/5")
-                    CompareLine(s.fieldCoreHook, idea.coreHook)
-                    CompareLine(s.fieldMonetization, idea.monetization)
-                    CompareLine(s.fieldUnique, idea.uniquePoint)
-                    Row(Modifier.fillMaxWidth()) {
-                        GhostButton(s.details, { onOpen(idea) }, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
-                        Spacer(Modifier.weight(1f))
-                        GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            Row(Modifier.padding(start = 20.dp).height(IntrinsicSize.Min)) {
+                // 고정 열: 항목 이름
+                Column(Modifier.width(labelW)) {
+                    Box(Modifier.height(96.dp))
+                    rows.forEach { (label, _) ->
+                        Box(Modifier.height(64.dp).fillMaxWidth().padding(top = 10.dp)) {
+                            Text(label, style = MaterialTheme.typography.labelMedium, color = c.textMuted)
+                        }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
+                // 아이디어 열: 가로로 밀어 본다
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(end = 20.dp)) {
+                    ideas.forEach { idea ->
+                        Column(
+                            Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(16.dp))
+                                .background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 12.dp),
+                        ) {
+                            Column(Modifier.height(96.dp).padding(top = 12.dp)) {
+                                Text(idea.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.weight(1f))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward, modifier = Modifier.offset(x = (-14).dp))
+                                }
+                            }
+                            rows.forEachIndexed { i, (_, value) ->
+                                val v = value(idea)
+                                val best = i == 2 && idea.id == easiest
+                                Box(Modifier.height(64.dp).fillMaxWidth().padding(top = 10.dp)) {
+                                    Text(
+                                        v.ifBlank { "—" },
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (best) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal),
+                                        color = if (best) c.success else c.text,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            GhostButton(s.details, { onOpen(idea) }, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
+                        }
+                    }
+                }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
@@ -634,7 +664,7 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
-            if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = c.ember, modifier = Modifier.size(18.dp))
+            SelectMark(selected, multi = false)
         }
         Spacer(Modifier.height(2.dp))
         Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)

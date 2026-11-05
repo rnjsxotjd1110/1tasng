@@ -380,6 +380,17 @@ $sections
     fun revisionRequest(instruction: String): String =
         "[수정 요청] 위 설계서를 다음 요청에 맞게 고쳐서 설계서 전체를 다시 출력해 주세요. 요청과 관계없는 부분은 그대로 유지합니다.\n요청: ${instruction.trim()}"
 
+    /** 작성 중 화면에서 미리 보여 줄 섹션 계획(제목만). */
+    fun plannedSections(kind: ProjectKind, korean: Boolean): List<String> {
+        if (korean) {
+            val src = if (kind == ProjectKind.GAME) GAME_SECTIONS else APP_SECTIONS
+            return src.lines().map { it.trim() }.filter { it.firstOrNull()?.isDigit() == true }
+                .map { it.substringAfter(". ").substringBefore(" (").trim() }
+        }
+        return if (kind == ProjectKind.GAME) listOf("At a glance", "Core fun & game loop", "Controls & mechanics", "Content", "Progression & balance", "Screens & UI flow", "Art & sound", "Technical design", "Monetization", "Roadmap", "Risks", "Open questions & next steps")
+        else listOf("At a glance", "Problem & solution", "Users & scenarios", "Feature spec", "Screens & flows", "Data model", "Technical design", "UI & brand", "Monetization & metrics", "Roadmap", "Risks", "Open questions & next steps")
+    }
+
     // ---------------------------------------------------------------- Markdown 유틸
 
     /** 설계서 Markdown 에서 "## " 섹션 제목을 순서대로 뽑는다(목차용). */

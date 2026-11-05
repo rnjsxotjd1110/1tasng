@@ -153,25 +153,31 @@ fun HomeScreen(
         item {
             Column(Modifier.padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(if (inProgress.isNotEmpty()) 24.dp else 28.dp))
-                Text(s.greeting(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)), style = MaterialTheme.typography.titleSmall, color = c.ember)
-                Spacer(Modifier.height(8.dp))
-                Text(s.homeHeadline, style = MaterialTheme.typography.displaySmall, color = c.text)
-                Spacer(Modifier.height(10.dp))
-                Text(s.homeSub, style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
-                Spacer(Modifier.height(24.dp))
+                if (inProgress.isEmpty()) {
+                    Text(s.greeting(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)), style = MaterialTheme.typography.titleSmall, color = c.ember)
+                    Spacer(Modifier.height(8.dp))
+                    Text(s.homeHeadline, style = MaterialTheme.typography.displaySmall, color = c.text)
+                    Spacer(Modifier.height(10.dp))
+                    Text(s.homeSub, style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
+                    Spacer(Modifier.height(24.dp))
+                } else {
+                    Text(s.newIdeaHeadline, style = MaterialTheme.typography.headlineSmall, color = c.text)
+                    Spacer(Modifier.height(14.dp))
+                }
                 Text(s.pickKind, style = MaterialTheme.typography.titleSmall, color = c.textMuted)
                 Spacer(Modifier.height(10.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(ProjectKind.GAME, ProjectKind.APP, ProjectKind.WEB, ProjectKind.ANY).forEach { k ->
-                        EmberChip(s.kindLabel(k), kind == k, { kind = if (kind == k) null else k }, icon = kindIcon(k))
+                listOf(listOf(ProjectKind.GAME, ProjectKind.APP), listOf(ProjectKind.WEB, ProjectKind.ANY)).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { k -> EmberChip(s.kindLabel(k), kind == k, { kind = if (kind == k) null else k }, Modifier.weight(1f), icon = kindIcon(k)) }
                     }
+                    Spacer(Modifier.height(8.dp))
                 }
                 Spacer(Modifier.height(18.dp))
                 EmberTextField(
                     value = seed,
                     onValueChange = { seed = it },
                     placeholder = s.seedPlaceholder,
-                    minHeight = 92.dp,
+                    minHeight = if (inProgress.isEmpty()) 92.dp else 56.dp,
                     maxLength = 400,
                 )
                 Spacer(Modifier.height(10.dp))
@@ -277,25 +283,30 @@ private fun ContinueCard(p: Project, busy: Boolean, onClick: () -> Unit) {
         ProjectStage.DESIGN_INTERVIEW -> 0.6f + (p.design?.turns?.lastOrNull()?.progress ?: 0) / 100f * 0.3f
         ProjectStage.DOCUMENT -> 1f
     }
-    EmberCard(Modifier.width(250.dp), onClick = onClick) {
+    EmberCard(Modifier.width(240.dp), onClick = onClick, padding = PaddingValues(14.dp)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                KindBadge(p.kind, 32)
-                Spacer(Modifier.width(8.dp))
-                Tag(if (busy) s.working else s.stageLabel(p.stage), color = if (busy) c.ember else null, strong = busy)
+                KindBadge(p.kind, 36)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(p.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        if (busy) s.working else if (p.stage == ProjectStage.IDEAS) continueHint(p, s) else s.stageLabel(p.stage) + " · " + continueHint(p, s),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (busy) c.ember else c.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Spacer(Modifier.height(12.dp))
-            Text(p.title, style = MaterialTheme.typography.titleMedium, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(continueHint(p, s), style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.height(38.dp))
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             EmberProgress(progress, height = 4.dp)
         }
     }
 }
 
 private fun continueHint(p: Project, s: app.ember.ideas.ui.strings.Strings): String = when (p.stage) {
-    ProjectStage.INTERVIEW -> p.currentTurn?.question?.title ?: s.answeredN(p.answeredCount)
+    ProjectStage.INTERVIEW -> s.answeredN(p.answeredCount)
     ProjectStage.IDEAS -> s.ideasCount(p.allIdeas.size)
     ProjectStage.DESIGN_INTERVIEW -> p.design?.turns?.lastOrNull()?.question?.title ?: s.stageLabel(p.stage)
     ProjectStage.DOCUMENT -> s.stageLabel(p.stage)

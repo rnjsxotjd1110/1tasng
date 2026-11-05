@@ -15,6 +15,29 @@ object SampleProject {
         return if (ko) korean() else english()
     }
 
+    /** 앱 기획서 예시(기획자·PM용). 한국어 기기에서만 함께 넣는다. */
+    fun koreanApp(): Project {
+        val now = System.currentTimeMillis()
+        val idea = Idea(
+            "sa_1", "한 줄 회고", "퇴근길 1분, 오늘 한 일을 한 줄로 남기면 주간 성장 리포트를 만들어 주는 앱.", "생산성", listOf("Android", "iOS"), "회고·기록",
+            "주니어 직장인과 취업 준비생", "한 줄만 써도 일주일이 정리되는 가벼움",
+            listOf("하루 한 줄 회고(30초)", "주간 리포트 자동 생성", "키워드 성장 그래프", "알림 시간 맞춤"),
+            "일기보다 짧고 업무 일지보다 개인적인 '한 줄' 단위", "구독 월 2,900원(리포트 고급 기능)", "소형", "1인 2개월", 2,
+            "짧게 쓰는 습관 앱과 혼자 개발 규모를 원하셨어요.",
+            listOf("Daylio — 기분 기록은 같지만 업무·성장 회고가 없어요", "Notion 템플릿 — 자유롭지만 매일 쓰기에는 무거워요"),
+            listOf("2주 이후 이탈", "리포트 품질이 기대보다 낮을 위험"),
+            "노션 폼으로 2주간 한 줄 회고를 받고 직접 리포트를 써서 10명에게 보내 봐요.",
+        )
+        return Project(
+            id = "sample_ko_app", title = "한 줄 회고", kind = ProjectKind.APP, seed = "퇴근길에 하루 정리",
+            createdAt = now - 172_800_000L, updatedAt = now - 7_200_000L, stage = ProjectStage.DOCUMENT,
+            ideaBatches = listOf(IdeaBatch("sa", now - 170_000_000L, "", "", listOf(idea))),
+            savedIdeaIds = listOf("sa_1"),
+            design = DesignState(ideaId = "sa_1", depth = DocDepth.STANDARD, versions = listOf(DocVersion("va1", now - 7_200_000L, "", SAMPLE_APP_DOC_KO))),
+            isSample = true,
+        )
+    }
+
     private fun q(title: String, sub: String, multi: Boolean, vararg opts: Pair<String, String>) = Question(
         title = title,
         subtitle = sub,
@@ -215,5 +238,61 @@ object SampleProject {
 1. "Build light_tracer.gd for Godot 4.3 that traces beams across a grid with mirrors, prisms and color filters."
 2. "Create a map editor scene that saves and loads maps as .tres resources."
 3. "Design a difficulty curve table for the 20 spring maps."
+""".trimIndent()
+
+    internal val SAMPLE_APP_DOC_KO = """
+# 한 줄 회고
+
+> 퇴근길 1분, 오늘 한 일을 한 줄로 남기면 주간 성장 리포트를 만들어 주는 앱이에요.
+
+## 한눈에 보기
+
+| 항목 | 내용 |
+|---|---|
+| 카테고리 | 생산성 · 회고 |
+| 플랫폼 | Android, iOS (Flutter) |
+| 대상 | 입사 1~3년 차 직장인, 취업 준비생 |
+| 핵심 가치 | 30초 기록으로 일주일 성장을 한눈에 |
+| 개발 규모 | 1인, 8주 |
+
+## 문제와 해결
+
+- 문제: 회고가 중요하다는 건 알지만 일기나 업무 일지는 매일 쓰기에 무거워요.
+- 해결: 하루 한 줄만 받고, 주말에 Claude API로 한 주를 요약한 리포트를 만들어 줘요.
+
+## 대상 사용자와 사용 시나리오
+
+- 직장인으로서 퇴근길에 30초 안에 오늘을 기록하고 싶다, 그래야 습관이 끊기지 않는다.
+- 취업 준비생으로서 한 주에 무엇을 해냈는지 보고 싶다, 그래야 면접에서 경험을 말할 수 있다.
+- 사용자로서 기록이 쌓인 키워드를 보고 싶다, 그래야 내가 어디에 시간을 쓰는지 안다.
+
+## 기능 명세
+
+| 기능 | 우선순위 | 수용 기준 |
+|---|---|---|
+| 한 줄 기록 | 필수 | 앱 실행 후 2탭 안에 저장, 120자 제한 |
+| 알림 | 필수 | 사용자가 정한 시각에 하루 1회 |
+| 주간 리포트 | 필수 | 일요일 21시 생성, 기록 3개 이상일 때 |
+| 키워드 그래프 | 권장 | 최근 4주 상위 키워드 5개 |
+| 클라우드 백업 | 나중 | 로그인 시 자동 동기화 |
+
+## 수익 모델과 성공 지표
+
+- 무료: 기록·알림·기본 리포트 / 구독(월 2,900원): 키워드 그래프·월간 리포트 (제안)
+- 지표: 7일 리텐션 40% 이상, 주당 평균 기록 4회 이상, 구독 전환 3% 이상
+
+## 개발 로드맵
+
+| 주차 | 산출물 |
+|---|---|
+| 1~2 | 기록·알림·로컬 저장 |
+| 3~5 | 주간 리포트(Claude API), 그래프 |
+| 6~8 | 구독 결제, 스토어 출시 |
+
+## 열린 질문과 다음 단계
+
+1. "Flutter로 한 줄 기록 화면과 로컬 저장(Hive)을 만들어 줘."
+2. "일주일 기록을 받아 리포트를 만드는 Claude API 프롬프트를 설계해 줘."
+3. "7일 리텐션을 측정할 이벤트 목록을 정리해 줘."
 """.trimIndent()
 }

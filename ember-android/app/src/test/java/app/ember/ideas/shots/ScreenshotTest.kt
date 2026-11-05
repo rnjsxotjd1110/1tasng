@@ -360,6 +360,13 @@ class ScreenshotTest {
         shot("25_library_menu")
     }
 
+    @Test fun s27_app_document() {
+        withKey()
+        c.store.upsert(SampleProject.koreanApp())
+        setContent { ProjectScreen("sample_ko_app", {}, {}) }
+        shot("27_app_document")
+    }
+
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))
     @Suppress("unused") private fun scroll() = rule.onAllNodesWithText("").onFirst().performScrollToNode(hasText(""))
 

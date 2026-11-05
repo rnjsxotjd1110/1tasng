@@ -109,7 +109,7 @@ object KoStrings : Strings() {
     override val keyGuideSteps = listOf(
         "console.anthropic.com에 접속해 로그인해요.",
         "Settings → API Keys에서 Create Key를 눌러요.",
-        "Billing에서 결제 수단을 등록하고 크레딧을 충전해요. 최소 $5(약 7,000원)부터 충전할 수 있고, Opus 기준 아이디어 탐색과 설계서를 열 번쯤 만들 수 있어요.",
+        "Billing에서 결제 수단을 등록하고 크레딧을 충전해요. 최소 $5(약 7,000원)부터 충전할 수 있고, Opus 기준 아이디어 탐색과 설계서를 일곱 세트쯤, Haiku로는 백 번 넘게 만들 수 있어요.",
         "만든 키를 복사해 위 칸에 붙여 넣어요.",
     )
     override val openConsole = "Anthropic 콘솔 열기"
@@ -167,7 +167,7 @@ object KoStrings : Strings() {
     override fun ideasCount(n: Int) = "아이디어 ${n}개"
 
     override fun questionN(n: Int) = "질문 $n"
-    override fun answersSoFar(n: Int) = "답변 $n"
+    override fun answersSoFar(n: Int) = "내 답변 ${n}개"
     override val multiHint = "여러 개 골라도 돼요"
     override val singleHint = "하나를 골라 주세요"
     override val customAnswer = "직접 입력하기"
@@ -256,7 +256,7 @@ object KoStrings : Strings() {
     override val reviseTitle = "무엇을 고칠까요?"
     override val reviseSub = "요청을 반영한 새 버전을 만들고, 이전 버전은 기록에 남겨요."
     override val revisePresets = listOf("더 간단하게", "더 자세하게", "MVP 범위 줄이기", "수익 모델 보강", "기술 스택 구체화", "일정을 현실적으로")
-    override val revisePlaceholder = "예: 멀티플레이 대신 비동기 랭킹으로 바꿔 줘"
+    override val revisePlaceholder = "추가로 바라는 점 (선택) 예: 멀티플레이 대신 비동기 랭킹으로"
     override val applyRevision = "새 버전 만들기"
     override val versionsTitle = "버전 기록"
     override val versionsSub = "이전 버전을 복원하면 새 버전으로 추가돼요."
@@ -267,8 +267,8 @@ object KoStrings : Strings() {
     override val viewDocument = "설계서로 돌아가기"
 
     override val handoffTitle = "Claude로 이어가기"
-    override val handoffSubApp = "정리한 내용을 Claude 앱의 새 대화로 보내요. 프롬프트는 클립보드에도 복사돼요."
-    override val handoffSubWeb = "Claude 앱이 없어 claude.ai를 열어요. 프롬프트는 클립보드에도 복사돼요."
+    override val handoffSubApp = "정리한 내용을 Claude 앱의 새 대화로 보내요. Claude 앱 사용은 API 크레딧을 쓰지 않아요."
+    override val handoffSubWeb = "claude.ai 새 대화로 보내요. API 크레딧은 쓰지 않고, 내 Claude 계정(무료 플랜 가능)으로 이어서 써요."
     override fun goalTitle(g: HandoffGoal) = when (g) {
         HandoffGoal.START_BUILD -> "개발 시작하기"
         HandoffGoal.CONTINUE_DESIGN -> "설계 더 다듬기"
@@ -363,7 +363,7 @@ object KoStrings : Strings() {
     override val haptics = "진동 피드백"
     override val usageRequests = "요청"
     override val usageTokens = "토큰"
-    override val usageCost = "예상 비용"
+    override val usageCost = "누적 비용"
     override val usageNote = "공개 단가와 1달러 1,400원으로 계산한 추정치예요. 실제 청구는 달러로 되며 Anthropic 콘솔에서 확인할 수 있어요."
     override val resetUsage = "사용량 초기화"
     override val resetUsageBody = "누적 요청·토큰·비용 기록을 0으로 되돌려요."
@@ -394,7 +394,7 @@ object KoStrings : Strings() {
 
     override fun questionOf(n: Int, total: Int) = "질문 $n / 약 ${maxOf(total, n)}"
     override val waitingNote = "앱을 나가도 계속 진행돼요. 끝나면 이 프로젝트에 저장돼요."
-    override val doLater = "나중에 하기"
+    override val doLater = "나가서 나중에 이어 하기"
     override val designThisShort = "이걸로 설계"
     override val details = "자세히"
     override val tryDifferently = "다르게 해 보기"
@@ -410,8 +410,8 @@ object KoStrings : Strings() {
         val krw = usd * 1400
         return when {
             krw < 10 -> "약 ₩10 미만"
-            krw < 1000 -> "약 ₩${((krw / 10).toInt().coerceAtLeast(1)) * 10}"
-            else -> "약 ₩" + "%,d".format(((krw / 100).toInt()) * 100)
+            krw < 1000 -> "약 ₩${(Math.round(krw / 10).toInt().coerceAtLeast(1)) * 10}"
+            else -> "약 ₩" + "%,d".format(Math.round(krw / 100).toInt() * 100)
         }
     }
     override fun costPerDiscovery(cost: String, model: String) = "탐색 1회 $cost ($model)"
@@ -445,7 +445,7 @@ object KoStrings : Strings() {
     override val previousShort = "이전"
     override val compare = "비교"
     override val compareTitle = "아이디어 비교"
-    override val compareSub = "표를 옆으로 밀어 모든 아이디어를 볼 수 있어요."
+    override val compareSub = "아이디어마다 규모·난이도·재미·수익·차별점을 같은 순서로 정리했어요."
     override fun openIdea(title: String) = "‘$title’ 자세히 보기"
     override fun goalShort(g: HandoffGoal) = when (g) {
         HandoffGoal.START_BUILD -> "코드로 바로 시작"
@@ -469,6 +469,9 @@ object KoStrings : Strings() {
     override fun budgetWarn(pct: Int) = "이번 달 예산의 $pct%를 썼어요"
     override fun writingNow(title: String) = "지금 쓰는 중 · $title"
     override fun remaining(min: Int) = if (min <= 1) "1분 안에 끝나요" else "약 ${min}분 남았어요"
+
+    override val nextQuestionTag = "다음 질문"
+    override val newIdeaHeadline = "새 아이디어 찾기"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

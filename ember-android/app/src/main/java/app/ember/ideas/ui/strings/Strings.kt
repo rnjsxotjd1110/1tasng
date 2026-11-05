@@ -202,6 +202,8 @@ abstract class Strings {
     abstract val recommended: String
     abstract val moreActions: String
     abstract fun minutes(lo: Int, hi: Int): String
+    abstract val rewriteShort: String
+    abstract val saveClaudeMd: String
     abstract val editDocument: String
     abstract val editDocumentSub: String
     abstract val editedNote: String

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -292,7 +293,7 @@ fun DocumentContent(
                     itemsIndexed(blocks) { _, b ->
                         if (!busy && b is MdBlock.Heading && b.level == 2) {
                             MarkdownBlockView(b, headingAction = {
-                                IconCircleButton(Icons.Rounded.Tune, s.rewriteSectionShort, { onReviseSection(b.text.substringAfter(". ")) }, filled = false, tint = c.textFaint)
+                                GhostButton(s.rewriteShort, { onReviseSection(b.text.substringAfter(". ")) }, icon = Icons.Rounded.Refresh, color = c.textMuted, modifier = Modifier.offset(x = 14.dp))
                             })
                         } else MarkdownBlockView(b)
                     }

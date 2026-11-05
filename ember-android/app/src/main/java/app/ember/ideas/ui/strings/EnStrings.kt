@@ -477,6 +477,9 @@ object EnStrings : Strings() {
     override val rewriteSectionShort = "Rewrite this section"
     override val prepaidNote = "The API needs prepaid credits from the console first (from $5)."
 
+    override val rewriteShort = "Rewrite"
+    override val saveClaudeMd = "Save CLAUDE.md"
+
     override val tabHome = "Home"
     override val tabLibrary = "Library"
     override val tabSettings = "Settings"

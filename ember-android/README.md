@@ -45,7 +45,8 @@ app/src/main/java/app/ember/ideas/
   handoff/   Claude 앱·claude.ai 열기, 프롬프트·CLAUDE.md 생성, 공유
   ui/        테마·컴포넌트·Markdown 렌더러·한국어 어절 줄바꿈·화면
 app/src/test/  프로토콜·Markdown·엔진·실제 API 오류 경로 테스트, Roborazzi 스크린샷
-docs/EVALUATION.md  처음 보는 평가 에이전트의 채점 기록
+docs/EVALUATION.md  처음 보는 평가 에이전트의 채점 기록(1차 65점 → 최종 77.25점)
+docs/screenshots/   최종 빌드 화면 28장
 ```
 
 Claude 모델: 기본 `claude-opus-5-5`(설정에서 Sonnet 5.5·Haiku 5.5 선택 가능). 질문 카드는 구조화 출력(JSON 스키마), 설계서는 스트리밍으로 받습니다.

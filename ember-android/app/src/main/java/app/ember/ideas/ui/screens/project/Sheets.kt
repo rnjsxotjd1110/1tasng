@@ -509,7 +509,7 @@ fun HandoffSheet(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 GhostButton(s.copyPrompt, { onCopy(choice) }, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
                 GhostButton(s.share, { onShare(choice) }, icon = Icons.Rounded.Share, color = c.textMuted)
-                if (onExportClaudeMd != null) GhostButton("CLAUDE.md", onExportClaudeMd, icon = Icons.Rounded.FileDownload, color = c.textMuted)
+                if (onExportClaudeMd != null) GhostButton(s.saveClaudeMd, onExportClaudeMd, icon = Icons.Rounded.FileDownload, color = c.textMuted)
             }
         }
     }

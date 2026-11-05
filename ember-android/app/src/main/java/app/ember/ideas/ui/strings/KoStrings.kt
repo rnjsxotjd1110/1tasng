@@ -486,6 +486,9 @@ object KoStrings : Strings() {
     override val rewriteSectionShort = "이 섹션 다시 쓰기"
     override val prepaidNote = "API는 콘솔에서 크레딧을 먼저 충전해야 쓸 수 있어요(최소 $5, 약 7,000원)."
 
+    override val rewriteShort = "다시 쓰기"
+    override val saveClaudeMd = "CLAUDE.md 저장"
+
     override val tabHome = "홈"
     override val tabLibrary = "보관함"
     override val tabSettings = "설정"

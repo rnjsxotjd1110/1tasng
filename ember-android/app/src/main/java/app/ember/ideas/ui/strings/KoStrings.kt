@@ -256,7 +256,7 @@ object KoStrings : Strings() {
     override val reviseTitle = "무엇을 고칠까요?"
     override val reviseSub = "요청을 반영한 새 버전을 만들고, 이전 버전은 기록에 남겨요."
     override val revisePresets = listOf("더 간단하게", "더 자세하게", "MVP 범위 줄이기", "수익 모델 보강", "기술 스택 구체화", "일정을 현실적으로")
-    override val revisePlaceholder = "추가로 바라는 점 (선택) 예: 멀티플레이 대신 비동기 랭킹으로"
+    override val revisePlaceholder = "추가로 바라는 점 (선택) 예: 첫 버전 범위를 절반으로 줄여 줘"
     override val applyRevision = "새 버전 만들기"
     override val versionsTitle = "버전 기록"
     override val versionsSub = "이전 버전을 복원하면 새 버전으로 추가돼요."
@@ -340,11 +340,11 @@ object KoStrings : Strings() {
     }
     override fun modelBody(m: ClaudeModel) = when (m) {
         ClaudeModel.OPUS -> "가장 깊이 있는 아이디어와 설계, 비용이 가장 높아요"
-        ClaudeModel.SONNET -> "빠르고 균형 잡힌 품질, 비용은 Opus의 절반"
+        ClaudeModel.SONNET -> "빠르고 균형 잡힌 품질, 비용은 Opus의 절반. 처음이라면 이걸로도 충분해요"
         ClaudeModel.HAIKU -> "가장 빠르고 저렴해 가볍게 둘러볼 때 좋아요"
     }
     override val deepThinking = "깊게 생각하기"
-    override val deepThinkingBody = "더 오래 생각해 아이디어와 설계서의 완성도를 높여요. 느려지고 비용이 늘어요."
+    override val deepThinkingBody = "더 오래 생각해 아이디어와 설계서의 완성도를 높여요. 시간과 비용이 30~60% 늘어요."
     override val devProfile = "개발자 프로필"
     override val devProfileBody = "경험·도구·팀 규모를 모든 질문에 반영해요"
     override val language = "언어"
@@ -382,10 +382,10 @@ object KoStrings : Strings() {
 
     override val profileIntro = "여기 적은 내용은 모든 인터뷰와 설계에 배경 정보로 들어가요. 비워 두어도 괜찮아요."
     override val profileExperience = "개발 경험"
-    override val experienceOptions = listOf("처음이에요", "1년 미만", "1~3년", "3년 이상", "현업 개발자")
+    override val experienceOptions = listOf("처음이에요", "1년 미만", "1~3년", "3년 이상", "현업 개발자", "기획자·PM (코딩은 맡김)")
     override val profileTools = "쓸 수 있는 도구·엔진"
     override val toolOptions = listOf("Godot", "Unity", "Unreal Engine", "Flutter", "React Native", "Kotlin·Android", "Swift·iOS", "React·웹", "Python", "노코드 도구")
-    override val addToolPlaceholder = "다른 도구 추가 (입력 후 완료)"
+    override val addToolPlaceholder = "다른 도구 직접 추가"
     override val profileTeam = "함께 만드는 사람"
     override val teamOptions = listOf("혼자", "2~3명", "4명 이상 팀")
     override val profileNotes = "그 밖에 알려 줄 것"
@@ -394,7 +394,7 @@ object KoStrings : Strings() {
 
     override fun questionOf(n: Int, total: Int) = "질문 $n / 약 ${maxOf(total, n)}"
     override val waitingNote = "앱을 나가도 계속 진행돼요. 끝나면 이 프로젝트에 저장돼요."
-    override val doLater = "나가서 나중에 이어 하기"
+    override val doLater = "나가서 나중에 이어서 하기"
     override val designThisShort = "이걸로 설계"
     override val details = "자세히"
     override val tryDifferently = "다르게 해 보기"
@@ -472,6 +472,10 @@ object KoStrings : Strings() {
 
     override val nextQuestionTag = "다음 질문"
     override val newIdeaHeadline = "새 아이디어 찾기"
+
+    override fun costPreview(discovery: String, doc: String) = "Opus 기준으로 아이디어 탐색 1회 $discovery, 표준 설계서 1편 $doc 정도예요. Sonnet은 절반, Haiku는 훨씬 저렴해요."
+    override val resend = "다시 보내기"
+    override fun compareCount(n: Int) = "아이디어 ${n}개 · 옆으로 밀어 보세요"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

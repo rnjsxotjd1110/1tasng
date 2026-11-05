@@ -2,6 +2,7 @@ package app.ember.ideas.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,7 +64,7 @@ import app.ember.ideas.ui.screens.project.RenameDialog
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
 
-enum class LibraryFilter { ALL, FAVORITE, EXPLORING, IDEAS, DOCS }
+enum class LibraryFilter { ALL, EXPLORING, IDEAS, DOCS, FAVORITE }
 
 @Composable
 fun LibraryScreen(
@@ -114,22 +115,23 @@ fun LibraryScreen(
                     trailing = if (query.isNotEmpty()) ({ IconCircleButton(Icons.Rounded.Close, s.clear, { query = "" }, filled = false, tint = c.textMuted) }) else null,
                 )
                 Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EmberChip(s.tabProjects(projects.size), tab == 0, { tab = 0 }, icon = Icons.Rounded.Inventory2)
-                    EmberChip(s.tabSavedIdeas(savedIdeas.size), tab == 1, { tab = 1 }, icon = Icons.Rounded.Favorite)
+                Row(Modifier.fillMaxWidth()) {
+                    UnderlineTab(s.tabProjects(projects.size), tab == 0, Modifier.weight(1f)) { tab = 0 }
+                    UnderlineTab(s.tabSavedIdeas(savedIdeas.size), tab == 1, Modifier.weight(1f)) { tab = 1 }
                 }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
             }
         }
         if (tab == 0) {
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(LibraryFilter.entries) { f ->
+                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(LibraryFilter.entries.filter { it != LibraryFilter.FAVORITE }) { f ->
                         Text(
                             s.filterLabel(f),
                             modifier = Modifier
                                 .minimumInteractiveComponentSize()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (filter == f) c.surface3 else c.bg)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(if (filter == f) c.surface3 else c.surface)
                                 .combinedClickable(onClick = { filter = f })
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             style = MaterialTheme.typography.labelMedium,
@@ -242,4 +244,14 @@ fun stageColor(stage: ProjectStage) = when (stage) {
     ProjectStage.IDEAS -> Ember.colors.gold
     ProjectStage.DESIGN_INTERVIEW -> Ember.colors.ember
     ProjectStage.DOCUMENT -> Ember.colors.success
+}
+
+
+@Composable
+private fun UnderlineTab(text: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = Ember.colors
+    Column(modifier.clickable(role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text, style = MaterialTheme.typography.titleSmall, color = if (selected) c.text else c.textMuted, modifier = Modifier.padding(vertical = 14.dp))
+        Box(Modifier.fillMaxWidth(0.6f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (selected) c.ember else androidx.compose.ui.graphics.Color.Transparent))
+    }
 }

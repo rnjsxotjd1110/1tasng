@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.offset
@@ -103,13 +105,16 @@ fun EmberSheet(onDismiss: () -> Unit, state: SheetState = rememberModalBottomShe
 }
 
 @Composable
-private fun SheetTitle(title: String, subtitle: String? = null) {
+private fun SheetTitle(title: String, subtitle: String? = null, onClose: (() -> Unit)? = null) {
     val c = Ember.colors
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, color = c.text)
+    Column(Modifier.padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = c.text, modifier = Modifier.weight(1f))
+            if (onClose != null) IconCircleButton(Icons.Rounded.Close, LocalStrings.current.close, onClose, filled = false, tint = c.textMuted)
+        }
         if (!subtitle.isNullOrBlank()) {
-            Spacer(Modifier.height(6.dp))
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = c.textMuted, modifier = Modifier.padding(end = 12.dp))
         }
     }
 }
@@ -253,7 +258,7 @@ fun DesignSetupSheet(idea: Idea, model: app.ember.ideas.ai.ClaudeModel, onDismis
     var depth by rememberSaveable { mutableStateOf(DocDepth.STANDARD) }
     var ask by rememberSaveable { mutableStateOf(true) }
     EmberSheet(onDismiss) {
-        SheetTitle(s.designSetupTitle, s.designSetupSub(idea.title))
+        SheetTitle(s.designSetupTitle, s.designSetupSub(idea.title), onDismiss)
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(8.dp))
             DocDepth.entries.forEach { d ->
@@ -305,7 +310,7 @@ fun VariationSheet(idea: Idea, onDismiss: () -> Unit, onSubmit: (String) -> Unit
     val s = LocalStrings.current
     var text by rememberSaveable { mutableStateOf("") }
     EmberSheet(onDismiss) {
-        SheetTitle(s.varyTitle, s.varySub(idea.title))
+        SheetTitle(s.varyTitle, s.varySub(idea.title), onDismiss)
         Column(Modifier.padding(horizontal = 20.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 s.varyPresets.forEach { p -> EmberChip(p, text == p, { text = p }) }
@@ -324,7 +329,7 @@ fun CombineSheet(base: Idea, others: List<Idea>, onDismiss: () -> Unit, onSubmit
     val s = LocalStrings.current
     var pick by remember { mutableStateOf<Idea?>(null) }
     EmberSheet(onDismiss) {
-        SheetTitle(s.combineTitle, s.combineSub(base.title))
+        SheetTitle(s.combineTitle, s.combineSub(base.title), onDismiss)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
             others.forEach { o ->
                 ChoiceRow(o.title, o.logline, pick?.id == o.id) { pick = o }
@@ -347,7 +352,7 @@ fun ReviseSheet(costUsd: Double, onDismiss: () -> Unit, onSubmit: (String) -> Un
     var text by rememberSaveable { mutableStateOf("") }
     val instruction = listOfNotNull(preset, text.trim().takeIf { it.isNotEmpty() }).joinToString(". ")
     EmberSheet(onDismiss) {
-        SheetTitle(s.reviseTitle, s.reviseSub)
+        SheetTitle(s.reviseTitle, s.reviseSub, onDismiss)
         Column(Modifier.padding(horizontal = 20.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 s.revisePresets.forEach { p -> EmberChip(p, preset == p, { preset = if (preset == p) null else p }) }
@@ -367,7 +372,7 @@ fun VersionsSheet(versions: List<DocVersion>, onDismiss: () -> Unit, onRestore: 
     val s = LocalStrings.current
     val c = Ember.colors
     EmberSheet(onDismiss) {
-        SheetTitle(s.versionsTitle, s.versionsSub)
+        SheetTitle(s.versionsTitle, s.versionsSub, onDismiss)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
             versions.withIndex().reversed().forEach { (i, v) ->
                 val isLatest = i == versions.lastIndex
@@ -402,7 +407,7 @@ fun HistorySheet(title: String, turns: List<Turn>, onDismiss: () -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
     EmberSheet(onDismiss) {
-        SheetTitle(title)
+        SheetTitle(title, null, onDismiss)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
             turns.filter { it.answer != null }.forEachIndexed { i, t ->
                 Row(Modifier.padding(vertical = 8.dp)) {
@@ -455,19 +460,17 @@ fun HandoffSheet(
     val text = remember(choice) { preview(choice) }
 
     EmberSheet(onDismiss) {
-        SheetTitle(s.handoffTitle, if (claudeInstalled) s.handoffSubApp else s.handoffSubWeb)
+        SheetTitle(s.handoffTitle, if (claudeInstalled) s.handoffSubApp else s.handoffSubWeb, onDismiss)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
             if (docTitle != null) {
                 Text(s.handoffDocName(docTitle), style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 8.dp))
             }
-            (listOf(defaultGoal) + HandoffGoal.entries.filter { it != defaultGoal }).chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pair.forEach { g -> GoalTile(s.goalTitle(g), s.goalShort(g), goal == g, Modifier.weight(1f)) { goal = g } }
-                }
+            (listOf(defaultGoal) + HandoffGoal.entries.filter { it != defaultGoal }).forEach { g ->
+                GoalTile(s.goalTitle(g), s.goalShort(g), goal == g, Modifier.fillMaxWidth()) { goal = g }
                 Spacer(Modifier.height(8.dp))
             }
             Text(s.goalBody(goal), style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(bottom = 4.dp))
-            Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
+            Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(top = 10.dp))
             ToggleRow(s.includeAnswers, null, answers, { answers = it })
             if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
             ToggleRow(s.includeProfile, null, profile, { profile = it })
@@ -493,20 +496,6 @@ fun HandoffSheet(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (onExportClaudeMd != null && true) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2).clickable(onClick = onExportClaudeMd).padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Description, null, tint = c.ember, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(s.exportClaudeMd, style = MaterialTheme.typography.titleSmall, color = c.text)
-                        Text(s.exportClaudeMdBody, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
-                    }
-                    Icon(Icons.Rounded.Share, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
-                }
-            }
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.topFade(c.surface).padding(horizontal = 20.dp, vertical = 8.dp)) {
@@ -514,6 +503,7 @@ fun HandoffSheet(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 GhostButton(s.copyPrompt, { onCopy(choice) }, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
                 GhostButton(s.share, { onShare(choice) }, icon = Icons.Rounded.Share, color = c.textMuted)
+                if (onExportClaudeMd != null) GhostButton("CLAUDE.md", onExportClaudeMd, icon = Icons.Rounded.Description, color = c.textMuted)
             }
         }
     }
@@ -587,49 +577,53 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
         s.fieldMonetization to { it.monetization },
         s.fieldUnique to { it.uniquePoint },
     )
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // 각 행의 실제 높이를 재서 고정된 항목 열과 맞춘다.
+    val heights = remember { androidx.compose.runtime.mutableStateListOf(*Array(rows.size + 1) { 0 }) }
     val labelW = 76.dp
-    val colW = 176.dp
+    val colW = 156.dp
     EmberSheet(onDismiss) {
-        SheetTitle(s.compareTitle, s.compareSub)
+        SheetTitle(s.compareTitle, s.compareCount(ideas.size), onDismiss)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-            Row(Modifier.padding(start = 20.dp).height(IntrinsicSize.Min)) {
-                // 고정 열: 항목 이름
+            Row(Modifier.padding(start = 20.dp)) {
                 Column(Modifier.width(labelW)) {
-                    Box(Modifier.height(96.dp))
-                    rows.forEach { (label, _) ->
-                        Box(Modifier.height(64.dp).fillMaxWidth().padding(top = 10.dp)) {
+                    Box(Modifier.height(with(density) { heights[0].toDp() }))
+                    rows.forEachIndexed { i, (label, _) ->
+                        Box(Modifier.height(with(density) { heights[i + 1].toDp() }).padding(top = 10.dp)) {
                             Text(label, style = MaterialTheme.typography.labelMedium, color = c.textMuted)
                         }
                     }
                 }
-                // 아이디어 열: 가로로 밀어 본다
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(end = 20.dp)) {
-                    ideas.forEach { idea ->
-                        Column(
-                            Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(16.dp))
-                                .background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 12.dp),
-                        ) {
-                            Column(Modifier.height(96.dp).padding(top = 12.dp)) {
+                Column(Modifier.horizontalScroll(rememberScrollState()).padding(end = 20.dp)) {
+                    // 머리 행: 아이디어 제목
+                    Row(Modifier.height(IntrinsicSize.Min).onSizeChanged { heights[0] = it.height }) {
+                        ideas.forEach { idea ->
+                            Column(Modifier.width(colW).fillMaxHeight().padding(end = 8.dp).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(12.dp)) {
                                 Text(idea.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Spacer(Modifier.weight(1f))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward, modifier = Modifier.offset(x = (-14).dp))
-                                }
+                                if (idea.id == easiest) { Spacer(Modifier.height(4.dp)); Tag(s.easiest, color = c.success, strong = true) }
                             }
-                            rows.forEachIndexed { i, (_, value) ->
-                                val v = value(idea)
-                                val best = i == 2 && idea.id == easiest
-                                Box(Modifier.height(64.dp).fillMaxWidth().padding(top = 10.dp)) {
+                        }
+                    }
+                    rows.forEachIndexed { r, (_, value) ->
+                        Row(Modifier.height(IntrinsicSize.Min).onSizeChanged { heights[r + 1] = it.height }) {
+                            ideas.forEach { idea ->
+                                val best = r == 2 && idea.id == easiest
+                                Box(Modifier.width(colW).fillMaxHeight().padding(end = 8.dp).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 12.dp, vertical = 10.dp)) {
                                     Text(
-                                        v.ifBlank { "—" },
+                                        value(idea).ifBlank { "—" },
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (best) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal),
                                         color = if (best) c.success else c.text,
-                                        maxLines = 3,
-                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }
-                            GhostButton(s.details, { onOpen(idea) }, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
+                        }
+                    }
+                    Row {
+                        ideas.forEach { idea ->
+                            Column(Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 4.dp)) {
+                                GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                                GhostButton(s.details, { onOpen(idea) }, color = c.textMuted)
+                            }
                         }
                     }
                 }
@@ -655,7 +649,7 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier
-            .heightIn(min = 76.dp)
+            .heightIn(min = 56.dp)
             .clip(shape)
             .background(if (selected) c.emberSoft else c.surface)
             .border(if (selected) 1.5.dp else 1.dp, if (selected) c.ember else c.outline, shape)
@@ -663,10 +657,11 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
             .padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = c.text)
+                Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             SelectMark(selected, multi = false)
         }
-        Spacer(Modifier.height(2.dp))
-        Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }

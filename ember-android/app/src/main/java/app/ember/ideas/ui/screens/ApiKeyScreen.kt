@@ -159,15 +159,22 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     },
                 )
                 AnimatedVisibility(error != null, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-                    Text(error ?: "", style = MaterialTheme.typography.bodySmall, color = c.danger, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
+                    Text(error ?: "", style = MaterialTheme.typography.bodySmall, color = c.danger, modifier = Modifier.padding(top = 8.dp))
                 }
                 Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
                     Icon(Icons.Rounded.Lock, null, tint = c.textFaint, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(if (settings.secureStorageAvailable) s.keySecureNote else s.keyStoredNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
                 }
-                Text(s.keyCostNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+                Text(s.keyCostNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 6.dp))
+                Text(
+                    s.costPreview(
+                        s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)),
+                        s.costApprox(app.ember.ideas.ai.CostEstimate.design(app.ember.ideas.ai.ClaudeModel.OPUS, app.ember.ideas.data.DocDepth.STANDARD, true)),
+                    ),
+                    style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(top = 6.dp),
+                )
                 GhostButton(s.openConsole, {
                     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys"))) }
                 }, icon = Icons.AutoMirrored.Rounded.OpenInNew, modifier = Modifier.offset(x = (-12).dp).padding(top = 8.dp))

@@ -257,7 +257,7 @@ private fun QuestionCard(
                         color = c.textMuted,
                         modifier = Modifier.weight(1f).padding(vertical = 8.dp),
                     )
-                    if (historyLabel != null) GhostButton(historyLabel, onShowHistory, color = c.ember)
+                    if (historyLabel != null) GhostButton(historyLabel.filter { it.isDigit() }, onShowHistory, icon = Icons.Rounded.History, color = c.ember)
                 }
                 Spacer(Modifier.height(20.dp))
             }
@@ -269,9 +269,9 @@ private fun QuestionCard(
             Spacer(Modifier.height(6.dp))
             Text(if (q.multiSelect) s.multiHint else s.singleHint, style = MaterialTheme.typography.labelMedium, color = c.textFaint)
             Spacer(Modifier.height(16.dp))
-            q.options.forEach { opt ->
+            q.options.forEachIndexed { idx, opt ->
                 val isSel = opt.id in selected
-                OptionRow(opt, isSel, q.multiSelect) {
+                OptionRow(opt, ('A' + idx).toString(), isSel, q.multiSelect) {
                     selected = if (q.multiSelect) {
                         if (isSel) selected - opt.id else selected + opt.id
                     } else {
@@ -315,9 +315,9 @@ private fun QuestionCard(
             GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.width(4.dp))
             PrimaryButton(
-                text = s.next,
+                text = if (errorBanner != null) s.resend else s.next,
                 onClick = { onSubmit(Answer(selectedIds = selected, customText = if (customOpen) custom.trim() else "")) },
-                enabled = hasAnswer && errorBanner == null,
+                enabled = hasAnswer,
                 modifier = Modifier.weight(1f),
                 icon = Icons.AutoMirrored.Rounded.ArrowForward,
             )
@@ -326,7 +326,7 @@ private fun QuestionCard(
 }
 
 @Composable
-private fun OptionRow(opt: QuestionOption, selected: Boolean, multi: Boolean, onClick: () -> Unit) {
+private fun OptionRow(opt: QuestionOption, letter: String, selected: Boolean, multi: Boolean, onClick: () -> Unit) {
     val c = Ember.colors
     val shape = RoundedCornerShape(18.dp)
     val bg by animateColorAsState(if (selected) c.emberSoft else c.surface, tween(160), label = "optbg")
@@ -342,8 +342,11 @@ private fun OptionRow(opt: QuestionOption, selected: Boolean, multi: Boolean, on
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
-            Text(opt.emoji.ifBlank { "•" }, style = MaterialTheme.typography.titleLarge)
+        Box(
+            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) c.ember else c.surface2),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(letter, style = MaterialTheme.typography.titleSmall, color = if (selected) c.onEmber else c.textMuted)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -381,8 +384,8 @@ private fun CustomRow(open: Boolean, filled: Boolean, multi: Boolean, onClick: (
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Edit, null, tint = c.textMuted, modifier = Modifier.size(20.dp))
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Edit, null, tint = c.textMuted, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(14.dp))
         Text(s.customAnswer, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)

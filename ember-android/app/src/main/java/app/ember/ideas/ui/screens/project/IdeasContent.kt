@@ -169,7 +169,7 @@ fun IdeasContent(
 private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
     val s = LocalStrings.current
     val c = Ember.colors
-    Column(Modifier.padding(top = 18.dp, bottom = 12.dp, start = 4.dp, end = 4.dp)) {
+    Column(Modifier.padding(top = 18.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (batch.label.isNotBlank()) s.variationOf(batch.label) else if (latest) s.latestIdeas else s.earlierIdeas,

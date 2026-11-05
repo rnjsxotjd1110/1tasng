@@ -254,7 +254,7 @@ object EnStrings : Strings() {
     override val reviseTitle = "What should change?"
     override val reviseSub = "A new version is created and older ones stay in the history."
     override val revisePresets = listOf("Simpler", "More detail", "Smaller MVP", "Stronger monetization", "Concrete tech stack", "Realistic schedule")
-    override val revisePlaceholder = "Anything else? (optional) e.g. async leaderboards instead of multiplayer"
+    override val revisePlaceholder = "Anything else? (optional) e.g. halve the first release scope"
     override val applyRevision = "Create new version"
     override val versionsTitle = "Version history"
     override val versionsSub = "Restoring adds the old version as a new one."
@@ -338,11 +338,11 @@ object EnStrings : Strings() {
     }
     override fun modelBody(m: ClaudeModel) = when (m) {
         ClaudeModel.OPUS -> "Deepest ideas and designs, highest cost"
-        ClaudeModel.SONNET -> "Fast, balanced quality at half the cost of Opus"
+        ClaudeModel.SONNET -> "Fast, balanced quality at half the cost of Opus. Plenty for getting started"
         ClaudeModel.HAIKU -> "Fastest and cheapest, great for light browsing"
     }
     override val deepThinking = "Think deeper"
-    override val deepThinkingBody = "Claude thinks longer for better ideas and docs. Slower and costs more."
+    override val deepThinkingBody = "Claude thinks longer for better ideas and docs. Takes and costs 30–60% more."
     override val devProfile = "Developer profile"
     override val devProfileBody = "Your experience, tools and team shape every question"
     override val language = "Language"
@@ -380,7 +380,7 @@ object EnStrings : Strings() {
 
     override val profileIntro = "Everything here is shared as background in every interview and design. You can leave it blank."
     override val profileExperience = "Experience"
-    override val experienceOptions = listOf("Total beginner", "Under 1 year", "1–3 years", "3+ years", "Professional")
+    override val experienceOptions = listOf("Total beginner", "Under 1 year", "1–3 years", "3+ years", "Professional", "PM / planner (no coding)")
     override val profileTools = "Tools & engines you can use"
     override val toolOptions = listOf("Godot", "Unity", "Unreal Engine", "Flutter", "React Native", "Kotlin/Android", "Swift/iOS", "React/Web", "Python", "No-code tools")
     override val addToolPlaceholder = "Add another tool (press done)"
@@ -463,6 +463,10 @@ object EnStrings : Strings() {
 
     override val nextQuestionTag = "Next"
     override val newIdeaHeadline = "Find a new idea"
+
+    override fun costPreview(discovery: String, doc: String) = "On Opus, one exploration is about $discovery and a standard design doc about $doc. Sonnet costs half, Haiku far less."
+    override val resend = "Send again"
+    override fun compareCount(n: Int) = "$n ideas · swipe sideways"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

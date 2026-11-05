@@ -257,7 +257,7 @@ fun DocumentContent(
                                 // 섹션 진행 목록: 다 쓴 섹션은 체크, 남은 섹션은 자리만 보여 준다.
                                 val done = Protocol.sectionTitles(streamingText)
                                 Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                                    done.forEachIndexed { i, title ->
+                                    done.withIndex().toList().takeLast(2).forEach { (i, title) ->
                                         val writing = i == done.lastIndex
                                         Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                                             if (writing) CircularProgressIndicator(Modifier.size(14.dp), color = c.ember, strokeWidth = 2.dp)
@@ -267,7 +267,7 @@ fun DocumentContent(
                                         }
                                     }
                                     val planned = Protocol.plannedSections(project.kind, s.isKorean)
-                                    planned.drop(done.size).forEachIndexed { i, title ->
+                                    planned.drop(done.size).take(if (done.isEmpty()) 3 else 2).forEachIndexed { i, title ->
                                         Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
                                             Spacer(Modifier.width(12.dp))

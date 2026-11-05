@@ -29,6 +29,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import app.ember.ideas.ui.components.Tag
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
@@ -68,7 +75,10 @@ fun OnboardingScreen(onFinish: () -> Unit, initialPage: Int = 0) {
             HorizontalPager(pager, Modifier.weight(1f)) { page ->
                 val (title, body, art) = pages[page]
                 Column(Modifier.fillMaxSize().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Canvas(Modifier.size(260.dp)) { drawArt(art, c) }
+                    Box(Modifier.size(width = 300.dp, height = 280.dp), contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.size(280.dp)) { drawCircle(Brush.radialGradient(listOf(c.ember.copy(alpha = 0.20f), Color.Transparent)), radius = size.width * 0.5f) }
+                        OnboardingMock(art)
+                    }
                     Spacer(Modifier.height(36.dp))
                     Text(title, style = MaterialTheme.typography.headlineLarge, color = c.text, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(14.dp))
@@ -157,4 +167,86 @@ private fun DrawScope.spark(center: Offset, r: Float, color: Color) {
         close()
     }
     drawPath(p, color)
+}
+
+
+/** 온보딩 그림: 실제 화면 요소를 축소해 보여 준다. */
+@Composable
+private fun OnboardingMock(page: Int) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    val ko = s.isKorean
+    val t = MaterialTheme.typography
+    @Composable
+    fun card(modifier: Modifier = Modifier, content: @Composable () -> Unit) = Box(
+        modifier.clip(RoundedCornerShape(20.dp)).background(c.surface).border(1.dp, c.outline, RoundedCornerShape(20.dp)).padding(14.dp),
+    ) { content() }
+    when (page) {
+        0 -> card(Modifier.width(260.dp)) {
+            Column {
+                Text(if (ko) "어떤 분위기에 끌리나요?" else "Which mood draws you in?", style = t.titleSmall, color = c.text)
+                Spacer(Modifier.height(10.dp))
+                listOf(if (ko) "아늑하고 따뜻한" else "Cozy", if (ko) "몽환적인" else "Dreamy", if (ko) "긴장감 넘치는" else "Tense").forEachIndexed { i, label ->
+                    val sel = i == 1
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp))
+                            .background(if (sel) c.emberSoft else c.surface2)
+                            .border(if (sel) 1.5.dp else 0.dp, if (sel) c.ember else Color.Transparent, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(if (sel) c.ember else c.surface3), contentAlignment = Alignment.Center) {
+                            Text(('A' + i).toString(), style = t.labelSmall, color = if (sel) c.onEmber else c.textMuted)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(label, style = t.labelMedium, color = c.text)
+                    }
+                }
+            }
+        }
+        1 -> Box {
+            card(Modifier.width(240.dp).offset(x = 22.dp, y = (-18).dp).alpha(0.55f)) {
+                Column { Text(if (ko) "우산 대여소" else "Umbrella Stand", style = t.titleSmall, color = c.text); Spacer(Modifier.height(36.dp)) }
+            }
+            card(Modifier.width(250.dp).offset(y = 14.dp)) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (ko) "지하철 정원사" else "Subway Gardener", style = t.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.Favorite, null, tint = c.emberDeep, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(if (ko) "정거장마다 씨앗을 심어 노선도를 꽃길로 바꾸는 퍼즐" else "Plant a seed per stop and turn the map into flowers", style = t.bodySmall, color = c.textMuted, maxLines = 2)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Tag(if (ko) "소형" else "Small"); Tag(if (ko) "1인 3개월" else "Solo, 3 mo"); Tag(s.difficulty(2), color = c.success, strong = true)
+                    }
+                }
+            }
+        }
+        else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            card(Modifier.width(250.dp)) {
+                Column {
+                    Box(Modifier.width(26.dp).height(3.dp).clip(CircleShape).background(c.emberGradient))
+                    Spacer(Modifier.height(6.dp))
+                    Text(if (ko) "2. 핵심 재미와 루프" else "2. Core loop", style = t.titleSmall, color = c.text)
+                    Spacer(Modifier.height(6.dp))
+                    listOf(if (ko) "30초: 씨앗을 놓고 꽃을 피워요" else "30s: place a seed, watch it bloom", if (ko) "5분: 노선 하나를 꽃길로" else "5m: fill a whole line").forEach {
+                        Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(5.dp).clip(CircleShape).background(c.ember)); Spacer(Modifier.width(8.dp))
+                            Text(it, style = t.bodySmall, color = c.textMuted)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                Modifier.clip(CircleShape).background(c.buttonGradient).padding(horizontal = 18.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(s.continueInClaude, style = t.labelLarge, color = Color.White)
+            }
+        }
+    }
 }

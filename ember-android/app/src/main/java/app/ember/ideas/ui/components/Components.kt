@@ -469,9 +469,9 @@ fun ErrorPanel(
     }
     EmberCard(modifier.fillMaxWidth(), highlight = false) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(c.danger.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = c.danger, modifier = Modifier.size(22.dp))
+            Row(verticalAlignment = Alignment.Top) {
+                Box(Modifier.size(36.dp).clip(CircleShape).background(c.danger.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = c.danger, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -480,7 +480,7 @@ fun ErrorPanel(
                     Text(s.errorBody(error), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
                     if (error !is AiError.InvalidKey && error !is AiError.NoKey && error !is AiError.Refused) {
                         Spacer(Modifier.height(4.dp))
-                        Text(s.errorSafeNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+                        Text(s.errorSafeNote, style = MaterialTheme.typography.labelSmall, color = c.textFaint)
                     }
                 }
             }
@@ -544,7 +544,7 @@ fun SelectMark(selected: Boolean, multi: Boolean, modifier: Modifier = Modifier)
 
 
 /** 하단 고정 영역 위로 내용이 부드럽게 사라지게 하는 페이드. 레이아웃 크기에는 영향을 주지 않는다. */
-fun Modifier.topFade(color: Color, height: Dp = 28.dp): Modifier = this.drawBehind {
+fun Modifier.topFade(color: Color, height: Dp = 16.dp): Modifier = this.drawBehind {
     val h = height.toPx()
     drawRect(
         Brush.verticalGradient(listOf(color.copy(alpha = 0f), color), startY = -h, endY = 0f),

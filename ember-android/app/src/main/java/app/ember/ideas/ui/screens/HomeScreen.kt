@@ -142,9 +142,14 @@ fun HomeScreen(
                 SectionLabel(s.continueSection, Modifier.padding(horizontal = 20.dp))
             }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(inProgress, key = { it.id }) { p ->
-                        ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
+                if (inProgress.size == 1) {
+                    val p = inProgress.first()
+                    Box(Modifier.padding(horizontal = 20.dp)) { ContinueCard(p, busy = ops[p.id]?.running == true, full = true) { onOpenProject(p.id) } }
+                } else {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(inProgress, key = { it.id }) { p ->
+                            ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
+                        }
                     }
                 }
             }
@@ -182,7 +187,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GhostButton(s.inspireMe, {
+                    GhostButton(modifier = Modifier.offset(x = (-14).dp), text = s.inspireMe, onClick = {
                         shuffle++
                         seed = s.inspirations.random()
                         if (kind == null) kind = ProjectKind.ANY
@@ -220,7 +225,14 @@ fun HomeScreen(
                         val p = container.engine.createDemoProject(s.demoTitle)
                         onOpenProject(p.id)
                     }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PlayArrow)
-                    Text(s.noKeyHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 10.dp, start = 4.dp))
+                    Text(s.noKeyHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 10.dp))
+                    Text(
+                        s.costPreview(
+                            s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)),
+                            s.costApprox(app.ember.ideas.ai.CostEstimate.design(app.ember.ideas.ai.ClaudeModel.OPUS, app.ember.ideas.data.DocDepth.STANDARD, true)),
+                        ),
+                        style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
         }
@@ -228,8 +240,8 @@ fun HomeScreen(
         if (docs.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(28.dp))
-                SectionLabel(s.recentDocs, Modifier.padding(start = 20.dp, end = 6.dp)) {
-                    GhostButton(s.seeAll, onOpenLibrary, color = c.textMuted)
+                SectionLabel(s.recentDocs, Modifier.padding(horizontal = 20.dp)) {
+                    GhostButton(s.seeAll, onOpenLibrary, color = c.textMuted, modifier = Modifier.offset(x = 14.dp))
                 }
             }
             items(docs, key = { "doc_" + it.id }) { p ->
@@ -274,7 +286,7 @@ fun kindEmoji(k: ProjectKind) = when (k) {
 }
 
 @Composable
-private fun ContinueCard(p: Project, busy: Boolean, onClick: () -> Unit) {
+private fun ContinueCard(p: Project, busy: Boolean, full: Boolean = false, onClick: () -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
     val progress = when (p.stage) {
@@ -283,7 +295,7 @@ private fun ContinueCard(p: Project, busy: Boolean, onClick: () -> Unit) {
         ProjectStage.DESIGN_INTERVIEW -> 0.6f + (p.design?.turns?.lastOrNull()?.progress ?: 0) / 100f * 0.3f
         ProjectStage.DOCUMENT -> 1f
     }
-    EmberCard(Modifier.width(240.dp), onClick = onClick, padding = PaddingValues(14.dp)) {
+    EmberCard(if (full) Modifier.fillMaxWidth() else Modifier.width(240.dp), onClick = onClick, padding = PaddingValues(14.dp)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 KindBadge(p.kind, 36)

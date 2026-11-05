@@ -219,7 +219,7 @@ fun MainTabs(
 private fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
-    Column(Modifier.fillMaxWidth().topFade(c.bg, 36.dp)) {
+    Column(Modifier.fillMaxWidth().topFade(c.bg, 20.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline.copy(alpha = 0.6f)))
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
             TabItem(Icons.Rounded.Home, s.tabHome, selected == 0, Modifier.weight(1f)) { onSelect(0) }

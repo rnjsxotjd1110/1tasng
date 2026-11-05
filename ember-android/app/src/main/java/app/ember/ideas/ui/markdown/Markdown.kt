@@ -157,7 +157,7 @@ object MarkdownParser {
                 text[i] == '`' -> {
                     val end = text.indexOf('`', i + 1)
                     if (end > i + 1) {
-                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 0.86.em, background = c.surface3, color = c.text)) {
+                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 0.9.em, fontWeight = FontWeight.Medium, color = c.gold)) {
                             append(text.substring(i + 1, end))
                         }
                         i = end + 1
@@ -270,7 +270,7 @@ private fun TableView(table: MdBlock.Table, modifier: Modifier) {
             .then(if (fit) Modifier else Modifier.horizontalScroll(rememberScrollState())),
     ) {
         Column {
-            Row(Modifier.background(c.surface2).height(IntrinsicSize.Min)) {
+            Row(Modifier.background(c.surface3).height(IntrinsicSize.Min)) {
                 table.header.forEachIndexed { i, h ->
                     Cell(h, header = true, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(if (i == 0) 112.dp else colWidth))
                 }

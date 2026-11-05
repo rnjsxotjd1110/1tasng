@@ -296,6 +296,10 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         onRetry = { engine.retry(project.id) },
                         onFixKey = onFixKey,
                         onDismissError = { engine.dismissError(project.id) },
+                        onDeleteIdeas = { ids ->
+                            val n = engine.deleteIdeas(project.id, ids)
+                            Toast.makeText(ctx, if (n > 0) s.ideasDeleted(n) else s.busyCantDelete, Toast.LENGTH_SHORT).show()
+                        },
                     )
                     ProjectStage.DESIGN_INTERVIEW -> if (project.design?.turns.isNullOrEmpty() && !busy && error == null) {
                         // 첫 설계 질문을 기다리다 중지했거나 앱이 꺼진 경우

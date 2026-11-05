@@ -496,6 +496,19 @@ abstract class Strings {
 
     abstract fun kindShort(k: ProjectKind): String
 
+    abstract fun difficultyEmoji(d: Int): String
+    abstract fun difficultyName(d: Int): String
+    abstract val devDifficulty: String
+    abstract fun selectedN(n: Int): String
+    abstract val selectAll: String
+    abstract fun deleteIdeasTitle(n: Int): String
+    abstract val deleteIdeasBody: String
+    abstract fun deleteIdeasDesignNote(n: Int): String
+    abstract fun ideasDeleted(n: Int): String
+    abstract val longPressHint: String
+    abstract val noIdeasLeft: String
+    abstract val busyCantDelete: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

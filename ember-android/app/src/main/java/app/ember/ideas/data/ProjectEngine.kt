@@ -205,7 +205,7 @@ class ProjectEngine(
     fun combine(id: String, a: Idea, b: Idea) =
         discoveryRequest(id, Protocol.combineMessage(a, b), OpKind.IDEAS, label = "${a.title} + ${b.title}")
 
-    private fun previousTitles(p: Project): List<String> = p.allIdeas.map { it.title }.distinct()
+    private fun previousTitles(p: Project): List<String> = (p.allIdeas.map { it.title } + p.discardedTitles).distinct()
 
     private fun discoveryRequest(
         id: String,
@@ -227,8 +227,8 @@ class ProjectEngine(
     private fun ideaKey(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
     /** [fresh] 가운데 이미 받은 아이디어와 제목이나 한 줄 소개가 같은 것. */
-    private fun duplicatesOf(fresh: List<Idea>, previous: List<Idea>): List<Idea> {
-        val titles = previous.map { ideaKey(it.title) }.toSet()
+    private fun duplicatesOf(fresh: List<Idea>, previous: List<Idea>, discarded: List<String> = emptyList()): List<Idea> {
+        val titles = (previous.map { it.title } + discarded).map { ideaKey(it) }.toSet()
         val loglines = previous.map { ideaKey(it.logline) }.filter { it.length > 8 }.toSet()
         return fresh.filter { ideaKey(it.title) in titles || ideaKey(it.logline) in loglines }
     }
@@ -264,10 +264,11 @@ class ProjectEngine(
             var usage = result.usage
             // 앞에서 받은 아이디어를 그대로 다시 보내면 겹치는 것을 빼고, 대부분 겹치면 한 번 더 요청한다.
             val previous = store.get(id)?.allIdeas.orEmpty()
-            if (reply.isIdeas && previous.isNotEmpty() && store.get(id)?.isDemo != true) {
-                val dups = duplicatesOf(reply.ideas, previous)
+            val discarded = store.get(id)?.discardedTitles.orEmpty()
+            if (reply.isIdeas && (previous.isNotEmpty() || discarded.isNotEmpty()) && store.get(id)?.isDemo != true) {
+                val dups = duplicatesOf(reply.ideas, previous, discarded)
                 if (reply.ideas.size - dups.size < MIN_FRESH_IDEAS) {
-                    val ask = ChatMessage(ChatMessage.USER, Protocol.duplicateMessage(dups.map { it.title }, previous.map { it.title }.distinct()))
+                    val ask = ChatMessage(ChatMessage.USER, Protocol.duplicateMessage(dups.map { it.title }, (previous.map { it.title } + discarded).distinct()))
                     val again = aiFor(id).turn(
                         questionModel(OpKind.IDEAS),
                         TurnRequest(Protocol.discoverySystem(lang), history + ask, Protocol.discoverySchema, if (deep) Effort.HIGH else Effort.MEDIUM),
@@ -281,7 +282,7 @@ class ProjectEngine(
                     history = history + ask + ChatMessage(ChatMessage.ASSISTANT, again.text)
                     reply = r2
                 }
-                val fresh = reply.ideas - duplicatesOf(reply.ideas, previous).toSet()
+                val fresh = reply.ideas - duplicatesOf(reply.ideas, previous, discarded).toSet()
                 if (fresh.isEmpty()) {
                     settings.addUsage(usage)
                     throw AiError.DuplicateIdeas
@@ -331,6 +332,31 @@ class ProjectEngine(
         store.update(id) { p ->
             p.copy(savedIdeaIds = if (ideaId in p.savedIdeaIds) p.savedIdeaIds - ideaId else p.savedIdeaIds + ideaId)
         }
+    }
+
+    /**
+     * 아이디어 여러 개를 한 번에 지운다. 지운 아이디어로 만든 도면도 함께 지운다.
+     * 지운 제목은 기억해 두어 같은 아이디어를 다시 제안하지 않게 한다.
+     * @return 실제로 지운 개수. 작업 중이면 0.
+     */
+    fun deleteIdeas(id: String, ideaIds: Set<String>): Int {
+        if (isBusy(id) || ideaIds.isEmpty()) return 0
+        var removed = 0
+        store.update(id) { p ->
+            val gone = p.allIdeas.filter { it.id in ideaIds }
+            removed = gone.size
+            if (gone.isEmpty()) return@update p
+            val designGone = p.design?.ideaId in ideaIds
+            p.copy(
+                ideaBatches = p.ideaBatches.map { b -> b.copy(ideas = b.ideas.filter { it.id !in ideaIds }) }.filter { it.ideas.isNotEmpty() },
+                savedIdeaIds = p.savedIdeaIds - ideaIds,
+                design = if (designGone) null else p.design,
+                otherDesigns = p.otherDesigns - ideaIds,
+                stage = if (designGone && (p.stage == ProjectStage.DESIGN_INTERVIEW || p.stage == ProjectStage.DOCUMENT)) ProjectStage.IDEAS else p.stage,
+                discardedTitles = (p.discardedTitles + gone.map { it.title }).distinct().takeLast(60),
+            )
+        }
+        return removed
     }
 
     // ------------------------------------------------------------ 설계 인터뷰

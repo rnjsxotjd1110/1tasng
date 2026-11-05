@@ -1,5 +1,7 @@
 package app.ember.ideas.shots
 
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.performTouchInput
 import app.ember.ideas.data.Memo
 import app.ember.ideas.data.Mold
 import app.ember.ideas.data.DepthMode
@@ -572,6 +574,18 @@ class ScreenshotTest {
         ))
         setContent { ProjectScreen("p_interview", {}, {}) }
         shot("45_interview_mold")
+    }
+
+    @Test fun s46_ideas_select() {
+        withKey()
+        c.store.upsert(ideasProject())
+        setContent(auto = true) { ProjectScreen("p_ideas", {}, {}) }
+        rule.onAllNodes(hasPlainText("지하철 정원사"), useUnmergedTree = true).onFirst().performTouchInput { longClick() }
+        rule.waitForIdle()
+        click("우산 대여소")
+        shot("46_ideas_select")
+        click("삭제 2")
+        shot("47_ideas_delete_confirm")
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

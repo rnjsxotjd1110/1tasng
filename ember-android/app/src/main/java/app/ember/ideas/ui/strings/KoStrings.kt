@@ -203,7 +203,7 @@ object KoStrings : Strings() {
     override val moreIdeas = "다른 원석 캐기"
     override val docReadyBanner = "만들어 둔 설계서가 있어요"
     override val chosenIdea = "설계 중인 아이디어"
-    override fun difficulty(d: Int) = "난이도 $d/5"
+    override fun difficulty(d: Int) = difficultyEmoji(d) + " 난이도 $d/5 " + difficultyName(d)
     override val saveIdea = "찜하기"
     override val unsave = "찜 해제"
     override val fieldCoreHook = "핵심 재미·가치"
@@ -745,6 +745,19 @@ object KoStrings : Strings() {
     override val freeSonnetNote = "무료 크레딧만 있는 동안은 Opus 대신 Sonnet이 답해요. 크레딧을 한 번 사면 Opus를 쓸 수 있어요."
 
     override fun kindShort(k: ProjectKind) = when (k) { ProjectKind.GAME -> "게임"; ProjectKind.APP -> "앱"; ProjectKind.WEB -> "웹"; ProjectKind.ANY -> "미정" }
+
+    override fun difficultyEmoji(d: Int) = when (d.coerceIn(1, 5)) { 1 -> "🌱"; 2 -> "🙂"; 3 -> "🔥"; 4 -> "⚡"; else -> "🌋" }
+    override fun difficultyName(d: Int) = when (d.coerceIn(1, 5)) { 1 -> "아주 쉬움"; 2 -> "쉬움"; 3 -> "보통"; 4 -> "어려움"; else -> "아주 어려움" }
+    override val devDifficulty = "개발 난이도"
+    override fun selectedN(n: Int) = "${n}개 선택"
+    override val selectAll = "모두 선택"
+    override fun deleteIdeasTitle(n: Int) = "아이디어 ${n}개를 지울까요?"
+    override val deleteIdeasBody = "지운 아이디어는 되살릴 수 없어요. 같은 아이디어는 다시 제안하지 않아요."
+    override fun deleteIdeasDesignNote(n: Int) = "이 중 ${n}개는 도면이 있어요. 도면도 함께 지워져요."
+    override fun ideasDeleted(n: Int) = "아이디어 ${n}개를 지웠어요"
+    override val longPressHint = "꾹 누르면 여러 개를 골라 지울 수 있어요"
+    override val noIdeasLeft = "남은 아이디어가 없어요. 아래에서 더 두드리거나 다른 원석을 캐 보세요."
+    override val busyCantDelete = "작업이 끝난 뒤에 지울 수 있어요."
 
     override val tabHome = "화로"
     override val tabLibrary = "도면함"

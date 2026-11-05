@@ -41,6 +41,34 @@ class EngineTest {
 
     private fun idle() = repeat(5) { ShadowLooper.idleMainLooper() }
 
+    @Test fun deleteIdeasRemovesDesignAndRemembersTitles() {
+        ai.turnReplies += Result.success(FakeAi.ideas("A", "B", "C", "D"))
+        val p = c.engine.createProject(ProjectKind.GAME, "", "새 게임", quick = true)
+        idle()
+        val ideas = c.store.get(p.id)!!.allIdeas
+        assertEquals(4, ideas.size)
+        // 첫 아이디어로 도면까지 만든 뒤, 그 아이디어와 다른 하나를 함께 지운다.
+        c.engine.startDesign(p.id, ideas[0].id, DocDepth.BRIEF, askQuestions = false)
+        idle()
+        assertEquals(ProjectStage.DOCUMENT, c.store.get(p.id)!!.stage)
+        c.engine.toggleSaved(p.id, ideas[1].id)
+
+        val n = c.engine.deleteIdeas(p.id, setOf(ideas[0].id, ideas[1].id))
+        assertEquals(2, n)
+        val after = c.store.get(p.id)!!
+        assertEquals(listOf("C", "D"), after.allIdeas.map { it.title })
+        assertNull(after.design)
+        assertEquals(ProjectStage.IDEAS, after.stage)
+        assertTrue(after.savedIdeaIds.none { it == ideas[1].id })
+        assertEquals(listOf("A", "B"), after.discardedTitles)
+
+        // 지운 아이디어와 같은 제목은 다시 받아도 버린다.
+        ai.turnReplies += Result.success(FakeAi.ideas("A", "E", "F", "G"))
+        c.engine.moreIdeas(p.id)
+        idle()
+        assertEquals(listOf("C", "D", "E", "F", "G"), c.store.get(p.id)!!.allIdeas.map { it.title })
+    }
+
     @Test fun fullFlow() {
         ai.turnReplies += Result.success(FakeAi.question("Q1"))
         ai.turnReplies += Result.success(FakeAi.question("Q2"))

@@ -207,18 +207,10 @@ private fun StatRow(idea: Idea) {
     ) {
         Stat(s.fieldScope, idea.scope.ifBlank { "—" })
         Stat(s.fieldDevTime, idea.devTime.ifBlank { "—" })
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 6.dp)) {
-            Text(s.fieldDifficulty, style = MaterialTheme.typography.labelSmall, color = c.textFaint)
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                repeat(5) { i ->
-                    Box(Modifier.padding(horizontal = 1.5.dp).size(width = 10.dp, height = 4.dp).background(if (i < idea.difficulty) difficultyColor(idea.difficulty) else c.control))
-                }
-                Spacer(Modifier.width(6.dp))
-                Text("${idea.difficulty}/5", style = MaterialTheme.typography.labelMedium, color = c.text)
-            }
-        }
     }
+    Spacer(Modifier.height(8.dp))
+    // 개발 난이도는 따로 크게 강조한다(숫자가 높을수록 어렵다).
+    DifficultyBadge(idea.difficulty, Modifier.fillMaxWidth())
     Spacer(Modifier.height(8.dp))
 }
 
@@ -618,7 +610,7 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
     val rows: List<Pair<String, (Idea) -> String>> = listOf(
         s.fieldScope to { it.scope },
         s.fieldDevTime to { it.devTime },
-        s.fieldDifficulty to { "${it.difficulty}/5" },
+        s.fieldDifficulty to { s.difficultyEmoji(it.difficulty) + " ${it.difficulty}/5 " + s.difficultyName(it.difficulty) },
         s.fieldCoreHook to { it.coreHook },
         s.fieldMonetization to { it.monetization },
         s.fieldUnique to { it.uniquePoint },

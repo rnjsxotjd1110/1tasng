@@ -195,6 +195,8 @@ data class Project(
     val depthMode: DepthMode = DepthMode.NORMAL,
     /** 원석함의 메모에서 시작했으면 그 메모 id. */
     val memoId: String? = null,
+    /** 사용자가 지운 아이디어 제목. 같은 아이디어를 다시 제안하지 않게 기억해 둔다. */
+    val discardedTitles: List<String> = emptyList(),
 ) {
     /** 이 아이디어로 만든 설계서가 있으면 돌려준다(지금 설계 중인 것 포함). */
     fun designFor(ideaId: String): DesignState? =

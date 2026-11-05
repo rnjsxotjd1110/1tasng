@@ -201,7 +201,7 @@ object EnStrings : Strings() {
     override val moreIdeas = "Mine new ores"
     override val docReadyBanner = "You have a design doc for this"
     override val chosenIdea = "Being designed"
-    override fun difficulty(d: Int) = "Difficulty $d/5"
+    override fun difficulty(d: Int) = difficultyEmoji(d) + " Difficulty $d/5 " + difficultyName(d)
     override val saveIdea = "Save"
     override val unsave = "Unsave"
     override val fieldCoreHook = "Core appeal"
@@ -736,6 +736,19 @@ object EnStrings : Strings() {
     override val freeSonnetNote = "While you only have free credits, Sonnet answers instead of Opus. Buy credits once to unlock Opus."
 
     override fun kindShort(k: ProjectKind) = when (k) { ProjectKind.GAME -> "Game"; ProjectKind.APP -> "App"; ProjectKind.WEB -> "Web"; ProjectKind.ANY -> "Not sure" }
+
+    override fun difficultyEmoji(d: Int) = when (d.coerceIn(1, 5)) { 1 -> "🌱"; 2 -> "🙂"; 3 -> "🔥"; 4 -> "⚡"; else -> "🌋" }
+    override fun difficultyName(d: Int) = when (d.coerceIn(1, 5)) { 1 -> "Very easy"; 2 -> "Easy"; 3 -> "Moderate"; 4 -> "Hard"; else -> "Very hard" }
+    override val devDifficulty = "Dev difficulty"
+    override fun selectedN(n: Int) = "$n selected"
+    override val selectAll = "Select all"
+    override fun deleteIdeasTitle(n: Int) = if (n == 1) "Delete 1 idea?" else "Delete $n ideas?"
+    override val deleteIdeasBody = "Deleted ideas can't be restored, and the same ideas won't be suggested again."
+    override fun deleteIdeasDesignNote(n: Int) = if (n == 1) "One of them has a blueprint. It will be deleted too." else "$n of them have blueprints. Those will be deleted too."
+    override fun ideasDeleted(n: Int) = if (n == 1) "Deleted 1 idea" else "Deleted $n ideas"
+    override val longPressHint = "Long-press to select several and delete"
+    override val noIdeasLeft = "No ideas left. Strike more or mine new ores below."
+    override val busyCantDelete = "You can delete once the current task finishes."
 
     override val tabHome = "Forge"
     override val tabLibrary = "Blueprints"

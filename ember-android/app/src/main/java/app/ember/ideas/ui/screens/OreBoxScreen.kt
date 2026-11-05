@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.foundation.combinedClickable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -98,6 +99,14 @@ fun OreBoxScreen(
     var editing by remember { mutableStateOf<Memo?>(null) }
 
     val saved: List<Pair<Project, Idea>> = projects.flatMap { p -> p.savedIdeaIds.mapNotNull { id -> p.idea(id)?.let { p to it } } }
+    // 찜한 아이디어를 꾹 눌러 여러 개 고른 것("프로젝트id|아이디어id").
+    var picked by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val ctx = LocalContext.current
+    fun togglePick(k: String) { picked = if (k in picked) picked - k else picked + k }
+    androidx.activity.compose.BackHandler(picked.isNotEmpty()) { picked = emptyList() }
+    androidx.compose.runtime.LaunchedEffect(tab) { if (tab != 1) picked = emptyList() }
     val tags = memos.flatMap { it.tags }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.take(12)
     val shown = memos.filter { tag == null || tag in it.tags }.sortedWith(compareByDescending<Memo> { it.pinned }.thenByDescending { it.updatedAt })
 
@@ -144,7 +153,29 @@ fun OreBoxScreen(
             }
             1 -> {
                 if (saved.isEmpty()) item { EmptyState(Icons.Rounded.Favorite, s.savedEmptyTitle, s.savedEmptyBody) }
-                items(saved, key = { it.first.id + it.second.id }) { (p, idea) -> SavedIdeaRow(p, idea) { onOpenProject(p.id) } }
+                if (picked.isNotEmpty()) item {
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.selectedN(picked.size), style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+                        GhostButton(s.selectAll, { picked = saved.map { it.first.id + "|" + it.second.id } }, color = c.textMuted)
+                        GhostButton(s.cancel, { picked = emptyList() }, color = c.textMuted)
+                    }
+                    Box(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                        app.ember.ideas.ui.screens.project.DangerButton(s.delete + " " + picked.size, { confirmDelete = true }, Modifier.fillMaxWidth())
+                    }
+                } else if (saved.size >= 2) item {
+                    Text(s.longPressHint, style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(start = 20.dp, top = 10.dp))
+                }
+                items(saved, key = { it.first.id + it.second.id }) { (p, idea) ->
+                    val key = p.id + "|" + idea.id
+                    SavedIdeaRow(
+                        p, idea, selecting = picked.isNotEmpty(), selected = key in picked,
+                        onClick = { if (picked.isNotEmpty()) togglePick(key) else onOpenProject(p.id) },
+                        onLongClick = {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            togglePick(key)
+                        },
+                    )
+                }
             }
             else -> {
                 if (molds.isEmpty()) item {
@@ -159,6 +190,23 @@ fun OreBoxScreen(
                 }
             }
         }
+    }
+    if (confirmDelete) {
+        val byProject = picked.groupBy({ it.substringBefore('|') }, { it.substringAfter('|') })
+        val withDesign = byProject.entries.sumOf { (pid, ids) -> val p = projects.firstOrNull { it.id == pid }; ids.count { p?.designFor(it) != null } }
+        app.ember.ideas.ui.screens.project.EmberDialog(
+            s.deleteIdeasTitle(picked.size),
+            s.deleteIdeasBody + if (withDesign > 0) "\n" + s.deleteIdeasDesignNote(withDesign) else "",
+            s.delete,
+            {
+                confirmDelete = false
+                val n = byProject.entries.sumOf { (pid, ids) -> container.engine.deleteIdeas(pid, ids.toSet()) }
+                android.widget.Toast.makeText(ctx, if (n > 0) s.ideasDeleted(n) else s.busyCantDelete, android.widget.Toast.LENGTH_SHORT).show()
+                picked = emptyList()
+            },
+            { confirmDelete = false },
+            danger = true,
+        )
     }
 }
 
@@ -357,11 +405,19 @@ private fun MenuLine(text: String, icon: androidx.compose.ui.graphics.vector.Ima
 }
 
 @Composable
-private fun SavedIdeaRow(p: Project, idea: Idea, onClick: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun SavedIdeaRow(p: Project, idea: Idea, selecting: Boolean, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp)) {
-        Row(Modifier.padding(vertical = 14.dp)) {
+    Column(
+        Modifier.fillMaxWidth().background(if (selected) c.emberSoft else androidx.compose.ui.graphics.Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 20.dp),
+    ) {
+        Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selecting) {
+                app.ember.ideas.ui.components.SelectMark(selected, multi = true)
+                Spacer(Modifier.width(12.dp))
+            }
             Box(Modifier.width(3.dp).height(44.dp).background(c.ember))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -369,7 +425,17 @@ private fun SavedIdeaRow(p: Project, idea: Idea, onClick: () -> Unit) {
                 Spacer(Modifier.height(2.dp))
                 Text(idea.logline, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-                Text(s.fromProject(p.title), style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val d = idea.difficulty.coerceIn(1, 5)
+                    Text(
+                        s.difficultyEmoji(d) + " " + s.difficultyName(d),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = app.ember.ideas.ui.screens.project.difficultyColor(d),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(s.fromProject(p.title), style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline.copy(alpha = 0.6f)))

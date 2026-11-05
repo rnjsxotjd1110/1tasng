@@ -259,7 +259,7 @@ fun HeartButton(saved: Boolean, onToggle: () -> Unit) {
         Icon(
             if (saved) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
             null,
-            tint = if (saved) c.emberDeep else c.textFaint,
+            tint = if (saved) c.ember else c.textFaint,
             modifier = Modifier.size(24.dp).scale(scale),
         )
     }

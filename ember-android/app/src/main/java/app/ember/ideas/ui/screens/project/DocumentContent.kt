@@ -86,6 +86,7 @@ fun DocumentContent(
     error: AiError?,
     startedAt: Long = System.currentTimeMillis(),
     onRevise: () -> Unit,
+    onReviseSection: (String) -> Unit = {},
     onHandoff: () -> Unit,
     onStop: () -> Unit,
     onRegenerate: () -> Unit,
@@ -271,7 +272,8 @@ fun DocumentContent(
                                     val shownUpcoming = if (done.isEmpty()) 3 else 2
                                     upcoming.take(shownUpcoming).forEachIndexed { i, title ->
                                         Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
+                                            if (done.isEmpty() && i == 0) CircularProgressIndicator(Modifier.size(14.dp), color = c.ember, strokeWidth = 2.dp)
+                                            else Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
                                             Spacer(Modifier.width(12.dp))
                                             Text("${done.size + i + 1}. $title", style = MaterialTheme.typography.bodySmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
@@ -287,13 +289,12 @@ fun DocumentContent(
                             }
                         }
                     }
-                    itemsIndexed(blocks) { _, b -> MarkdownBlockView(b) }
-                    if (busy && blocks.isNotEmpty()) {
-                        item {
-                            val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "caret")
-                            val a by t.animateFloat(1f, 0f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse), label = "caretA")
-                            Box(Modifier.padding(top = 4.dp).size(width = 3.dp, height = 22.dp).background(c.ember.copy(alpha = a)))
-                        }
+                    itemsIndexed(blocks) { _, b ->
+                        if (!busy && b is MdBlock.Heading && b.level == 2) {
+                            MarkdownBlockView(b, headingAction = {
+                                IconCircleButton(Icons.Rounded.Tune, s.rewriteSectionShort, { onReviseSection(b.text.substringAfter(". ")) }, filled = false, tint = c.textFaint)
+                            })
+                        } else MarkdownBlockView(b)
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(

@@ -210,6 +210,14 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     icon = if (!settings.hasKey) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
                 )
+                if (!settings.hasKey) {
+                    Text(
+                        s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)), s.modelShort(app.ember.ideas.ai.ClaudeModel.OPUS)),
+                        style = MaterialTheme.typography.bodySmall, color = c.textFaint,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                }
                 if (settings.hasKey) {
                     Text(
                         s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
@@ -223,19 +231,13 @@ fun HomeScreen(
                         SecondaryButton(s.quickIdeas, { start(quick = true) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Bolt, height = 48.dp)
                     }
                 } else {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(12.dp))
                     SecondaryButton(s.demoTry, {
                         val p = container.engine.createDemoProject(s.demoTitle)
                         onOpenProject(p.id)
                     }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PlayArrow)
                     Text(s.noKeyHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 10.dp))
-                    Text(
-                        s.costPreview(
-                            s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)),
-                            s.costApprox(app.ember.ideas.ai.CostEstimate.design(app.ember.ideas.ai.ClaudeModel.OPUS, app.ember.ideas.data.DocDepth.STANDARD, true)),
-                        ),
-                        style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 6.dp),
-                    )
+
                 }
             }
         }

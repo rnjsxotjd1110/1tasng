@@ -479,6 +479,13 @@ object KoStrings : Strings() {
 
     override fun moreSections(n: Int) = "이어서 ${n}개 섹션을 더 써요"
 
+    override val editDocument = "직접 편집"
+    override val editDocumentSub = "Markdown 그대로 고칠 수 있어요. 저장하면 새 버전으로 남고 비용은 들지 않아요."
+    override val editedNote = "직접 편집"
+    override fun rewriteSection(title: String) = "‘$title’ 섹션만 더 구체적으로 다시 써 줘. 다른 섹션은 그대로 둬."
+    override val rewriteSectionShort = "이 섹션 다시 쓰기"
+    override val prepaidNote = "API는 콘솔에서 크레딧을 먼저 충전해야 쓸 수 있어요(최소 $5, 약 7,000원)."
+
     override val tabHome = "홈"
     override val tabLibrary = "보관함"
     override val tabSettings = "설정"

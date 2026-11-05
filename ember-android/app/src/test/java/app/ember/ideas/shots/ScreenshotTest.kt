@@ -128,9 +128,9 @@ class ScreenshotTest {
         val r = Protocol.parseReply(
             """{"kind":"ideas","stage":"아이디어","progress":100,"insight":"","question":{"title":"","subtitle":"","multi_select":false,"options":[],"allow_custom":false,"custom_hint":""},"ideas_intro":"아늑하고 짧은 퍼즐을 좋아하는 취향과 혼자 3개월이라는 규모를 함께 고려했어요.","ideas":[
             {"id":"1","title":"지하철 정원사","logline":"한 정거장마다 씨앗 하나를 심어 노선도를 꽃길로 바꾸는 3~5분짜리 퍼즐 게임.","category":"퍼즐","platforms":["Android","iOS"],"genre":"배치 퍼즐","target_audience":"출퇴근하는 20~40대","core_hook":"정거장 사이 짧은 시간 안에 꽃이 피는 조합을 찾는 쾌감","key_features":["노선도 위 타일 배치","정거장 수만큼 남은 턴","계절마다 바뀌는 꽃 조합","오프라인 플레이"],"unique_point":"실제 이동 시간과 한 판 길이가 맞물려요.","monetization":"유료 4,400원","scope":"소형","dev_time":"1인 3개월","difficulty":2,"fit_reason":"짧은 세션, 아늑한 분위기, 혼자 개발 규모를 모두 반영했어요.","similar_works":["Mini Metro — 노선도 위 퍼즐이라는 점은 같지만 경쟁 대신 가꾸기가 중심이에요","Viridi — 식물을 돌보는 아늑함은 같지만 퍼즐 목표가 있어요"],"risks":["퍼즐 깊이가 금방 바닥날 수 있어요","노선도 테마가 낯선 해외 사용자"],"validation":"종이로 노선 3개짜리 퍼즐을 만들어 지인 5명에게 출퇴근길에 풀어 보게 해요."},
-            {"id":"2","title":"우산 대여소","logline":"비 오는 도시에서 사람들의 동선을 읽고 우산을 빌려주는 경영 퍼즐.","category":"시뮬레이션","platforms":["Android"],"genre":"경영","target_audience":"코지 게임 팬","core_hook":"날씨 예보를 읽고 미리 준비하는 전략","key_features":["날씨 예보","손님 이야기","가게 꾸미기"],"unique_point":"비가 그치면 하루가 끝나요.","monetization":"무료 + 꾸미기 아이템","scope":"중형","dev_time":"1인 5개월","difficulty":3,"fit_reason":"아늑함과 전략을 함께 원해서 골랐어요."},
-            {"id":"3","title":"별빛 배달부","logline":"잠든 마을에 꿈을 배달하는 한 손 리듬 러너.","category":"액션","platforms":["Android","iOS"],"genre":"리듬 러너","target_audience":"캐주얼 게이머","core_hook":"음악에 맞춰 지붕을 건너는 손맛","key_features":["한 손 탭 조작","20곡 수록","꿈 수집"],"unique_point":"배달한 꿈이 다음 곡을 바꿔요.","monetization":"유료","scope":"중형","dev_time":"1인 6개월","difficulty":4,"fit_reason":"몽환적인 분위기를 반영했어요."},
-            {"id":"4","title":"고양이 서점","logline":"고양이가 추천하는 책을 손님에게 연결하는 대화형 퍼즐.","category":"퍼즐","platforms":["Android"],"genre":"내러티브","target_audience":"책과 고양이를 좋아하는 사람","core_hook":"손님의 사연에 맞는 책을 찾았을 때의 뿌듯함","key_features":["사연 읽기","책장 정리","고양이 수집"],"unique_point":"실제 고전 문학의 한 구절을 단서로 써요.","monetization":"유료","scope":"소형","dev_time":"1인 4개월","difficulty":2,"fit_reason":"아늑함과 이야기 선호를 반영했어요."}]}""",
+            {"id":"2","title":"우산 대여소","logline":"비 오는 도시에서 사람들의 동선을 읽고 우산을 빌려주는 경영 퍼즐.","category":"시뮬레이션","platforms":["Android"],"genre":"경영","target_audience":"코지 게임 팬","core_hook":"날씨 예보를 읽고 미리 준비하는 전략","key_features":["날씨 예보","손님 이야기","가게 꾸미기"],"unique_point":"비가 그치면 하루가 끝나요.","monetization":"무료 + 꾸미기 아이템","scope":"중형","dev_time":"1인 5개월","difficulty":3,"fit_reason":"아늑함과 전략을 함께 원해서 골랐어요.","risks":["경영 요소가 복잡해질 위험","비 오는 날만 하는 단조로움"],"validation":"엑셀로 하루 손님 흐름을 시뮬레이션해 재미를 확인해요."},
+            {"id":"3","title":"별빛 배달부","logline":"잠든 마을에 꿈을 배달하는 한 손 리듬 러너.","category":"액션","platforms":["Android","iOS"],"genre":"리듬 러너","target_audience":"캐주얼 게이머","core_hook":"음악에 맞춰 지붕을 건너는 손맛","key_features":["한 손 탭 조작","20곡 수록","꿈 수집"],"unique_point":"배달한 꿈이 다음 곡을 바꿔요.","monetization":"유료","scope":"중형","dev_time":"1인 6개월","difficulty":4,"fit_reason":"몽환적인 분위기를 반영했어요.","risks":["리듬 판정 조정에 시간이 많이 들어요","음악 제작 비용"],"validation":"무료 곡 3개로 한 판짜리 시제품을 만들어 봐요."},
+            {"id":"4","title":"고양이 서점","logline":"고양이가 추천하는 책을 손님에게 연결하는 대화형 퍼즐.","category":"퍼즐","platforms":["Android"],"genre":"내러티브","target_audience":"책과 고양이를 좋아하는 사람","core_hook":"손님의 사연에 맞는 책을 찾았을 때의 뿌듯함","key_features":["사연 읽기","책장 정리","고양이 수집"],"unique_point":"실제 고전 문학의 한 구절을 단서로 써요.","monetization":"유료","scope":"소형","dev_time":"1인 4개월","difficulty":2,"fit_reason":"아늑함과 이야기 선호를 반영했어요.","risks":["글 분량이 많아 제작이 오래 걸려요","고전 인용 저작권 확인"],"validation":"사연 5개를 종이 카드로 만들어 지인과 맞혀 봐요."}]}""",
         )
         val now = System.currentTimeMillis()
         val ideas = r.ideas.map { it.copy(id = "b1_" + it.id) }
@@ -368,6 +368,16 @@ class ScreenshotTest {
         c.store.upsert(SampleProject.koreanApp())
         setContent { ProjectScreen("sample_ko_app", {}, {}) }
         shot("27_app_document")
+    }
+
+    @Test fun s28_edit_document() {
+        withKey()
+        c.store.upsert(SampleProject.korean())
+        setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
+        rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("더 보기")).onFirst().performClick()
+        rule.waitForIdle()
+        click("직접 편집")
+        shot("28_edit_document", 1500)
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

@@ -470,6 +470,13 @@ object EnStrings : Strings() {
 
     override fun moreSections(n: Int) = "$n more sections to go"
 
+    override val editDocument = "Edit directly"
+    override val editDocumentSub = "Edit the Markdown as-is. Saving creates a new version at no cost."
+    override val editedNote = "Edited directly"
+    override fun rewriteSection(title: String) = "Rewrite only the “$title” section in more detail. Keep every other section unchanged."
+    override val rewriteSectionShort = "Rewrite this section"
+    override val prepaidNote = "The API needs prepaid credits from the console first (from $5)."
+
     override val tabHome = "Home"
     override val tabLibrary = "Library"
     override val tabSettings = "Settings"

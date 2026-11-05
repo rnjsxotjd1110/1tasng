@@ -460,6 +460,7 @@ fun ErrorPanel(
     onDismiss: (() -> Unit)? = null,
     dismissLabel: String? = null,
     showRetry: Boolean = true,
+    compact: Boolean = false,
 ) {
     val c = Ember.colors
     val s = LocalStrings.current
@@ -469,7 +470,7 @@ fun ErrorPanel(
         is AiError.InvalidKey, is AiError.NoKey -> Icons.Rounded.Key
         else -> Icons.Rounded.ErrorOutline
     }
-    EmberCard(modifier.fillMaxWidth(), highlight = false) {
+    EmberCard(modifier.fillMaxWidth().border(1.dp, c.danger.copy(alpha = 0.45f), RoundedCornerShape(22.dp)), highlight = false, border = false) {
         Column {
             Row(verticalAlignment = Alignment.Top) {
                 Box(Modifier.size(36.dp).clip(CircleShape).background(c.danger.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
@@ -493,7 +494,12 @@ fun ErrorPanel(
                 } else if (showRetry) {
                     PrimaryButton(s.retry, onRetry, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, height = 48.dp)
                 }
-                if (onDismiss != null) GhostButton(dismissLabel ?: s.close, onDismiss, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
+                if (onDismiss != null) {
+                    if (compact) {
+                        Spacer(Modifier.height(4.dp))
+                        SecondaryButton(dismissLabel ?: s.close, onDismiss, Modifier.fillMaxWidth(), height = 44.dp)
+                    } else GhostButton(dismissLabel ?: s.close, onDismiss, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
+                }
             }
         }
     }

@@ -202,6 +202,12 @@ abstract class Strings {
     abstract val recommended: String
     abstract val moreActions: String
     abstract fun minutes(lo: Int, hi: Int): String
+    abstract val editDocument: String
+    abstract val editDocumentSub: String
+    abstract val editedNote: String
+    abstract fun rewriteSection(title: String): String
+    abstract val rewriteSectionShort: String
+    abstract val prepaidNote: String
     abstract fun moreSections(n: Int): String
     abstract fun costPreview(discovery: String, doc: String): String
     abstract val resend: String

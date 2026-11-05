@@ -57,7 +57,8 @@ private sealed interface Sheet {
     data class Vary(val ideaId: String) : Sheet
     data class Combine(val ideaId: String) : Sheet
     data class Handoff(val ideaId: String?, val goal: HandoffGoal) : Sheet
-    data object Revise : Sheet
+    data class Revise(val initial: String = "") : Sheet
+    data object EditDoc : Sheet
     data object Versions : Sheet
     data object History : Sheet
     data object DesignHistory : Sheet
@@ -147,6 +148,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             MenuItem(s.viewDocument, Icons.Rounded.History) { menu = false; viewStage = ProjectStage.DOCUMENT }
                         }
                         if (stage == ProjectStage.DOCUMENT && project.design?.latest != null) {
+                            if (!busy) MenuItem(s.editDocument, Icons.Rounded.DriveFileRenameOutline) { menu = false; sheet = Sheet.EditDoc }
                             MenuItem(s.copyDocument, Icons.Rounded.ContentCopy) {
                                 menu = false
                                 Handoff.copy(ctx, project.title, project.design.latest!!.markdown)
@@ -259,7 +261,8 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         streamingText = op?.streamingText.orEmpty(),
                         startedAt = op?.startedAt ?: System.currentTimeMillis(),
                         error = error,
-                        onRevise = { sheet = Sheet.Revise },
+                        onRevise = { sheet = Sheet.Revise() },
+                        onReviseSection = { title -> sheet = Sheet.Revise(s.rewriteSection(title)) },
                         onHandoff = { sheet = Sheet.Handoff(project.design?.ideaId, HandoffGoal.START_BUILD) },
                         onStop = { engine.cancel(project.id) },
                         onRegenerate = { engine.generateDocument(project.id) },
@@ -344,9 +347,13 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }, { sheet = Sheet.IdeaDetail(it.id) }) {
             if (!settings.hasKey && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(it.id)
         }
-        Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }) { text ->
+        is Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }, sh.initial) { text ->
             sheet = null
             if (!settings.hasKey && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)
+        }
+        Sheet.EditDoc -> EditDocumentSheet(project.design?.latest?.markdown.orEmpty(), { sheet = null }) { md ->
+            sheet = null
+            engine.saveManualEdit(project.id, md, s.editedNote)
         }
         Sheet.Versions -> VersionsSheet(project.design?.versions.orEmpty(), { sheet = null }) { v ->
             sheet = null

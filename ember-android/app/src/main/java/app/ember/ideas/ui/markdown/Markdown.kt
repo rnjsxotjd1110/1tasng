@@ -187,7 +187,7 @@ object MarkdownParser {
 }
 
 @Composable
-fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier) {
+fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier, headingAction: (@Composable () -> Unit)? = null) {
     val c = Ember.colors
     val t = MaterialTheme.typography
     when (block) {
@@ -203,7 +203,10 @@ fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier) {
                     Box(Modifier.width(28.dp).height(3.dp).clip(CircleShape).background(c.emberGradient))
                     Spacer(Modifier.height(10.dp))
                 }
-                Text(MarkdownParser.inline(block.text, c), style = style, color = c.text)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(MarkdownParser.inline(block.text, c), style = style, color = c.text, modifier = Modifier.weight(1f))
+                    headingAction?.invoke()
+                }
             }
         }
         is MdBlock.Paragraph -> Text(

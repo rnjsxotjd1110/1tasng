@@ -168,7 +168,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     Spacer(Modifier.width(6.dp))
                     Text(if (settings.secureStorageAvailable) s.keySecureNote else s.keyStoredNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
                 }
-                Text(s.keyCostNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 6.dp))
+                Text(s.prepaidNote, style = MaterialTheme.typography.bodySmall, color = c.text, modifier = Modifier.padding(top = 6.dp))
                 Text(
                     s.costPreview(
                         s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)),

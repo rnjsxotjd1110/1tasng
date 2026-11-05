@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.History
@@ -235,7 +236,7 @@ private fun BulletBlock(title: String, items: List<String>) {
 
 @Composable
 private fun DetailTitle(t: String) {
-    Text(t, style = MaterialTheme.typography.labelLarge, color = Ember.colors.textMuted, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+    Text(t, style = MaterialTheme.typography.titleSmall, color = Ember.colors.text, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
 }
 
 @Composable
@@ -268,7 +269,9 @@ fun DesignSetupSheet(idea: Idea, model: app.ember.ideas.ai.ClaudeModel, onDismis
                 Spacer(Modifier.height(8.dp))
             }
             Spacer(Modifier.height(4.dp))
-            ToggleRow(s.askDesignQuestions, s.askDesignQuestionsBody, ask, { ask = it })
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).border(1.dp, Ember.colors.outline, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                ToggleRow(s.askDesignQuestions, s.askDesignQuestionsBody, ask, { ask = it })
+            }
             Spacer(Modifier.height(12.dp))
             PrimaryButton(s.startDesign, { onStart(depth, ask) }, Modifier.fillMaxWidth(), icon = Icons.AutoMirrored.Rounded.ArrowForward)
             Spacer(Modifier.height(12.dp))
@@ -346,10 +349,10 @@ fun CombineSheet(base: Idea, others: List<Idea>, onDismiss: () -> Unit, onSubmit
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ReviseSheet(costUsd: Double, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+fun ReviseSheet(costUsd: Double, onDismiss: () -> Unit, initialText: String = "", onSubmit: (String) -> Unit) {
     val s = LocalStrings.current
     var preset by rememberSaveable { mutableStateOf<String?>(null) }
-    var text by rememberSaveable { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf(initialText) }
     val instruction = listOfNotNull(preset, text.trim().takeIf { it.isNotEmpty() }).joinToString(". ")
     EmberSheet(onDismiss) {
         SheetTitle(s.reviseTitle, s.reviseSub, onDismiss)
@@ -491,9 +494,11 @@ fun HandoffSheet(
             }
             Spacer(Modifier.height(4.dp))
             Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(top = 10.dp))
-            ToggleRow(s.includeAnswers, null, answers, { answers = it })
-            if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
-            ToggleRow(s.includeProfile, null, profile, { profile = it })
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(18.dp)).border(1.dp, c.outline, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                ToggleRow(s.includeAnswers, null, answers, { answers = it })
+                if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
+                ToggleRow(s.includeProfile, null, profile, { profile = it })
+            }
             Spacer(Modifier.height(8.dp))
             EmberTextField(extra, { extra = it }, s.handoffExtraPlaceholder, minHeight = 56.dp, maxLength = 500)
             Spacer(Modifier.height(12.dp))
@@ -504,7 +509,7 @@ fun HandoffSheet(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 GhostButton(s.copyPrompt, { onCopy(choice) }, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
                 GhostButton(s.share, { onShare(choice) }, icon = Icons.Rounded.Share, color = c.textMuted)
-                if (onExportClaudeMd != null) GhostButton("CLAUDE.md", onExportClaudeMd, icon = Icons.Rounded.Description, color = c.textMuted)
+                if (onExportClaudeMd != null) GhostButton("CLAUDE.md", onExportClaudeMd, icon = Icons.Rounded.FileDownload, color = c.textMuted)
             }
         }
     }
@@ -623,10 +628,7 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
                     Row {
                         ideas.forEach { idea ->
                             Column(Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 4.dp)) {
-                                Row {
-                                    GhostButton(s.details, { onOpen(idea) }, color = c.textMuted)
-                                    GhostButton(s.designThisShort.substringBefore(" "), { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
-                                }
+                                GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
                             }
                         }
                     }
@@ -666,6 +668,31 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
                 Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = if (selected) 3 else 1, overflow = TextOverflow.Ellipsis)
             }
             SelectMark(selected, multi = false)
+        }
+    }
+}
+
+
+// ------------------------------------------------------------------ 직접 편집
+
+@Composable
+fun EditDocumentSheet(markdown: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    var text by rememberSaveable { mutableStateOf(markdown) }
+    EmberSheet(onDismiss) {
+        SheetTitle(s.editDocument, s.editDocumentSub, onDismiss)
+        Column(Modifier.weight(1f, fill = false).padding(horizontal = 20.dp)) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = c.text),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.ember),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 520.dp).clip(RoundedCornerShape(16.dp)).background(c.surface2).padding(14.dp).verticalScroll(rememberScrollState()),
+            )
+        }
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+            PrimaryButton(s.save, { onSave(text) }, Modifier.fillMaxWidth(), enabled = text.isNotBlank() && text != markdown)
         }
     }
 }

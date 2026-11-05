@@ -298,6 +298,17 @@ class ProjectEngine(
         streamDoc(id, OpKind.REVISING, messages, note = instruction.trim())
     }
 
+    /** 사용자가 직접 고친 설계서를 새 버전으로 저장한다(비용 없음). */
+    fun saveManualEdit(id: String, markdown: String, note: String) {
+        val md = markdown.trim()
+        if (md.isEmpty()) return
+        store.update(id) { p ->
+            val d = p.design ?: return@update p
+            if (d.latest?.markdown?.trim() == md) return@update p
+            p.copy(design = d.copy(versions = d.versions + DocVersion(ProjectStore.newId(), System.currentTimeMillis(), note, md, true)))
+        }
+    }
+
     fun restoreVersion(id: String, versionId: String, note: String) {
         store.update(id) { p ->
             val d = p.design ?: return@update p

@@ -127,16 +127,16 @@ fun QuestionFlow(
         // 진행 표시줄
         Column(Modifier.padding(horizontal = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 48.dp)) {
-                val stage = if (busy && lastSubmitted != null) s.nextQuestionTag else current?.stage ?: turns.lastOrNull()?.stage ?: ""
+                val stage = current?.stage ?: turns.lastOrNull()?.stage ?: ""
                 if (stage.isNotBlank()) {
                     Tag(stage, color = c.ember, strong = true)
                     Spacer(Modifier.width(8.dp))
                 }
                 // 답을 보내는 즉시 카운터와 진행 막대를 한 칸 올린다.
                 val sending = busy && lastSubmitted != null
-                val shownIndex = index
+                val shownIndex = if (sending) index + 1 else index
                 Text(s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
-                if (canFinish && !busy && current != null) {
+                if (canFinish && !busy && current != null && error == null) {
                     Row(
                         Modifier.clip(CircleShape).border(1.dp, c.ember.copy(alpha = 0.5f), CircleShape).clickable(onClick = onFinish).heightIn(min = 36.dp).padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -201,7 +201,7 @@ fun QuestionFlow(
                         onUndo = onUndo,
                         historyLabel = if (answered > 0) s.answersSoFar(answered) else null,
                         onShowHistory = onShowHistory,
-                        errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater, showRetry = false) }) else null,
+                        errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater, showRetry = false, compact = true) }) else null,
                     )
                 }
             }
@@ -258,7 +258,7 @@ private fun QuestionCard(
                         color = c.textMuted,
                         modifier = Modifier.weight(1f).padding(vertical = 8.dp),
                     )
-                    if (historyLabel != null) GhostButton(historyLabel, onShowHistory, icon = Icons.AutoMirrored.Rounded.List, color = c.ember)
+                    if (historyLabel != null) GhostButton(historyLabel, onShowHistory, icon = Icons.AutoMirrored.Rounded.List, color = c.textMuted)
                 }
                 Spacer(Modifier.height(20.dp))
             }

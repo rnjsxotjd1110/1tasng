@@ -212,7 +212,7 @@ private fun OnboardingMock(page: Int) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (ko) "지하철 정원사" else "Subway Gardener", style = t.titleMedium, color = c.text, modifier = Modifier.weight(1f))
-                        Icon(Icons.Rounded.Favorite, null, tint = c.emberDeep, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Favorite, null, tint = c.ember, modifier = Modifier.size(18.dp))
                     }
                     Spacer(Modifier.height(6.dp))
                     Text(if (ko) "정거장마다 씨앗을 심어 노선도를 꽃길로 바꾸는 퍼즐" else "Plant a seed per stop and turn the map into flowers", style = t.bodySmall, color = c.textMuted, maxLines = 2)
@@ -240,12 +240,12 @@ private fun OnboardingMock(page: Int) {
             }
             Spacer(Modifier.height(14.dp))
             Row(
-                Modifier.clip(CircleShape).background(c.buttonGradient).padding(horizontal = 18.dp, vertical = 10.dp),
+                Modifier.clip(CircleShape).background(c.surface2).border(1.dp, c.outline, CircleShape).padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Rounded.Send, null, tint = c.ember, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(s.continueInClaude, style = t.labelLarge, color = Color.White)
+                Text(s.continueInClaude, style = t.labelMedium, color = c.textMuted)
             }
         }
     }

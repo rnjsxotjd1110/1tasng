@@ -1,0 +1,430 @@
+package app.ember.ideas.data
+
+import app.ember.ideas.ai.AiError
+import app.ember.ideas.ai.AiService
+import app.ember.ideas.ai.Effort
+import app.ember.ideas.ai.Protocol
+import app.ember.ideas.ai.ReplyLanguage
+import app.ember.ideas.ai.StreamEvent
+import app.ember.ideas.ai.StreamRequest
+import app.ember.ideas.ai.TurnRequest
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
+import java.util.Locale
+
+enum class OpKind { ASKING, IDEAS, DESIGN_ASKING, WRITING, REVISING }
+
+/** 프로젝트별로 진행 중인 AI 작업 상태. 화면을 벗어나도 작업은 계속된다. */
+data class OpState(
+    val kind: OpKind,
+    val running: Boolean = true,
+    val error: AiError? = null,
+    val streamingText: String = "",
+    val startedAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * 프로젝트의 모든 AI 흐름(아이디어 인터뷰 → 아이디어 → 설계 인터뷰 → 설계서)을 담당한다.
+ * 요청이 성공했을 때만 대화 기록을 저장하므로, 실패하면 같은 동작을 그대로 다시 시도할 수 있다.
+ */
+class ProjectEngine(
+    private val store: ProjectStore,
+    private val settings: SettingsStore,
+    private val ai: AiService,
+    private val scope: CoroutineScope,
+) {
+    private val _ops = MutableStateFlow<Map<String, OpState>>(emptyMap())
+    val ops: StateFlow<Map<String, OpState>> = _ops.asStateFlow()
+
+    private val jobs = HashMap<String, Job>()
+    private val retries = HashMap<String, () -> Unit>()
+    private val nextAfter = HashMap<String, () -> Unit>()
+
+    private val lang: ReplyLanguage
+        get() = when (settings.settings.value.language) {
+            LanguageMode.KO -> ReplyLanguage.KO
+            LanguageMode.EN -> ReplyLanguage.EN
+            LanguageMode.AUTO -> if (Locale.getDefault().language == "ko") ReplyLanguage.KO else ReplyLanguage.EN
+        }
+
+    private val deep get() = settings.settings.value.deepThinking
+    private val model get() = settings.settings.value.model
+
+    fun isBusy(id: String) = _ops.value[id]?.running == true
+
+    // ------------------------------------------------------------ 프로젝트 생성
+
+    fun createProject(kind: ProjectKind, seed: String, defaultTitle: String): Project {
+        val now = System.currentTimeMillis()
+        val title = seed.trim().lineSequence().firstOrNull()?.take(28)?.takeIf { it.isNotBlank() } ?: defaultTitle
+        val p = Project(id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now)
+        store.upsert(p)
+        startInterview(p.id)
+        return p
+    }
+
+    fun startInterview(id: String) {
+        val p = store.get(id) ?: return
+        val first = ChatMessage(ChatMessage.USER, Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang))
+        discoveryCall(id, OpKind.ASKING, base = emptyList(), userMsg = first, onBeforeCommit = { it })
+    }
+
+    // ------------------------------------------------------------ 아이디어 인터뷰
+
+    fun answer(id: String, answer: Answer) {
+        val p = store.get(id) ?: return
+        val turn = p.currentTurn ?: return
+        val msg = ChatMessage(ChatMessage.USER, Protocol.answerMessage(turn.question, answer))
+        discoveryCall(id, OpKind.ASKING, base = p.messages, userMsg = msg, onBeforeCommit = { proj ->
+            proj.copy(turns = proj.turns.dropLast(1) + turn.copy(answer = answer))
+        })
+    }
+
+    /** 바로 직전 질문으로 돌아간다. 돌아간 질문의 이전 답은 반환해 화면에서 미리 선택해 둔다. */
+    fun undo(id: String): Answer? {
+        if (isBusy(id)) return null
+        val p = store.get(id) ?: return null
+        if (p.currentTurn == null || p.turns.size < 2) return null
+        val prev = p.turns[p.turns.size - 2]
+        store.update(id) {
+            it.copy(
+                turns = it.turns.dropLast(2) + prev.copy(answer = null),
+                messages = it.messages.dropLast(2),
+            )
+        }
+        return prev.answer
+    }
+
+    fun requestIdeasNow(id: String) = discoveryRequest(id, Protocol.REQUEST_IDEAS_NOW, OpKind.IDEAS)
+    fun moreIdeas(id: String) = discoveryRequest(id, Protocol.REQUEST_MORE_IDEAS, OpKind.IDEAS)
+    fun moreQuestions(id: String) = discoveryRequest(id, Protocol.REQUEST_MORE_QUESTIONS, OpKind.ASKING)
+
+    fun variation(id: String, idea: Idea, direction: String) =
+        discoveryRequest(id, Protocol.variationMessage(idea, direction), OpKind.IDEAS)
+
+    fun combine(id: String, a: Idea, b: Idea) = discoveryRequest(id, Protocol.combineMessage(a, b), OpKind.IDEAS)
+
+    private fun discoveryRequest(id: String, text: String, kind: OpKind) {
+        val p = store.get(id) ?: return
+        val pending = p.currentTurn
+        discoveryCall(id, kind, base = p.messages, userMsg = ChatMessage(ChatMessage.USER, text), onBeforeCommit = { proj ->
+            // 답하지 않은 질문이 남아 있으면 건너뛴 것으로 처리한다.
+            if (pending != null && proj.currentTurn != null) proj.copy(turns = proj.turns.dropLast(1) + pending.copy(answer = Answer(skipped = true))) else proj
+        })
+    }
+
+    private fun discoveryCall(
+        id: String,
+        kind: OpKind,
+        base: List<ChatMessage>,
+        userMsg: ChatMessage,
+        onBeforeCommit: (Project) -> Project,
+    ) {
+        launchOp(id, kind, retry = { discoveryCall(id, kind, base, userMsg, onBeforeCommit) }) {
+            val messages = base + userMsg
+            val result = ai.turn(
+                model,
+                TurnRequest(
+                    system = Protocol.discoverySystem(lang),
+                    messages = messages,
+                    schema = Protocol.discoverySchema,
+                    effort = if (kind == OpKind.IDEAS) (if (deep) Effort.HIGH else Effort.MEDIUM) else (if (deep) Effort.MEDIUM else Effort.LOW),
+                ),
+            )
+            val reply = parse(result.text)
+            if (!reply.isQuestion && !reply.isIdeas) throw AiError.BadResponse
+            store.update(id) { proj0 ->
+                val proj = onBeforeCommit(proj0)
+                val withMsgs = proj.copy(
+                    messages = messages + ChatMessage(ChatMessage.ASSISTANT, result.text),
+                    usage = proj.usage + result.usage,
+                )
+                if (reply.isQuestion) {
+                    withMsgs.copy(
+                        stage = ProjectStage.INTERVIEW,
+                        turns = withMsgs.turns + Turn(reply.stage, reply.progress, reply.insight, reply.question),
+                    )
+                } else {
+                    val batchId = ProjectStore.newId().take(6)
+                    val label = when {
+                        userMsg.text.startsWith("[요청] \"") -> userMsg.text.substringAfter("\"").substringBefore("\"")
+                        else -> ""
+                    }
+                    withMsgs.copy(
+                        stage = ProjectStage.IDEAS,
+                        ideaBatches = withMsgs.ideaBatches + IdeaBatch(
+                            id = batchId,
+                            createdAt = System.currentTimeMillis(),
+                            intro = reply.ideasIntro,
+                            label = label,
+                            ideas = reply.ideas.map { it.copy(id = "${batchId}_${it.id}") },
+                        ),
+                    )
+                }
+            }
+            settings.addUsage(result.usage)
+        }
+    }
+
+    // ------------------------------------------------------------ 아이디어 보관
+
+    fun toggleSaved(id: String, ideaId: String) {
+        store.update(id) { p ->
+            p.copy(savedIdeaIds = if (ideaId in p.savedIdeaIds) p.savedIdeaIds - ideaId else p.savedIdeaIds + ideaId)
+        }
+    }
+
+    // ------------------------------------------------------------ 설계 인터뷰
+
+    fun startDesign(id: String, ideaId: String, depth: DocDepth, askQuestions: Boolean) {
+        val p = store.get(id) ?: return
+        val idea = p.idea(ideaId) ?: return
+        store.update(id) {
+            it.copy(
+                design = DesignState(ideaId = ideaId, depth = depth),
+                stage = if (askQuestions) ProjectStage.DESIGN_INTERVIEW else ProjectStage.DOCUMENT,
+                savedIdeaIds = if (ideaId in it.savedIdeaIds) it.savedIdeaIds else it.savedIdeaIds + ideaId,
+            )
+        }
+        if (askQuestions) {
+            val first = ChatMessage(ChatMessage.USER, Protocol.designStartMessage(p, idea, settings.settings.value.profile, lang))
+            designCall(id, emptyList(), first) { it }
+        } else {
+            generateDocument(id)
+        }
+    }
+
+    fun designAnswer(id: String, answer: Answer) {
+        val d = store.get(id)?.design ?: return
+        val turn = d.turns.lastOrNull()?.takeIf { it.answer == null } ?: return
+        val msg = ChatMessage(ChatMessage.USER, Protocol.answerMessage(turn.question, answer))
+        designCall(id, d.messages, msg) { ds -> ds.copy(turns = ds.turns.dropLast(1) + turn.copy(answer = answer)) }
+    }
+
+    fun designUndo(id: String): Answer? {
+        if (isBusy(id)) return null
+        val d = store.get(id)?.design ?: return null
+        val last = d.turns.lastOrNull() ?: return null
+        if (last.answer != null || d.turns.size < 2) return null
+        val prev = d.turns[d.turns.size - 2]
+        store.update(id) {
+            it.copy(design = d.copy(turns = d.turns.dropLast(2) + prev.copy(answer = null), messages = d.messages.dropLast(2)))
+        }
+        return prev.answer
+    }
+
+    fun designReadyNow(id: String) {
+        val d = store.get(id)?.design ?: return
+        val pending = d.turns.lastOrNull()?.takeIf { it.answer == null }
+        designCall(id, d.messages, ChatMessage(ChatMessage.USER, Protocol.REQUEST_READY_NOW)) { ds ->
+            if (pending != null) ds.copy(turns = ds.turns.dropLast(1) + pending.copy(answer = Answer(skipped = true))) else ds
+        }
+    }
+
+    private fun designCall(id: String, base: List<ChatMessage>, userMsg: ChatMessage, onBeforeCommit: (DesignState) -> DesignState) {
+        launchOp(id, OpKind.DESIGN_ASKING, retry = { designCall(id, base, userMsg, onBeforeCommit) }) {
+            val depth = store.get(id)?.design?.depth ?: DocDepth.STANDARD
+            val messages = base + userMsg
+            val result = ai.turn(
+                model,
+                TurnRequest(
+                    system = Protocol.designSystem(lang, depth),
+                    messages = messages,
+                    schema = Protocol.designSchema,
+                    effort = if (deep) Effort.HIGH else Effort.MEDIUM,
+                ),
+            )
+            val reply = parse(result.text)
+            if (!reply.isQuestion && !reply.isReady) throw AiError.BadResponse
+            store.update(id) { proj ->
+                val d0 = proj.design ?: return@update proj
+                val d1 = onBeforeCommit(d0).let { it.copy(messages = messages + ChatMessage(ChatMessage.ASSISTANT, result.text)) }
+                val d2 = if (reply.isQuestion) {
+                    d1.copy(turns = d1.turns + Turn(reply.stage, reply.progress, reply.insight, reply.question))
+                } else {
+                    d1.copy(readySummary = reply.readySummary)
+                }
+                proj.copy(design = d2, usage = proj.usage + result.usage, stage = if (reply.isReady) ProjectStage.DOCUMENT else ProjectStage.DESIGN_INTERVIEW)
+            }
+            settings.addUsage(result.usage)
+            if (reply.isReady) {
+                // 결정이 끝나면 곧바로 설계서 작성으로 넘어간다.
+                nextAfter[id] = { generateDocument(id) }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ 설계서
+
+    fun generateDocument(id: String) {
+        val p = store.get(id) ?: return
+        val idea = p.selectedIdea ?: return
+        val request = Protocol.documentRequest(p, idea, settings.settings.value.profile, lang)
+        streamDoc(id, OpKind.WRITING, listOf(ChatMessage(ChatMessage.USER, request)), note = "")
+    }
+
+    fun reviseDocument(id: String, instruction: String) {
+        val p = store.get(id) ?: return
+        val idea = p.selectedIdea ?: return
+        val latest = p.design?.latest ?: return
+        val request = Protocol.documentRequest(p, idea, settings.settings.value.profile, lang)
+        val messages = listOf(
+            ChatMessage(ChatMessage.USER, request),
+            ChatMessage(ChatMessage.ASSISTANT, latest.markdown),
+            ChatMessage(ChatMessage.USER, Protocol.revisionRequest(instruction)),
+        )
+        streamDoc(id, OpKind.REVISING, messages, note = instruction.trim())
+    }
+
+    fun restoreVersion(id: String, versionId: String, note: String) {
+        store.update(id) { p ->
+            val d = p.design ?: return@update p
+            val v = d.versions.firstOrNull { it.id == versionId } ?: return@update p
+            p.copy(design = d.copy(versions = d.versions + v.copy(id = ProjectStore.newId(), createdAt = System.currentTimeMillis(), note = note)))
+        }
+    }
+
+    private fun streamDoc(id: String, kind: OpKind, messages: List<ChatMessage>, note: String) {
+        launchOp(id, kind, retry = { streamDoc(id, kind, messages, note) }) {
+            val p = store.get(id) ?: return@launchOp
+            val depth = p.design?.depth ?: DocDepth.STANDARD
+            val sb = StringBuilder()
+            var lastPush = 0L
+            try {
+                ai.stream(
+                    model,
+                    StreamRequest(
+                        system = Protocol.documentSystem(lang, p.kind, depth),
+                        messages = messages,
+                        effort = if (deep) Effort.XHIGH else Effort.HIGH,
+                    ),
+                ).collect { ev ->
+                    when (ev) {
+                        is StreamEvent.Delta -> {
+                            sb.append(ev.text)
+                            val now = System.currentTimeMillis()
+                            if (now - lastPush > 80) {
+                                lastPush = now
+                                setOp(id) { it.copy(streamingText = sb.toString()) }
+                            }
+                        }
+                        is StreamEvent.Done -> {
+                            val md = sb.toString().trim()
+                            if (md.isEmpty()) throw AiError.BadResponse
+                            saveVersion(id, md, note, complete = !ev.truncated, usage = ev.usage)
+                            settings.addUsage(ev.usage)
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                // 중간에 끊겨도 받은 부분은 미완성 버전으로 남겨 둔다.
+                val partial = sb.toString().trim()
+                if (partial.length > 200) saveVersion(id, partial, note, complete = false, usage = Usage())
+                throw e
+            }
+        }
+    }
+
+    private fun saveVersion(id: String, md: String, note: String, complete: Boolean, usage: Usage) {
+        store.update(id) { p ->
+            val d = p.design ?: return@update p
+            val v = DocVersion(ProjectStore.newId(), System.currentTimeMillis(), note, md, complete)
+            val newTitle = Protocol.documentTitle(md)?.take(40)
+            p.copy(
+                design = d.copy(versions = d.versions + v),
+                stage = ProjectStage.DOCUMENT,
+                usage = p.usage + usage,
+                title = if (d.versions.isEmpty() && newTitle != null && !p.titleEdited) newTitle else p.title,
+            )
+        }
+    }
+
+    // ------------------------------------------------------------ 기타 편집
+
+    fun rename(id: String, title: String) {
+        val t = title.trim().take(60)
+        if (t.isEmpty()) return
+        store.update(id) { it.copy(title = t, titleEdited = true) }
+    }
+
+    fun setFavorite(id: String, favorite: Boolean) = store.update(id) { it.copy(favorite = favorite) }
+
+    fun setNote(id: String, note: String) = store.update(id) { it.copy(note = note) }
+
+    /** 아이디어 목록으로 돌아가 다른 아이디어를 고를 수 있게 한다(설계 기록은 유지). */
+    fun backToIdeas(id: String) = store.update(id) { it.copy(stage = ProjectStage.IDEAS) }
+
+    fun openDocument(id: String) = store.update(id) { if (it.design?.latest != null) it.copy(stage = ProjectStage.DOCUMENT) else it }
+
+    fun delete(id: String): Project? {
+        cancel(id)
+        return store.delete(id)
+    }
+
+    fun restore(project: Project) = store.upsert(project)
+
+    // ------------------------------------------------------------ 작업 관리
+
+    fun retry(id: String) {
+        val r = retries[id] ?: return
+        r()
+    }
+
+    fun dismissError(id: String) {
+        _ops.update { it - id }
+        retries.remove(id)
+    }
+
+    fun cancel(id: String) {
+        jobs.remove(id)?.cancel()
+        _ops.update { it - id }
+    }
+
+    private fun setOp(id: String, f: (OpState) -> OpState) {
+        _ops.update { m -> m[id]?.let { m + (id to f(it)) } ?: m }
+    }
+
+    private fun launchOp(id: String, kind: OpKind, retry: () -> Unit, block: suspend () -> Unit) {
+        if (isBusy(id)) return
+        retries[id] = retry
+        _ops.update { it + (id to OpState(kind)) }
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            var success = false
+            try {
+                block()
+                success = true
+            } catch (e: CancellationException) {
+                _ops.update { it - id }
+                throw e
+            } catch (e: AiError) {
+                _ops.update { it + (id to OpState(kind, running = false, error = e)) }
+            } catch (e: Throwable) {
+                _ops.update { it + (id to OpState(kind, running = false, error = AiError.Other(e.message ?: e.javaClass.simpleName))) }
+            }
+            if (success) {
+                _ops.update { it - id }
+                retries.remove(id)
+            }
+            jobs.remove(id)
+            if (success) nextAfter.remove(id)?.invoke() else nextAfter.remove(id)
+        }
+        jobs[id] = job
+        job.start()
+    }
+
+    private fun parse(text: String): Protocol.InterviewReply = try {
+        Protocol.parseReply(text)
+    } catch (e: SerializationException) {
+        throw AiError.BadResponse
+    } catch (e: IllegalArgumentException) {
+        throw AiError.BadResponse
+    }
+}

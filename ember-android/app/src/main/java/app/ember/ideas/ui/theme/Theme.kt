@@ -43,19 +43,24 @@ data class EmberColors(
     val selection: Color,
     val control: Color,
     val isDark: Boolean,
+    /** 열기 막대 가운데 칸(쇳물이 달아오르는 중간 색). */
+    val heat: Color = Color(0xFFFF9A4F),
+    /** 담금질한 강철. 완성 표시에만 쓴다. */
+    val steel: Color = Color(0xFF8DB8FF),
 ) {
     val emberSoft: Color get() = ember.copy(alpha = if (isDark) 0.14f else 0.10f)
 }
 
+/** 대장간 팔레트: 그을음 바탕, 무쇠 카드, 이음매 테두리, 불씨·쇳물·강철 강조. */
 val DarkEmber = EmberColors(
-    bg = Color(0xFF0F0E13),
-    surface = Color(0xFF17161D),
-    surface2 = Color(0xFF1F1D27),
-    surface3 = Color(0xFF2A2733),
-    outline = Color(0xFF353141),
-    text = Color(0xFFF4F1EC),
-    textMuted = Color(0xFFB0AABB),
-    textFaint = Color(0xFF8E889A),
+    bg = Color(0xFF141116),
+    surface = Color(0xFF1E1A21),
+    surface2 = Color(0xFF29242D),
+    surface3 = Color(0xFF332D38),
+    outline = Color(0xFF3A3340),
+    text = Color(0xFFF3EEE8),
+    textMuted = Color(0xFFB4AAB5),
+    textFaint = Color(0xFF8D8391),
     ember = Color(0xFFFF7A45),
     emberDeep = Color(0xFFF2484E),
     gold = Color(0xFFFFC46B),
@@ -87,13 +92,16 @@ val LightEmber = EmberColors(
     selection = Color(0x26E85A26),
     control = Color(0xFF9C9286),
     isDark = false,
+    heat = Color(0xFFD9701F),
+    steel = Color(0xFF2F64C8),
 )
 
+/** IBM Plex Sans KR 하나로 제목부터 작은 글자까지 쓴다(기술 도면 같은 인상, 또렷한 한글). */
 val Pretendard = FontFamily(
-    Font(R.font.pretendard_regular, FontWeight.Normal),
-    Font(R.font.pretendard_medium, FontWeight.Medium),
-    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
-    Font(R.font.pretendard_bold, FontWeight.Bold),
+    Font(R.font.plex_regular, FontWeight.Normal),
+    Font(R.font.plex_medium, FontWeight.Medium),
+    Font(R.font.plex_semibold, FontWeight.SemiBold),
+    Font(R.font.plex_bold, FontWeight.Bold),
 )
 
 private val trim = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)

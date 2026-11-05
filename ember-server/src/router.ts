@@ -4,6 +4,7 @@ import { handleAdminReports, handleAdminStats } from "./admin";
 import { loadConfig, type Env } from "./env";
 import { ApiError, apiErrorResponse, errorResponse } from "./http";
 import { handleGetModel } from "./models";
+import { handleNonce } from "./play/integrity";
 import { handleMessages } from "./proxy/messages";
 import { handlePurchase } from "./purchase";
 import { handleReport } from "./reports";
@@ -29,6 +30,8 @@ export async function route(req: Request, env: Env, ctx: ExecutionContext): Prom
       switch (pathname) {
         case "/ember/balance":
           return await handleBalance(req, env);
+        case "/ember/nonce":
+          return await handleNonce(req, env, cfg);
         case "/ember/admin/reports":
           return await handleAdminReports(req, env);
         case "/ember/admin/stats":

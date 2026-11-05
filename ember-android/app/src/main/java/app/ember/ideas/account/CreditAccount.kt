@@ -22,7 +22,12 @@ import java.util.concurrent.TimeUnit
  * Ember 중계 서버의 계정 기능(등록·잔액·구매 확인·신고).
  * Claude 호출 자체는 Anthropic SDK 가 서버 주소로 보내므로 여기서는 다루지 않는다.
  */
-class CreditAccount(private val settings: SettingsStore, private val http: OkHttpClient = defaultClient()) {
+class CreditAccount(
+    private val settings: SettingsStore,
+    private val http: OkHttpClient = defaultClient(),
+    /** 서버가 준 nonce 로 Play Integrity 토큰을 받는다. 기기에서 받지 못하면 null. */
+    private val integrity: suspend (nonce: String) -> String? = { null },
+) {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonType = "application/json".toMediaType()
@@ -30,11 +35,35 @@ class CreditAccount(private val settings: SettingsStore, private val http: OkHtt
     /** 이 기기를 등록하고 무료 크레딧을 받는다. 이미 등록되어 있으면 잔액만 새로 고친다. */
     suspend fun connect(): Int {
         if (!settings.creditToken().isNullOrBlank()) return refresh()
-        val body = post("/ember/register", buildJsonObject { put("installId", settings.installId()) }, token = null)
+        // 무료 크레딧을 기기마다 한 번만 주도록 Play Integrity 토큰을 함께 보낸다.
+        // 서버가 일시 오류(502)를 주면 새 nonce 로 한 번 더 시도한다.
+        var body: JsonObject? = null
+        for (attempt in 0 until 2) {
+            val payload = registerPayload()
+            try {
+                body = post("/ember/register", payload, token = null)
+                break
+            } catch (e: AiError.Overloaded) {
+                if (attempt == 1) throw e
+            }
+        }
+        body ?: throw AiError.BadResponse
         val token = body["token"]?.jsonPrimitive?.content ?: throw AiError.BadResponse
         val credits = body["credits"]?.jsonPrimitive?.int ?: 0
         settings.setCreditAccount(token, credits)
         return credits
+    }
+
+    private suspend fun registerPayload(): JsonObject {
+        val nonce = runCatching { get("/ember/nonce", token = null)["nonce"]?.jsonPrimitive?.content }.getOrNull()
+        val token = nonce?.let { n -> runCatching { integrity(n) }.getOrNull() }
+        return buildJsonObject {
+            put("installId", settings.installId())
+            if (nonce != null && token != null) {
+                put("nonce", nonce)
+                put("integrityToken", token)
+            }
+        }
     }
 
     /** 서버에서 잔액을 다시 읽는다. 토큰이 만료되었으면 다시 등록한다(무료 크레딧은 다시 주지 않는다). */
@@ -59,6 +88,7 @@ class CreditAccount(private val settings: SettingsStore, private val http: OkHtt
         }, token)
         val credits = body["credits"]?.jsonPrimitive?.int ?: throw AiError.BadResponse
         settings.setCredits(credits)
+        settings.setPurchased(true)
         return credits
     }
 
@@ -74,8 +104,8 @@ class CreditAccount(private val settings: SettingsStore, private val http: OkHtt
         }, token)
     }
 
-    private suspend fun get(path: String, token: String): JsonObject = call(
-        Request.Builder().url(ServerConfig.serverUrl + path).header("x-api-key", token).get().build(),
+    private suspend fun get(path: String, token: String?): JsonObject = call(
+        Request.Builder().url(ServerConfig.serverUrl + path).apply { if (token != null) header("x-api-key", token) }.get().build(),
     )
 
     private suspend fun post(path: String, body: JsonObject, token: String?): JsonObject = call(

@@ -36,6 +36,7 @@ data class Settings(
     val creditsReady: Boolean = false,
     /** 마지막으로 확인한 크레딧 잔액(서버 확인 전에는 사용량으로 추정해 줄인다). */
     val credits: Int = 0,
+    val purchased: Boolean = false,
     /** 키와 크레딧이 모두 있을 때 크레딧을 쓰기로 골랐다. */
     val preferCredits: Boolean = false,
     /** 아이디어를 낼 때 웹에서 실제 작품을 찾아 참고한다. */
@@ -47,6 +48,15 @@ data class Settings(
     /** GitHub 토큰이 연결되어 있다. */
     val hasGithub: Boolean = false,
     val githubUser: String = "",
+    /** 연결한 PC(작업대). 이름이 비어 있으면 연결 안 됨. */
+    val workbenchName: String = "",
+    val workbenchHost: String = "",
+    val workbenchPort: Int = 0,
+    val workbenchId: String = "",
+    /** 작업대에서 프로젝트를 만들 기본 폴더 이름(비우면 제목으로 만든다). */
+    val workbenchFolder: String = "",
+    /** 새 단련을 시작할 때의 기본 질문 길이. */
+    val depth: DepthMode = DepthMode.NORMAL,
 ) {
     /** 지금 요청을 Ember 크레딧(중계 서버)으로 보낸다. */
     val usingCredits: Boolean get() = app.ember.ideas.account.ServerConfig.creditsEnabled && creditsReady && (preferCredits || !hasKey)
@@ -116,6 +126,9 @@ class SettingsStore(context: Context) {
 
     fun setCredits(credits: Int) = put { putInt("credits", credits) }
 
+    /** 크레딧을 한 번이라도 샀는지. 무료 크레딧만 쓰는 동안 서버는 Opus 요청을 Sonnet 으로 답한다. */
+    fun setPurchased(v: Boolean) = put { putBoolean("purchased", v) }
+
     // ------------------------------------------------------------ GitHub
 
     fun githubToken(): String? = keyPrefs.getString(KEY_GITHUB, null)
@@ -124,6 +137,25 @@ class SettingsStore(context: Context) {
         keyPrefs.edit(commit = true) { if (token == null) remove(KEY_GITHUB) else putString(KEY_GITHUB, token) }
         put { if (token == null) remove("github_user") else putString("github_user", user) }
     }
+
+    // ------------------------------------------------------------ 작업대(PC 브리지)
+
+    fun workbenchToken(): String? = keyPrefs.getString(KEY_WORKBENCH, null)
+
+    fun setWorkbench(token: String?, host: String = "", port: Int = 0, name: String = "", id: String = "") {
+        keyPrefs.edit(commit = true) { if (token == null) remove(KEY_WORKBENCH) else putString(KEY_WORKBENCH, token) }
+        put {
+            if (token == null) { remove("wb_host"); remove("wb_port"); remove("wb_name"); remove("wb_id") }
+            else { putString("wb_host", host); putInt("wb_port", port); putString("wb_name", name); putString("wb_id", id) }
+        }
+    }
+
+    /** 같은 PC 의 주소가 바뀌었을 때(공유기가 새 IP 를 준 경우) 주소만 고친다. */
+    fun updateWorkbenchAddress(host: String, port: Int) = put { putString("wb_host", host); putInt("wb_port", port) }
+
+    fun setWorkbenchFolder(folder: String) = put { putString("wb_folder", folder.trim()) }
+
+    fun setDepth(d: DepthMode) = put { putString("depth", d.name) }
 
     fun setProfile(p: DevProfile) = put { putString("profile", Protocol.json.encodeToString(DevProfile.serializer(), p)) }
 
@@ -189,12 +221,19 @@ class SettingsStore(context: Context) {
             monthlyBudgetUsd = prefs.getFloat("budget", 0f).toDouble(),
             creditsReady = !creditToken().isNullOrBlank(),
             credits = prefs.getInt("credits", 0),
+            purchased = prefs.getBoolean("purchased", false),
             preferCredits = prefs.getBoolean("prefer_credits", false),
             webSearch = prefs.getBoolean("web_search", true),
             fastQuestions = prefs.getBoolean("fast_questions", false),
             notifyDone = prefs.getBoolean("notify_done", true),
             hasGithub = !githubToken().isNullOrBlank(),
             githubUser = prefs.getString("github_user", "") ?: "",
+            workbenchName = if (workbenchToken().isNullOrBlank()) "" else prefs.getString("wb_name", "") ?: "",
+            workbenchHost = prefs.getString("wb_host", "") ?: "",
+            workbenchPort = prefs.getInt("wb_port", 0),
+            workbenchId = prefs.getString("wb_id", "") ?: "",
+            workbenchFolder = prefs.getString("wb_folder", "") ?: "",
+            depth = runCatching { DepthMode.valueOf(prefs.getString("depth", "NORMAL")!!) }.getOrDefault(DepthMode.NORMAL),
         )
     }
 
@@ -202,6 +241,7 @@ class SettingsStore(context: Context) {
         private const val KEY_API = "anthropic_api_key"
         private const val KEY_CREDIT = "ember_credit_token"
         private const val KEY_GITHUB = "github_token"
+        private const val KEY_WORKBENCH = "workbench_token"
 
         fun maskKey(key: String): String {
             val k = key.trim()

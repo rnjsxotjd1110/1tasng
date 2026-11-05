@@ -2,10 +2,12 @@
 import { authenticate } from "./auth";
 import type { Config, Env } from "./env";
 import { ApiError, jsonResponse, readJsonObject } from "./http";
+import { verifyRegistrationIntegrity, type IntegrityOutcome } from "./play/integrity";
 import { enforceRateLimit } from "./ratelimit";
 import { nowSeconds, randomToken, sha256Hex } from "./util";
 
-const REGISTER_BODY_MAX = 4096;
+// 무결성 토큰(수 KB)이 들어갈 수 있게 넉넉히 둔다.
+const REGISTER_BODY_MAX = 32 * 1024;
 const INSTALL_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
 export interface RegisterResult {
@@ -25,13 +27,23 @@ export async function handleRegister(req: Request, env: Env, cfg: Config): Promi
     throw new ApiError(400, "invalid_request_error", "installId must be 8-64 characters of [A-Za-z0-9_-]");
   }
 
-  const result = await registerInstall(env.DB, installId, cfg.freeCredits, now);
-  return jsonResponse(result);
+  // INTEGRITY_MODE: off 면 예전과 같고, grant 면 통과한 새 설치만 무료 크레딧, require 면 통과해야 가입.
+  let integrity: IntegrityOutcome | undefined;
+  if (cfg.integrityMode !== "off") {
+    integrity = await verifyRegistrationIntegrity(env, cfg, body, now);
+    if (cfg.integrityMode === "require" && integrity !== "ok") {
+      throw new ApiError(403, "integrity_failed", `device integrity check ${integrity}`);
+    }
+  }
+  const freeCredits = integrity === undefined || integrity === "ok" ? cfg.freeCredits : 0;
+
+  const result = await registerInstall(env.DB, installId, freeCredits, now);
+  return jsonResponse(integrity === undefined ? result : { ...result, integrity });
 }
 
 /**
  * 설치 ID 로 계정을 만들거나 찾는다. 새 토큰을 발급해 이전 토큰은 무효가 된다.
- * 무료 크레딧은 계정이 처음 만들어질 때(INSERT 성공)만 지급된다.
+ * 무료 크레딧은 계정이 처음 만들어질 때(INSERT 성공)만 지급된다. freeCredits 가 0 이면 freeGranted 는 false.
  */
 export async function registerInstall(
   db: D1Database,
@@ -51,7 +63,7 @@ export async function registerInstall(
     )
     .bind(installId, tokenHash, freeCredits, freeCredits, now, now)
     .first<{ credits: number }>();
-  if (inserted) return { token, credits: inserted.credits, freeGranted: true };
+  if (inserted) return { token, credits: inserted.credits, freeGranted: freeCredits > 0 };
 
   const updated = await db
     .prepare(

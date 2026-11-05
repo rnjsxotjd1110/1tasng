@@ -1,6 +1,6 @@
 // Google Play Developer API 로 일회성 상품 구매를 확인한다.
 import { isRecord } from "../http";
-import { clearGoogleTokenCache, getGoogleAccessToken } from "./google-auth";
+import { ANDROID_PUBLISHER_SCOPE, googleFetch } from "./google-auth";
 
 export interface ProductPurchase {
   purchaseState: number; // 0 구매 완료, 1 취소, 2 대기
@@ -50,21 +50,13 @@ export async function verifyProductPurchase(
   purchaseToken: string,
 ): Promise<VerifyResult> {
   const url = purchaseUrl(packageName, productId, purchaseToken);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const accessToken = await getGoogleAccessToken(serviceAccountJson);
-    const res = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
-    if (res.status === 401 && attempt === 0) {
-      clearGoogleTokenCache(); // 캐시된 토큰이 만료·폐기된 경우 한 번만 다시 받는다
-      continue;
-    }
-    if (res.status === 400 || res.status === 404 || res.status === 410) return { kind: "not_found" };
-    if (!res.ok) {
-      console.error("Play 검증 실패:", res.status, await res.text().catch(() => ""));
-      return { kind: "error", status: res.status };
-    }
-    const purchase = parseProductPurchase(await res.json().catch(() => null));
-    if (!purchase) return { kind: "error", status: 502 };
-    return { kind: "ok", purchase };
+  const res = await googleFetch(serviceAccountJson, ANDROID_PUBLISHER_SCOPE, url);
+  if (res.status === 400 || res.status === 404 || res.status === 410) return { kind: "not_found" };
+  if (!res.ok) {
+    console.error("Play 검증 실패:", res.status, await res.text().catch(() => ""));
+    return { kind: "error", status: res.status };
   }
-  return { kind: "error", status: 401 };
+  const purchase = parseProductPurchase(await res.json().catch(() => null));
+  if (!purchase) return { kind: "error", status: 502 };
+  return { kind: "ok", purchase };
 }

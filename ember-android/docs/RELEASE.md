@@ -17,7 +17,7 @@ Google Play에 올리기까지 해야 하는 일을 순서대로 적었어요. �
 | `ember.serverUrl` | `https://ember-server.example.workers.dev` | 크레딧 모드, 서버 신고 |
 | `ember.reportEmail` | `support@example.com` | 문의 메일, 서버가 없을 때 신고·오류 보고서 받는 곳 |
 | `ember.privacyUrl` | `https://<사용자>.github.io/<저장소>/privacy.html` | 스토어 등록용(앱 안에서는 내장 화면을 보여 줌) |
-| `ember.freeCredits` | `150` | 첫 설치 무료 크레딧 안내 문구(서버 `FREE_CREDITS` 와 같게) |
+| `ember.freeCredits` | `40` | 첫 설치 무료 크레딧 안내 문구(서버 `FREE_CREDITS` 와 같게) |
 | `ember.creditMarkup` | `1.5` | 예상 크레딧 계산(서버 `MARKUP` 과 같게) |
 
 ```bash
@@ -84,6 +84,8 @@ Google Play에 올리기까지 해야 하는 일을 순서대로 적었어요. �
 ## 6. 출시 전 확인 목록
 
 - [ ] 실제 기기에서 키 연결 → 탐색 → 아이디어 → 설계서 → Claude로 이어가기 한 바퀴
+- [ ] 작업대: PC에서 `ember-bridge/dist` 의 실행 파일을 켜고, 앱의 대장간 → 작업대(PC) → PC 연결하기 → 6자리 코드 → 도면에서 "작업대로 보내기"(Claude Code 실행·클립보드·파일 세 방식 모두)
+- [ ] Play Integrity: 서버 README 4-5절대로 설정한 뒤 이 버전을 배포하고, 그다음 서버 `INTEGRITY_MODE` 를 `grant` 로 바꾸기
 - [ ] 크레딧 모드: 무료 크레딧 받기 → 탐색 → 라이선스 테스터로 500크레딧 구매 → 잔액 반영
 - [ ] 앱을 나간 뒤 설계서가 끝까지 써지고 알림이 오는지(Android 13 이상에서 알림 권한 허용)
 - [ ] 다른 앱에서 글·사진 공유 → Ember 홈에 채워지는지

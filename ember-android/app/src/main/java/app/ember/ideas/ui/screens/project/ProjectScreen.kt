@@ -72,6 +72,7 @@ private sealed interface Sheet {
     data object Compare : Sheet
     data class Report(val target: app.ember.ideas.report.ReportTarget) : Sheet
     data object GitHub : Sheet
+    data object Workbench : Sheet
     data class Diff(val index: Int) : Sheet
     data class EditSection(val heading: String) : Sheet
 }
@@ -156,7 +157,11 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         Column(Modifier.fillMaxSize()) {
             EmberTopBar(
                 title = project.title,
-                subtitle = s.stageLabel(stage) + if (project.isSample) " · " + s.sample else "",
+                subtitle = when {
+                    project.isSample -> s.stageLabel(stage) + " · " + s.sample
+                    stage == ProjectStage.INTERVIEW && !project.isDemo -> s.depthSubtitle(project.depthMode)
+                    else -> s.stageLabel(stage)
+                },
                 onBack = {
                     if (viewStage != null && viewStage != project.stage) viewStage = null else onBack()
                 },
@@ -254,15 +259,26 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                                 onRetry = { engine.retry(project.id) },
                                 onFixKey = onFixKey,
                                 onShowHistory = { sheet = Sheet.History },
-                                expectedTotal = 8,
+                                expectedTotal = if (project.isDemo) 8 else project.depthMode.questions.takeIf { it > 0 } ?: 12,
                                 onStop = { engine.cancel(project.id) },
                                 onLeave = { engine.dismissError(project.id); onBack() },
                                 partial = op?.partial,
                                 canUndoCurrent = engine.canUndo(project),
-                                counter = if (project.inExtraQuestions) ({ sending ->
-                                    val total = app.ember.ideas.ai.Protocol.EXTRA_QUESTIONS
-                                    s.extraQuestionOf((total - project.extraQuestionsLeft + if (sending) 1 else 0).coerceIn(1, total), total)
-                                }) else null,
+                                counter = when {
+                                    project.inExtraQuestions -> ({ sending ->
+                                        val total = app.ember.ideas.ai.Protocol.EXTRA_QUESTIONS
+                                        s.extraQuestionOf((total - project.extraQuestionsLeft + if (sending) 1 else 0).coerceIn(1, total), total)
+                                    })
+                                    // 길게 단련하면 질문 수에 끝이 없으므로 몇 번째인지만 보여 준다.
+                                    project.depthMode == app.ember.ideas.data.DepthMode.LONG -> ({ sending -> s.questionN((project.turns.size + if (sending) 1 else 0).coerceAtLeast(1)) })
+                                    else -> null
+                                },
+                                heat = app.ember.ideas.ui.components.Heat.of(project, op?.kind),
+                                heatLabels = s.heatStages,
+                                heatCurrentLabel = s.heatNow(s.heatStages[1], project.turns.lastOrNull()?.progress ?: 0),
+                                plates = project.presets.map { PlateItem(s.plateMold, "${it.category}: ${it.value}", true) } +
+                                    project.turns.filter { it.answer != null && !it.answer.skipped }.map { PlateItem(s.plateAnswer, plateText(it), false) },
+                                strikeLabel = s.strike,
                             )
                         }
                     }
@@ -305,6 +321,11 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             onShowHistory = { sheet = Sheet.DesignHistory },
                             partial = op?.partial,
                             expectedTotal = d?.depth?.designQuestions ?: 6,
+                            heat = app.ember.ideas.ui.components.Heat.of(project, op?.kind),
+                            heatLabels = s.heatStages,
+                            heatCurrentLabel = s.heatNow(s.heatStages[2], d?.turns?.lastOrNull()?.progress ?: 0),
+                            plates = d?.turns.orEmpty().filter { it.answer != null && !it.answer.skipped }.map { PlateItem(s.plateAnswer, plateText(it), false) },
+                            strikeLabel = s.strike,
                             onStop = { engine.cancel(project.id) },
                             onLeave = { engine.dismissError(project.id); onBack() },
                         )
@@ -331,6 +352,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         onReviseSection = { title -> sheet = Sheet.Revise(s.rewriteSection(title)) },
                         onEditSection = { heading -> sheet = Sheet.EditSection(heading) },
                         onHandoff = { sheet = Sheet.Handoff(project.design?.ideaId, HandoffGoal.START_BUILD) },
+                        onWorkbench = { sheet = Sheet.Workbench },
                         onStop = { engine.cancel(project.id) },
                         onRegenerate = { engine.generateDocument(project.id) },
                         onRetry = { engine.retry(project.id) },
@@ -346,6 +368,16 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
     when (val sh = sheet) {
         is Sheet.Report -> ReportSheet(sh.target) { sheet = null }
         Sheet.GitHub -> GitHubSheet(project) { sheet = null }
+        Sheet.Workbench -> WorkbenchSheet(
+            project,
+            onDismiss = { sheet = null },
+            onClaudeApp = { sheet = Sheet.Handoff(project.design?.ideaId, HandoffGoal.START_BUILD) },
+            onGitHub = { sheet = Sheet.GitHub },
+            onShareFile = {
+                sheet = null
+                project.design?.latest?.markdown?.let { Handoff.shareMarkdown(ctx, documentTitleOf(project), it, s.share) }
+            },
+        )
         is Sheet.IdeaDetail -> project.idea(sh.ideaId)?.let { idea ->
             IdeaDetailSheet(
                 idea = idea,
@@ -481,3 +513,8 @@ private fun MenuItem(text: String, icon: ImageVector, danger: Boolean = false, o
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
     )
 }
+
+
+/** 단조판에 적을 한 줄: "갈래: 고른 답". 갈래가 없으면 질문 제목을 쓴다. */
+internal fun plateText(t: app.ember.ideas.data.Turn): String =
+    (t.stage.ifBlank { t.question.title.take(14) }) + ": " + t.answerSummary()

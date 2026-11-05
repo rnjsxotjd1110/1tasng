@@ -209,7 +209,9 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
             }
             Spacer(Modifier.height(2.dp))
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
+            app.ember.ideas.ui.components.HeatGauge(app.ember.ideas.ui.components.Heat.of(p), Modifier.width(150.dp), flowing = busy)
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Tag(if (busy) s.working else s.stageLabel(p.stage), color = if (busy) c.ember else stageColor(p.stage), strong = true)
                 if (p.isSample) { Spacer(Modifier.width(6.dp)); Tag(s.sample, color = c.textMuted) }
@@ -231,10 +233,10 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
 
 @Composable
 fun stageColor(stage: ProjectStage) = when (stage) {
-    ProjectStage.INTERVIEW -> Ember.colors.info
+    ProjectStage.INTERVIEW -> Ember.colors.heat
     ProjectStage.IDEAS -> Ember.colors.gold
     ProjectStage.DESIGN_INTERVIEW -> Ember.colors.ember
-    ProjectStage.DOCUMENT -> Ember.colors.success
+    ProjectStage.DOCUMENT -> Ember.colors.steel
 }
 
 

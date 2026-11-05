@@ -31,13 +31,23 @@ class ProjectStore(private val dir: File, private val scope: CoroutineScope) {
     @Volatile var loaded = false
         private set
 
+    /** 저장 파일이 손상되어 비운 채로 시작했다면 원본을 옮겨 둔 파일. 화면이 한 번 알린 뒤 [acknowledgeCorrupt] 로 비운다. */
+    @Volatile var corruptBackup: File? = null
+        private set
+
+    fun acknowledgeCorrupt() { corruptBackup = null }
+
+    /** 손상된 원본을 그대로 읽어 본다(백업 파일 내보내기용). */
+    fun corruptText(): String? = corruptBackup?.let { runCatching { it.readText() }.getOrNull() }
+
     fun loadBlocking() {
         if (loaded) return
         val list = runCatching {
             if (file.exists()) Protocol.json.decodeFromString(serializer, file.readText()) else emptyList()
         }.getOrElse {
             // 손상된 파일은 지우지 않고 옆에 보관해 둔다.
-            runCatching { file.copyTo(File(dir, "projects.corrupt.${System.currentTimeMillis()}.json"), overwrite = true) }
+            val backup = File(dir, "projects.corrupt.${System.currentTimeMillis()}.json")
+            if (runCatching { file.copyTo(backup, overwrite = true) }.isSuccess) corruptBackup = backup
             emptyList()
         }
         _projects.value = list.sortedByDescending { it.updatedAt }

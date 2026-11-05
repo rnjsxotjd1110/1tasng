@@ -96,6 +96,36 @@ object Handoff {
         else "Use the idea below as a starting point for a free brainstorm. Suggest ways to strengthen its core appeal and some surprising variations."
     }
 
+    /** 작업대(PC 브리지)로 보낼 것. */
+    enum class BenchWhat { START, NEXT, FILES }
+
+    /**
+     * 작업대로 보낼 요청을 만든다. 설계서는 docs/DESIGN.md, 작업 규칙은 CLAUDE.md 로 함께 보낸다.
+     * '다음 작업 하나'는 CLAUDE.md 를 덮어쓰지 않으려고 설계서만 보낸다(사용자가 고쳤을 수 있다).
+     */
+    fun benchRequest(project: Project, idea: Idea?, profile: DevProfile, what: BenchWhat, mode: String, folder: String, korean: Boolean): app.ember.ideas.bridge.BridgeApi.SendRequest {
+        val doc = project.design?.latest?.markdown.orEmpty()
+        val title = project.design?.latest?.markdown?.let { Protocol.documentTitle(it) } ?: idea?.title ?: project.title
+        val design = app.ember.ideas.bridge.BridgeApi.FileEntry("docs/DESIGN.md", doc)
+        val claudeMd = app.ember.ideas.bridge.BridgeApi.FileEntry("CLAUDE.md", buildClaudeMd(project, idea, profile, korean).replace(Regex("(?s)\n## (설계서|Design document)\n.*$"), "\n" + if (korean) "## 설계서\n\ndocs/DESIGN.md 를 읽어 주세요.\n" else "## Design document\n\nRead docs/DESIGN.md.\n"))
+        val prompt = when (what) {
+            BenchWhat.START -> if (korean)
+                "이 폴더의 CLAUDE.md 와 docs/DESIGN.md 를 먼저 모두 읽어 주세요. 그다음 ${if (project.kind == ProjectKind.GAME) "엔진과 " else ""}기술 스택을 확인하고, 폴더 구조와 첫 마일스톤의 작업 목록을 만든 뒤 첫 작업부터 구현해 주세요. 설계와 다르게 해야 하면 먼저 물어봐 주세요."
+            else "Read CLAUDE.md and docs/DESIGN.md in this folder first. Then confirm the ${if (project.kind == ProjectKind.GAME) "engine and " else ""}tech stack, set up the folder structure and a task list for the first milestone, and implement the first task. Ask before deviating from the design."
+            BenchWhat.NEXT -> if (korean)
+                "docs/DESIGN.md 의 개발 로드맵과 지금까지 만든 코드를 비교해서, 아직 하지 않은 다음 작업 하나만 골라 구현해 주세요. 끝나면 무엇을 했고 다음에 무엇을 하면 좋을지 짧게 알려 주세요."
+            else "Compare the roadmap in docs/DESIGN.md with the code so far, pick the single next task that isn't done yet and implement it. When finished, briefly say what you did and what should come next."
+            BenchWhat.FILES -> if (korean)
+                "CLAUDE.md 와 docs/DESIGN.md 를 읽고, 이 프로젝트를 어떻게 이해했는지와 첫 마일스톤 계획을 짧게 정리해 주세요. 아직 코드는 쓰지 말아 주세요."
+            else "Read CLAUDE.md and docs/DESIGN.md, then summarize how you understand the project and plan the first milestone. Don't write code yet."
+        }
+        val files = when (what) {
+            BenchWhat.NEXT -> listOf(design)
+            else -> listOf(design, claudeMd)
+        }
+        return app.ember.ideas.bridge.BridgeApi.SendRequest(title = title, mode = mode, prompt = prompt, files = if (doc.isBlank()) emptyList() else files, folder = folder)
+    }
+
     /** Claude Code 가 저장소 루트에서 읽는 CLAUDE.md 형식으로 설계를 정리한다. */
     fun buildClaudeMd(project: Project, idea: Idea?, profile: DevProfile, korean: Boolean): String = buildString {
         val title = idea?.title ?: project.title

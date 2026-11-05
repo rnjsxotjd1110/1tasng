@@ -18,6 +18,7 @@ export interface Env {
   MESSAGES_LIMIT?: string;
   MESSAGES_WINDOW_SECONDS?: string;
   ANTHROPIC_BASE_URL?: string;
+  INTEGRITY_MODE?: string;
 }
 
 export interface Config {
@@ -32,7 +33,17 @@ export interface Config {
   messagesLimit: number;
   messagesWindowSeconds: number;
   anthropicBaseUrl: string;
+  integrityMode: IntegrityMode;
 }
+
+/**
+ * 가입 시 Play Integrity 확인 방식.
+ * - off: 확인하지 않는다(예전과 같음).
+ * - grant: 확인에 통과한 새 설치에만 무료 크레딧을 준다. 실패해도 가입은 된다(크레딧 0).
+ * - require: 확인에 통과하지 못하면 가입 자체를 거절한다(403 integrity_failed).
+ */
+export const INTEGRITY_MODES = ["off", "grant", "require"] as const;
+export type IntegrityMode = (typeof INTEGRITY_MODES)[number];
 
 export const DEFAULT_PRODUCTS: Readonly<Record<string, number>> = {
   ember_credits_500: 500,
@@ -42,7 +53,7 @@ export const DEFAULT_PRODUCTS: Readonly<Record<string, number>> = {
 
 export const DEFAULTS = {
   packageName: "app.ember.ideas",
-  freeCredits: 150,
+  freeCredits: 40,
   markup: 1.5,
   maxOutputTokens: 64000,
   maxBodyBytes: 2 * 1024 * 1024,
@@ -51,6 +62,7 @@ export const DEFAULTS = {
   messagesLimit: 30,
   messagesWindowSeconds: 600,
   anthropicBaseUrl: "https://api.anthropic.com",
+  integrityMode: "off",
 } as const;
 
 /** 숫자 설정값을 읽는다. 비었거나 잘못됐거나 min 미만이면 기본값. */
@@ -82,6 +94,15 @@ export function parseProducts(raw: string | undefined): Readonly<Record<string, 
   }
 }
 
+/** INTEGRITY_MODE 를 읽는다. 비었으면 off, 모르는 값이면 오류를 남기고 off. */
+export function parseIntegrityMode(raw: string | undefined): IntegrityMode {
+  const v = raw?.trim().toLowerCase() ?? "";
+  if (v === "") return DEFAULTS.integrityMode;
+  if ((INTEGRITY_MODES as readonly string[]).includes(v)) return v as IntegrityMode;
+  console.error(`INTEGRITY_MODE 값이 잘못됨(${raw}), off 로 동작`);
+  return DEFAULTS.integrityMode;
+}
+
 export function loadConfig(env: Env): Config {
   return {
     packageName: env.PACKAGE_NAME?.trim() || DEFAULTS.packageName,
@@ -95,5 +116,6 @@ export function loadConfig(env: Env): Config {
     messagesLimit: num(env.MESSAGES_LIMIT, DEFAULTS.messagesLimit, 1, true),
     messagesWindowSeconds: num(env.MESSAGES_WINDOW_SECONDS, DEFAULTS.messagesWindowSeconds, 1, true),
     anthropicBaseUrl: (env.ANTHROPIC_BASE_URL?.trim() || DEFAULTS.anthropicBaseUrl).replace(/\/+$/, ""),
+    integrityMode: parseIntegrityMode(env.INTEGRITY_MODE),
   };
 }

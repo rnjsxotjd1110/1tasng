@@ -111,7 +111,7 @@ class DemoAiService : AiService {
     private fun ready(ko: Boolean) = """{"kind":"ready","stage":"${if (ko) "완료" else "Done"}","progress":100,"insight":"","question":{"title":"","subtitle":"","multi_select":false,"options":[],"allow_custom":false,"custom_hint":""},"ideas_intro":"","ideas":[],"ready_summary":"${if (ko) "- 한 판 3~5분\\n- Godot 4, 세로 화면\\n- 유료 단일 구매" else "- 3–5 minute runs\\n- Godot 4, portrait\\n- One-time purchase"}"}"""
 
     private fun idea(id: String, t: String, l: String, cat: String, hook: String, feats: List<String>, uniq: String, money: String, scope: String, time: String, diff: Int, fit: String) =
-        """{"id":"$id","title":"$t","logline":"$l","category":"$cat","platforms":["Android","iOS"],"genre":"$cat","target_audience":"","core_hook":"$hook","key_features":[${feats.joinToString(",") { "\"$it\"" }}],"unique_point":"$uniq","monetization":"$money","scope":"$scope","dev_time":"$time","difficulty":$diff,"fit_reason":"$fit"}"""
+        """{"id":"$id","title":"$t","logline":"$l","category":"$cat","platforms":["Android","iOS"],"genre":"$cat","target_audience":"","core_hook":"$hook","key_features":[${feats.joinToString(",") { "\"$it\"" }}],"unique_point":"$uniq","monetization":"$money","scope":"$scope","dev_time":"$time","difficulty":$diff,"fun_score":${3 + (id.hashCode() and 1) + (if (diff <= 2) 1 else 0)},"novelty_score":${2 + (id.length + diff) % 4},"fit_reason":"$fit"}"""
 
     private fun ideas(ko: Boolean, round: Int = 0): String {
         if (round % 2 == 1) return secondIdeas(ko)

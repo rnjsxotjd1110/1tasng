@@ -87,6 +87,10 @@ data class Idea(
     val validation: String = "",
     /** 웹 검색으로 확인한 참고 페이지. 검색 결과에 실제로 있던 주소만 남긴다. */
     val references: List<Reference> = emptyList(),
+    /** 재미 점수(1~5). 0 이면 이전 버전에서 받은 아이디어라 점수가 없다. */
+    @SerialName("fun_score") val funScore: Int = 0,
+    /** 새로움 점수(1~5). 0 이면 점수 없음. */
+    @SerialName("novelty_score") val noveltyScore: Int = 0,
 )
 
 @Serializable
@@ -183,6 +187,14 @@ data class Project(
     val extraQuestionsLeft: Int = -1,
     /** 지금 설계 중이 아닌 다른 아이디어의 설계서. 다른 아이디어로 설계를 시작해도 이전 설계서를 잃지 않게 보관한다. */
     val otherDesigns: Map<String, DesignState> = emptyMap(),
+    /** 거푸집으로 미리 정해 두어 묻지 않고 넘어간 답. */
+    val presets: List<PresetAnswer> = emptyList(),
+    /** 고른 거푸집 이름(없으면 빈 문자열). */
+    val moldName: String = "",
+    /** 질문을 얼마나 이어 갈지. */
+    val depthMode: DepthMode = DepthMode.NORMAL,
+    /** 원석함의 메모에서 시작했으면 그 메모 id. */
+    val memoId: String? = null,
 ) {
     /** 이 아이디어로 만든 설계서가 있으면 돌려준다(지금 설계 중인 것 포함). */
     fun designFor(ideaId: String): DesignState? =

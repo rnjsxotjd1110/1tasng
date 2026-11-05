@@ -1,0 +1,4 @@
+fe15b008bbf805d05fc55feb0e9d2c8d4ea7517a6429283af2da5b3643a79e31  ember-bridge-linux-amd64
+f5a41f1c6bdb0824555382be40ff0d888c5eb445336023bc109d602509ca872e  ember-bridge-macos-arm64
+e271f007a2d6c98648214e1092ce41538c48c130adee8ec267a18bfa8beecb3c  ember-bridge-windows-amd64.exe
+df8292ec6d49252c0278724ea3596a1b2b4cdeae12b5e7113d934ef17aac03d5  ember-bridge-windows-arm64.exe

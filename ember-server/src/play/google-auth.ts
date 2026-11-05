@@ -3,6 +3,7 @@ import { isRecord } from "../http";
 import { base64Decode, base64UrlEncode, base64UrlEncodeString } from "../util";
 
 export const ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
+export const PLAY_INTEGRITY_SCOPE = "https://www.googleapis.com/auth/playintegrity";
 const DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token";
 const JWT_LIFETIME_SECONDS = 3600;
 /** 만료 이 시간(ms) 전에 미리 새로 받는다. */
@@ -70,19 +71,26 @@ interface CachedToken {
   expiresAtMs: number;
 }
 
-// 아이솔레이트 단위 캐시(요청 사이에 재사용된다).
-let cached: CachedToken | null = null;
+// 아이솔레이트 단위 캐시(요청 사이에 재사용된다). 범위(scope)마다 따로 둔다.
+const cache = new Map<string, CachedToken>();
 
-export function clearGoogleTokenCache(): void {
-  cached = null;
+/** scope 를 주면 그 범위만, 안 주면 전부 지운다. */
+export function clearGoogleTokenCache(scope?: string): void {
+  if (scope === undefined) cache.clear();
+  else cache.delete(scope);
 }
 
-export async function getGoogleAccessToken(saJson: string, nowMs: number = Date.now()): Promise<string> {
+export async function getGoogleAccessToken(
+  saJson: string,
+  scope: string = ANDROID_PUBLISHER_SCOPE,
+  nowMs: number = Date.now(),
+): Promise<string> {
   const sa = parseServiceAccount(saJson);
+  const cached = cache.get(scope);
   if (cached && cached.email === sa.client_email && cached.expiresAtMs - REFRESH_MARGIN_MS > nowMs) {
     return cached.token;
   }
-  const assertion = await signServiceAccountJwt(sa, ANDROID_PUBLISHER_SCOPE, Math.floor(nowMs / 1000));
+  const assertion = await signServiceAccountJwt(sa, scope, Math.floor(nowMs / 1000));
   const res = await fetch(sa.token_uri, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -96,6 +104,26 @@ export async function getGoogleAccessToken(saJson: string, nowMs: number = Date.
     throw new Error(`Google OAuth token request failed (${res.status})`);
   }
   const expiresIn = typeof data["expires_in"] === "number" ? data["expires_in"] : JWT_LIFETIME_SECONDS;
-  cached = { email: sa.client_email, token: data["access_token"], expiresAtMs: nowMs + expiresIn * 1000 };
-  return cached.token;
+  const token = data["access_token"];
+  cache.set(scope, { email: sa.client_email, token, expiresAtMs: nowMs + expiresIn * 1000 });
+  return token;
+}
+
+/**
+ * 서비스 계정 액세스 토큰을 붙여 Google API 를 부른다.
+ * 401 이면(캐시된 토큰이 만료·폐기됨) 그 범위의 캐시를 비우고 한 번만 다시 시도한다.
+ */
+export async function googleFetch(saJson: string, scope: string, url: string, init: RequestInit = {}): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const accessToken = await getGoogleAccessToken(saJson, scope);
+    const headers = new Headers(init.headers);
+    headers.set("authorization", `Bearer ${accessToken}`);
+    const res = await fetch(url, { ...init, headers });
+    if (res.status === 401 && attempt === 0) {
+      await res.body?.cancel().catch(() => undefined);
+      clearGoogleTokenCache(scope);
+      continue;
+    }
+    return res;
+  }
 }

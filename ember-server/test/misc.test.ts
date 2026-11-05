@@ -62,15 +62,17 @@ describe("관리자", () => {
     const now = Math.floor(Date.now() / 1000);
     env.db.sqlite.exec(
       `INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, created_at) VALUES ('p1', 1, 'ember_credits_500', 500, 1, ${now});
+       INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, voided, created_at) VALUES ('p2', 2, 'ember_credits_500', 500, 1, 1, ${now});
        INSERT INTO usage_log (account_id, model, status, credits, created_at) VALUES (1, 'claude-opus-5-5', 200, 7, ${now}), (1, 'claude-opus-5-5', 200, 3, ${now - 2 * 86400});`,
     );
     const { res } = await call(env, "/ember/admin/stats", { headers: { "x-admin-key": "test-admin-key" } });
     expect(await res.json()).toEqual({
       accounts: 2,
-      creditsGranted: { free: 200, purchased: 500, total: 700 },
+      creditsGranted: { free: 200, purchased: 1000, total: 1200 },
       creditsSpent: 10,
       creditsOutstanding: 200,
-      purchases: 1,
+      purchases: 2,
+      voided: { purchases: 1, creditsClawedBack: 500 },
       reports: 0,
       last24h: { requests: 1, creditsSpent: 7 },
     });
@@ -142,5 +144,35 @@ describe("보관 기간 정리(cron)", () => {
     // 옛 토큰은 더 이상 통하지 않는다.
     expect((await call(env, "/ember/balance", { headers: { "x-api-key": a.token } })).res.status).toBe(401);
     expect((await call(env, "/ember/balance", { headers: { "x-api-key": b.token } })).res.status).toBe(401);
+  });
+});
+
+describe("마이그레이션", () => {
+  it("migrations/0002 를 예전 스키마에 적용하면 schema.sql 과 같은 구조가 된다", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { FakeD1 } = await import("./helpers/d1");
+    const migration = readFileSync(new URL("../migrations/0002_voided_integrity.sql", import.meta.url), "utf8");
+    const describeDb = (db: InstanceType<typeof FakeD1>) => ({
+      purchases: db.rows("PRAGMA table_info(purchases)"),
+      meta: db.rows("PRAGMA table_info(meta)"),
+      nonces: db.rows("PRAGMA table_info(nonces)"),
+      indexes: db.rows("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name"),
+    });
+
+    const fresh = new FakeD1();
+    // 예전 스키마 흉내: 이번에 추가한 것을 지운다
+    const old = new FakeD1();
+    old.sqlite.exec(
+      `ALTER TABLE purchases DROP COLUMN voided_at; ALTER TABLE purchases DROP COLUMN voided;
+       DROP TABLE meta; DROP TABLE nonces;`,
+    );
+    expect(old.rows("PRAGMA table_info(purchases)").map((c) => (c as { name: string }).name)).not.toContain("voided");
+    old.sqlite.exec("INSERT INTO accounts (install_id, token_hash, created_at, updated_at) VALUES ('i', 'h', 0, 0)");
+    old.sqlite.exec("INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, created_at) VALUES ('t', 1, 'p', 5, 1, 0)");
+
+    old.sqlite.exec(migration);
+    expect(describeDb(old)).toEqual(describeDb(fresh));
+    // 기존 구매는 voided = 0 으로 채워진다
+    expect(old.rows("SELECT voided, voided_at FROM purchases")).toEqual([{ voided: 0, voided_at: null }]);
   });
 });

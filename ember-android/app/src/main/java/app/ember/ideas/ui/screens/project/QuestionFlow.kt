@@ -66,6 +66,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.foundation.layout.offset
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
@@ -116,6 +118,14 @@ fun QuestionFlow(
     canUndoCurrent: Boolean = true,
     /** 기본 "질문 n / 약 m" 대신 쓸 진행 문구. 인자는 답을 보내는 중인지. */
     counter: ((Boolean) -> String)? = null,
+    /** 열기 막대(대장간 진행 단계). 없으면 얇은 진행 막대를 쓴다. */
+    heat: app.ember.ideas.ui.components.Heat? = null,
+    heatLabels: List<String>? = null,
+    /** 지금 칸의 이름(예: "가열 62%"). */
+    heatCurrentLabel: String? = null,
+    /** 앞에서 두드려 쌓인 답(거푸집에서 온 답 포함). */
+    plates: List<PlateItem> = emptyList(),
+    strikeLabel: String = "",
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -161,7 +171,14 @@ fun QuestionFlow(
                 }
             }
             val base = current?.progress ?: turns.lastOrNull()?.progress ?: 3
-            EmberProgress((if (busy && lastSubmitted != null) (base + 100 / expectedTotal).coerceAtMost(96) else base) / 100f)
+            val shown = (if (busy && lastSubmitted != null) (base + 100 / expectedTotal).coerceAtMost(96) else base) / 100f
+            if (heat != null) {
+                // 답을 보내는 동안 지금 칸이 조금 더 차오르고 쇳물 무늬가 흐른다.
+                val h = if (heat.full in 1..2 && !heat.tempered) heat.copy(partial = shown) else heat
+                app.ember.ideas.ui.components.HeatGauge(h, flowing = busy, labels = heatLabels, currentLabel = heatCurrentLabel)
+            } else {
+                EmberProgress(shown)
+            }
         }
 
         Box(Modifier.weight(1f)) {
@@ -172,14 +189,12 @@ fun QuestionFlow(
                 busy || current == null -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                     Spacer(Modifier.height(16.dp))
                     if (busy && lastSubmitted != null) {
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.emberSoft).padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Rounded.CheckCircle, null, tint = c.ember, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(s.yourAnswer(lastSubmitted!!), style = MaterialTheme.typography.bodyMedium, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        // 방금 두드린 답이 식어서 단조판 위에 얹힌다.
+                        plates.takeLast(2).forEach { pl ->
+                            app.ember.ideas.ui.components.Plate(pl.label, pl.text, pl.fromMold)
+                            Spacer(Modifier.height(4.dp))
                         }
+                        CoolingPlate(s.plateAnswer, lastSubmitted!!)
                         Spacer(Modifier.height(20.dp))
                     }
                     if (busy && partial != null) {
@@ -218,6 +233,8 @@ fun QuestionFlow(
                         onSubmit = submit,
                         onUndo = { pendingAnswer = null; lastSubmitted = null; onUndo() },
                         historyLabel = if (answered > 0) s.answersSoFar(answered) else null,
+                        plates = plates,
+                        strikeLabel = strikeLabel.ifBlank { s.next },
                         onShowHistory = onShowHistory,
                         errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater, showRetry = false, compact = true) }) else null,
                     )
@@ -237,6 +254,8 @@ private fun QuestionCard(
     historyLabel: String?,
     onShowHistory: () -> Unit,
     errorBanner: (@Composable () -> Unit)?,
+    plates: List<PlateItem> = emptyList(),
+    strikeLabel: String,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -263,7 +282,18 @@ private fun QuestionCard(
                 errorBanner()
                 Spacer(Modifier.height(16.dp))
             }
-            if (turn.insight.isNotBlank() || historyLabel != null) {
+            if (plates.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    shownPlates(plates).forEach { pl -> app.ember.ideas.ui.components.Plate(pl.label, pl.text, pl.fromMold) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (historyLabel != null) GhostButton(historyLabel, onShowHistory, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
+                }
+                if (turn.insight.isNotBlank()) {
+                    Text(turn.insight, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+                    Spacer(Modifier.height(16.dp))
+                } else Spacer(Modifier.height(8.dp))
+            } else if (turn.insight.isNotBlank() || historyLabel != null) {
                 // 지금까지 파악한 내용. 왼쪽 선 하나로 질문과 구분한다.
                 Row(
                     Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -334,12 +364,11 @@ private fun QuestionCard(
             GhostButton(s.previousShort, onUndo, icon = Icons.AutoMirrored.Rounded.ArrowBack, color = c.textMuted, enabled = canUndo, modifier = Modifier.offset(x = (-12).dp).alpha(if (canUndo) 1f else 0f))
             GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.width(4.dp))
-            PrimaryButton(
-                text = if (errorBanner != null) s.resend else s.next,
+            app.ember.ideas.ui.components.StrikeButton(
+                text = if (errorBanner != null) s.resend else strikeLabel,
                 onClick = { onSubmit(Answer(selectedIds = selected, customText = if (customOpen) custom.trim() else "")) },
                 enabled = hasAnswer,
                 modifier = Modifier.weight(1f),
-                icon = Icons.AutoMirrored.Rounded.ArrowForward,
             )
         }
     }
@@ -350,15 +379,25 @@ private fun OptionRow(opt: QuestionOption, letter: String, selected: Boolean, mu
     val c = Ember.colors
     val shape = EmberShape.control
     val bg by animateColorAsState(if (selected) c.emberSoft else c.surface, tween(160), label = "optbg")
+    // 고를 때 카드가 3px 눌렸다 돌아온다(4프레임). 움직임 줄이기가 켜져 있으면 색만 바뀐다.
+    val still = app.ember.ideas.ui.components.reduceMotion()
+    val press = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val border by animateColorAsState(if (selected) c.ember else c.outline, tween(160), label = "optborder")
     Row(
         Modifier
+            .offset { androidx.compose.ui.unit.IntOffset(0, (press.value * 3).toInt().dp.roundToPx()) }
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(shape)
             .background(bg)
             .border(if (selected) 1.5.dp else 1.dp, border, shape)
-            .clickable(role = if (multi) Role.Checkbox else Role.RadioButton, onClick = onClick)
+            .clickable(role = if (multi) Role.Checkbox else Role.RadioButton) {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                if (!still) scope.launch { for (v in listOf(1f, 1f, 0.34f, 0f)) { press.snapTo(v); kotlinx.coroutines.delay(60) } }
+                onClick()
+            }
             .height(IntrinsicSize.Min)
             .padding(end = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -477,4 +516,35 @@ private fun PartialQuestionPreview(pq: app.ember.ideas.ai.PartialQuestion) {
             }
         }
     }
+}
+
+
+/** 답한 질문 하나를 단조판으로 보여 줄 때의 내용. */
+data class PlateItem(val label: String, val text: String, val fromMold: Boolean)
+
+/** 방금 보낸 답. 불씨색으로 달아올랐다가 0.6초 동안 식으며 아래에서 올라와 판으로 얹힌다. */
+@Composable
+private fun CoolingPlate(label: String, text: String) {
+    val c = Ember.colors
+    val still = app.ember.ideas.ui.components.reduceMotion()
+    val t = remember { androidx.compose.animation.core.Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(text) { if (!still) t.animateTo(1f, tween(600)) }
+    val rise = ((1f - t.value) * 12).toInt()
+    app.ember.ideas.ui.components.Plate(
+        label, text, fromMold = false,
+        modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(0, rise.dp.roundToPx()) },
+        fill = androidx.compose.ui.graphics.lerp(c.ember.copy(alpha = 0.22f).compositeOver(c.surface), c.surface, t.value),
+    )
+}
+
+/** 판은 세 장만 보여 준다: 거푸집 답을 앞에 두되(최대 두 장) 최근 답이 적어도 한 장은 보이게 한다. */
+internal fun shownPlates(plates: List<PlateItem>): List<PlateItem> {
+    val mold = plates.filter { it.fromMold }
+    val answers = plates.filter { !it.fromMold }
+    val answerSlots = when {
+        mold.isEmpty() -> 3
+        answers.isEmpty() -> 0
+        else -> maxOf(1, 3 - mold.size.coerceAtMost(2))
+    }.coerceAtMost(answers.size)
+    return mold.take(3 - answerSlots) + answers.takeLast(answerSlots)
 }

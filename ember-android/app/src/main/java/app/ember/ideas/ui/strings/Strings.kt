@@ -3,6 +3,7 @@ package app.ember.ideas.ui.strings
 import androidx.compose.runtime.staticCompositionLocalOf
 import app.ember.ideas.ai.AiError
 import app.ember.ideas.ai.ClaudeModel
+import app.ember.ideas.data.DepthMode
 import app.ember.ideas.data.DocDepth
 import app.ember.ideas.data.LanguageMode
 import app.ember.ideas.data.ProjectKind
@@ -369,6 +370,131 @@ abstract class Strings {
     abstract val docResumeBody: String
     abstract val openDesignShort: String
     abstract val openDesign: String
+
+    abstract val tabOres: String
+    abstract val heatStages: List<String>
+    abstract fun heatNow(stage: String, pct: Int): String
+    abstract val plateAnswer: String
+    abstract val plateMold: String
+    abstract val strike: String
+    abstract val depthTitle: String
+    abstract fun depthLabel(d: DepthMode): String
+    abstract fun depthHint(d: DepthMode): String
+    abstract fun depthSubtitle(d: DepthMode): String
+    abstract val dailySpark: String
+    abstract val dailySparkBody: String
+    abstract val startWithSpark: String
+    abstract val otherSpark: String
+    abstract val forgeNew: String
+    abstract val whatToMake: String
+    abstract val moldsSkip: String
+    abstract val manage: String
+    abstract fun moldSkips(n: Int): String
+    abstract val newMold: String
+    abstract val seedForgePlaceholder: String
+    abstract val onTheFire: String
+    abstract fun countN(n: Int): String
+    abstract val blueprintDone: String
+    abstract val fromOreBox: String
+    abstract val memoQuick: String
+    abstract val oreBoxTitle: String
+    abstract fun memosTab(n: Int): String
+    abstract fun savedTab(n: Int): String
+    abstract fun moldsTab(n: Int): String
+    abstract val memoPrompt: String
+    abstract val memoPlaceholder: String
+    abstract val memoSave: String
+    abstract val memoVoice: String
+    abstract val memoPhoto: String
+    abstract val tagHint: String
+    abstract val allTags: String
+    abstract val pinned: String
+    abstract val forgeThisOre: String
+    abstract fun ledToIdeas(n: Int): String
+    abstract val memoEmptyTitle: String
+    abstract val memoEmptyBody: String
+    abstract val savedEmptyTitle: String
+    abstract val savedEmptyBody: String
+    abstract val moldsEmptyTitle: String
+    abstract val moldsEmptyBody: String
+    abstract val memoDeleted: String
+    abstract val voiceUnavailable: String
+    abstract fun fromProject(title: String): String
+    abstract val photoMemo: String
+    abstract val moldTitle: String
+    abstract val moldName: String
+    abstract val moldNamePlaceholder: String
+    abstract fun moldCountLine(n: Int): String
+    abstract val moldCountBody: String
+    abstract val startWithMold: String
+    abstract val moldCustom: String
+    abstract val moldCustomHint: String
+    abstract val deleteMold: String
+    abstract val moldNeedsName: String
+    abstract val depthDefault: String
+    abstract fun usedTimes(n: Int): String
+    abstract val oresTitle: String
+    abstract val extraReflected: String
+    abstract val scoreFun: String
+    abstract val scoreEase: String
+    abstract val scoreNovel: String
+    abstract val detailsShort: String
+    abstract val temperedDone: String
+    abstract val sendToBench: String
+    abstract fun benchConnected(name: String): String
+    abstract val benchOffline: String
+    abstract val benchNone: String
+    abstract val whatToSend: String
+    abstract val sendStart: String
+    abstract val sendNext: String
+    abstract val sendFiles: String
+    abstract val howToOpen: String
+    abstract val howCode: String
+    abstract fun howCodeDesc(folder: String): String
+    abstract val howClip: String
+    abstract val howClipDesc: String
+    abstract val howFile: String
+    abstract val sendAgain: String
+    abstract val phoneShort: String
+    abstract val benchShort: String
+    abstract fun sentCode(claudeFound: Boolean): String
+    abstract val sentClip: String
+    abstract fun sentFiles(n: Int, folder: String): String
+    abstract val changeShort: String
+    abstract val benchOnlineLine: String
+    abstract val benchChecking: String
+    abstract val benchOfflineBody: String
+    abstract val benchUnpaired: String
+    abstract val claudeAppShort: String
+    abstract val shareAsFile: String
+    abstract val benchSection: String
+    abstract val benchConnect: String
+    abstract val benchSearching: String
+    abstract val benchNoneFound: String
+    abstract val benchManual: String
+    abstract val benchAddressHint: String
+    abstract val benchCodeTitle: String
+    abstract val benchPair: String
+    abstract val benchBadCode: String
+    abstract val benchRateLimited: String
+    abstract val benchUnreachable: String
+    abstract val benchRejected: String
+    abstract fun benchPaired(name: String): String
+    abstract val benchDisconnect: String
+    abstract val benchFolder: String
+    abstract val benchFolderHint: String
+    abstract val benchHowTo: String
+    abstract val benchHowToBody: String
+    abstract val benchPrivacy: String
+    abstract val corruptTitle: String
+    abstract val corruptBody: String
+    abstract val corruptExport: String
+
+    abstract fun verifiedWorks(n: Int): String
+
+    abstract val freeSonnetNote: String
+
+    abstract fun kindShort(k: ProjectKind): String
 
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String

@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens.project
 
+import androidx.compose.foundation.border
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -164,8 +165,8 @@ fun IdeasContent(
             Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            SecondaryButton(s.moreQuestions, onMoreQuestions, Modifier.weight(1f), icon = Icons.Rounded.QuestionAnswer, enabled = !busy)
-            SecondaryButton(s.moreIdeas, onMoreIdeas, Modifier.weight(1f), icon = Icons.Rounded.Add, enabled = !busy)
+            SecondaryButton(s.moreQuestions, onMoreQuestions, Modifier.weight(1f), enabled = !busy)
+            SecondaryButton(s.moreIdeas, onMoreIdeas, Modifier.weight(1f), enabled = !busy)
         }
     }
 }
@@ -180,17 +181,22 @@ private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
                 when {
                     batch.label.contains(" + ") -> s.combinedOf(batch.label)
                     batch.label.isNotBlank() -> s.variationOf(batch.label)
-                    batch.fromExtraQuestions -> s.extraIdeasHeader
-                    latest -> s.latestIdeas
+                    latest -> s.oresTitle
                     else -> s.earlierIdeas
                 },
-                style = MaterialTheme.typography.titleMedium,
+                style = if (latest) MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) else MaterialTheme.typography.titleMedium,
                 color = c.text,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(s.relativeTime(batch.createdAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint)
+            if (batch.fromExtraQuestions) {
+                Box(
+                    Modifier.clip(app.ember.ideas.ui.theme.EmberShape.tag).border(1.dp, c.gold, app.ember.ideas.ui.theme.EmberShape.tag).padding(horizontal = 8.dp, vertical = 4.dp),
+                ) { Text(s.extraReflected, style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.gold) }
+            } else {
+                Text(s.relativeTime(batch.createdAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint)
+            }
         }
         if (batch.intro.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
@@ -204,8 +210,20 @@ private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
 fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, onToggleSave: () -> Unit, projectTitle: String? = null, onDesign: (() -> Unit)? = null, hasDesign: Boolean = false) {
     val s = LocalStrings.current
     val c = Ember.colors
-    EmberCard(Modifier.fillMaxWidth().animateContentSize(), onClick = onClick, highlight = chosen, padding = PaddingValues(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 8.dp)) {
-        Column {
+    val shape = app.ember.ideas.ui.theme.EmberShape.panel
+    // 원석 카드: 왼쪽 불씨색 모서리, 점수 막대 세 개, 아래에 '도면으로 단조'.
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .clip(shape)
+            .background(c.surface)
+            .border(if (chosen) 1.5.dp else 1.dp, if (chosen) c.ember else c.outline, shape)
+            .clickable(onClick = onClick)
+            .height(IntrinsicSize.Min),
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(c.ember))
+        Column(Modifier.weight(1f).padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 6.dp)) {
             if (projectTitle != null || chosen) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)) {
                     if (chosen) { Tag(s.chosenIdea, color = c.ember, strong = true); Spacer(Modifier.width(8.dp)) }
@@ -213,33 +231,40 @@ fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, o
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(idea.title, style = MaterialTheme.typography.titleLarge, color = c.text, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(idea.title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 HeartButton(saved, onToggleSave)
             }
             Column(Modifier.padding(end = 12.dp)) {
                 Text(idea.logline, style = MaterialTheme.typography.bodyMedium, color = c.text.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                if (idea.coreHook.isNotBlank()) {
+                if (idea.funScore > 0 || idea.noveltyScore > 0) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        app.ember.ideas.ui.components.ScoreBar(s.scoreFun, idea.funScore, c.ember, Modifier.weight(1f))
+                        app.ember.ideas.ui.components.ScoreBar(s.scoreEase, (6 - idea.difficulty).coerceIn(1, 5), c.gold, Modifier.weight(1f))
+                        app.ember.ideas.ui.components.ScoreBar(s.scoreNovel, idea.noveltyScore, c.steel, Modifier.weight(1f))
+                    }
+                } else if (idea.coreHook.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    // 핵심 재미는 왼쪽 선으로 본문과 구분한다.
                     Row(Modifier.height(IntrinsicSize.Min)) {
                         Box(Modifier.width(2.dp).fillMaxHeight().background(c.gold.copy(alpha = 0.8f)))
                         Spacer(Modifier.width(10.dp))
                         Text(idea.coreHook, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime).filter { it.isNotBlank() }.forEach { Tag(it) }
-                    Tag(s.difficulty(idea.difficulty), color = difficultyColor(idea.difficulty), strong = true)
+                    if (idea.funScore == 0) Tag(s.difficulty(idea.difficulty), color = difficultyColor(idea.difficulty), strong = true)
+                    if (idea.references.isNotEmpty()) Tag(s.verifiedWorks(idea.references.size), color = c.steel, strong = true)
                 }
             }
             if (onDesign != null) {
                 Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GhostButton(s.details, onClick, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
+                    GhostButton(s.detailsShort, onClick, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
                     Spacer(Modifier.weight(1f))
                     GhostButton(if (hasDesign) s.openDesignShort else s.designThisShort, onDesign)
                 }
-            }
+            } else Spacer(Modifier.height(8.dp))
         }
     }
 }

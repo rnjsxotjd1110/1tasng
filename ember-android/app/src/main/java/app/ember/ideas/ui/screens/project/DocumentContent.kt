@@ -91,6 +91,7 @@ fun DocumentContent(
     onReviseSection: (String) -> Unit = {},
     onEditSection: (String) -> Unit = {},
     onHandoff: () -> Unit,
+    onWorkbench: () -> Unit = onHandoff,
     onStop: () -> Unit,
     onRegenerate: () -> Unit,
     onRetry: () -> Unit,
@@ -142,6 +143,15 @@ fun DocumentContent(
     }
 
     Column(Modifier.fillMaxSize()) {
+        // 열기 막대: 설계서가 완성되면 마지막 칸이 강철색으로 식는다(담금질).
+        val heat = app.ember.ideas.ui.components.Heat.of(project, if (busy) (if (revising) app.ember.ideas.data.OpKind.REVISING else app.ember.ideas.data.OpKind.WRITING) else null)
+        app.ember.ideas.ui.components.HeatGauge(
+            heat,
+            Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp, bottom = 10.dp),
+            barHeight = 6.dp,
+            flowing = busy,
+            labels = s.heatStages.let { if (heat.tempered) it.dropLast(1) + s.temperedDone else it },
+        )
         if (sectionIndices.isNotEmpty() && !busy) {
             Box(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
                 LazyRow(
@@ -314,12 +324,12 @@ fun DocumentContent(
             }
         }
         if (!busy && latest != null) {
-            Row(
-                Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SecondaryButton(s.revise, onRevise, Modifier.weight(0.85f), icon = Icons.Rounded.Tune)
-                PrimaryButton(s.continueInClaude, onHandoff, Modifier.weight(1.5f), icon = Icons.AutoMirrored.Rounded.Send, height = 52.dp)
+            Column(Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                WorkbenchStatusLine(Modifier.padding(bottom = 8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SecondaryButton(s.revise, onRevise, height = 52.dp)
+                    PrimaryButton(s.sendToBench, onWorkbench, Modifier.weight(1f), icon = app.ember.ideas.ui.components.ForgeIcons.Monitor, height = 52.dp)
+                }
             }
         }
     }

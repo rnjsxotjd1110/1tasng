@@ -17,7 +17,7 @@ class AppContainer(context: Context, aiOverride: AiService? = null) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val settings = SettingsStore(context)
     val store = ProjectStore(context.filesDir, scope)
-    val credits = app.ember.ideas.account.CreditAccount(settings)
+    val credits = app.ember.ideas.account.CreditAccount(settings, integrity = { nonce -> app.ember.ideas.account.Integrity.token(context, nonce) })
     val ai: AiService = aiOverride ?: ClaudeAiService {
         val st = settings.settings.value
         when {
@@ -30,9 +30,19 @@ class AppContainer(context: Context, aiOverride: AiService? = null) {
 
     val images = app.ember.ideas.data.ImageStore(context)
 
+    /** 원석함의 메모. */
+    val memos = app.ember.ideas.data.ListStore(java.io.File(context.filesDir, "memos.json"), app.ember.ideas.data.Memo.serializer(), scope) { it.id }
+    /** 미리 정한 답 묶음(거푸집). */
+    val molds = app.ember.ideas.data.ListStore(java.io.File(context.filesDir, "molds.json"), app.ember.ideas.data.Mold.serializer(), scope) { it.id }
+    /** 같은 Wi-Fi 의 PC 브리지(작업대). */
+    val workbench by lazy { app.ember.ideas.bridge.Workbench(context, settings, scope) }
+
     init {
         store.loadBlocking()
-        images.cleanup(store.projects.value.flatMap { it.images }.toSet())
+        memos.load()
+        molds.load()
+        // 원석(메모)에 붙인 사진도 쓰는 중인 이미지로 친다.
+        images.cleanup(store.projects.value.flatMap { it.images }.toSet() + memos.items.value.mapNotNull { it.imagePath })
         val prefs = context.getSharedPreferences("ember_meta", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("sample_added", false)) {
             store.upsert(SampleProject.create(context))

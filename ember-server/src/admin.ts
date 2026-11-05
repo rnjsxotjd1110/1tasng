@@ -43,6 +43,8 @@ interface StatsRow {
   free_granted: number;
   purchased: number;
   purchases: number;
+  voided: number;
+  clawed_back: number;
   spent: number;
   outstanding: number;
   requests_24h: number;
@@ -59,6 +61,8 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
        (SELECT COALESCE(SUM(free_credits), 0) FROM accounts) AS free_granted,
        (SELECT COALESCE(SUM(credits), 0) FROM purchases WHERE credited = 1) AS purchased,
        (SELECT COUNT(*) FROM purchases WHERE credited = 1) AS purchases,
+       (SELECT COUNT(*) FROM purchases WHERE credited = 1 AND voided = 1) AS voided,
+       (SELECT COALESCE(SUM(credits), 0) FROM purchases WHERE credited = 1 AND voided = 1) AS clawed_back,
        (SELECT COALESCE(SUM(credits), 0) FROM usage_log) AS spent,
        (SELECT COALESCE(SUM(credits), 0) FROM accounts) AS outstanding,
        (SELECT COUNT(*) FROM usage_log WHERE created_at >= ?) AS requests_24h,
@@ -74,6 +78,8 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
     creditsSpent: row.spent,
     creditsOutstanding: row.outstanding,
     purchases: row.purchases,
+    // 환불되어 회수한 구매(creditsGranted.purchased 에는 포함된 채로 남는다)
+    voided: { purchases: row.voided, creditsClawedBack: row.clawed_back },
     reports: row.reports,
     last24h: { requests: row.requests_24h, creditsSpent: row.spent_24h },
   });

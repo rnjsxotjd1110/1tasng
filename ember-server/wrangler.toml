@@ -4,7 +4,7 @@ main = "src/index.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 오래된 rate_limits 행을 매일 정리한다(UTC 03:17).
+# 매일(UTC 03:17): 오래된 rate_limits·nonce·기록 정리 + 환불된 구매의 크레딧 회수(Voided Purchases API).
 [triggers]
 crons = ["17 3 * * *"]
 
@@ -20,8 +20,8 @@ database_id = "00000000-0000-0000-0000-000000000000"
 [vars]
 # 안드로이드 앱 패키지 이름(구글 플레이 영수증 검증용)
 PACKAGE_NAME = "app.ember.ideas"
-# 신규 설치 1회 무료 크레딧
-FREE_CREDITS = "150"
+# 신규 설치 1회 무료 크레딧(결제 전에는 Opus 요청도 Sonnet 으로 처리된다)
+FREE_CREDITS = "40"
 # 원가 대비 마크업 배수(1.5 = 원가의 150%)
 MARKUP = "1.5"
 # max_tokens 상한(이보다 크면 잘라서 보낸다)
@@ -38,3 +38,6 @@ MESSAGES_LIMIT = "30"
 MESSAGES_WINDOW_SECONDS = "600"
 # 업스트림 주소(테스트용으로만 바꾼다)
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+# 가입 때 Play Integrity 확인: off(안 함) / grant(통과해야 무료 크레딧) / require(통과해야 가입)
+# grant·require 는 GOOGLE_SERVICE_ACCOUNT_JSON 과 Play Integrity API 설정이 필요하다(README 4-5).
+INTEGRITY_MODE = "off"

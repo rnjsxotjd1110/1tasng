@@ -45,6 +45,9 @@ private const val SEARCH_FROM_PROGRESS = 60
 /** 새로 받은 아이디어 중 겹치지 않는 것이 이보다 적으면 한 번 더 요청한다. */
 private const val MIN_FRESH_IDEAS = 3
 
+/** 사용량 어림에 쓰는 평균 글자 수/토큰. */
+private const val CHARS_PER_TOKEN = 2.5
+
 class ProjectEngine(
     private val store: ProjectStore,
     private val settings: SettingsStore,
@@ -93,10 +96,23 @@ class ProjectEngine(
 
     // ------------------------------------------------------------ 프로젝트 생성
 
-    fun createProject(kind: ProjectKind, seed: String, defaultTitle: String, quick: Boolean = false, images: List<String> = emptyList()): Project {
+    fun createProject(
+        kind: ProjectKind,
+        seed: String,
+        defaultTitle: String,
+        quick: Boolean = false,
+        images: List<String> = emptyList(),
+        presets: List<PresetAnswer> = emptyList(),
+        moldName: String = "",
+        depth: DepthMode = DepthMode.NORMAL,
+        memoId: String? = null,
+    ): Project {
         val now = System.currentTimeMillis()
         val title = seed.trim().lineSequence().firstOrNull()?.take(28)?.takeIf { it.isNotBlank() } ?: defaultTitle
-        val p = Project(id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now, images = images)
+        val p = Project(
+            id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now, images = images,
+            presets = presets, moldName = moldName, depthMode = depth, memoId = memoId,
+        )
         store.upsert(p)
         startInterview(p.id, quick)
         return p
@@ -112,7 +128,7 @@ class ProjectEngine(
 
     fun startInterview(id: String, quick: Boolean = false) {
         val p = store.get(id) ?: return
-        val start = Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang, imageCount = p.images.size)
+        val start = Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang, imageCount = p.images.size, presets = p.presets, depth = p.depthMode)
         val text = if (quick) start.removeSuffix("첫 질문을 해 주세요.") + Protocol.REQUEST_QUICK_IDEAS else start
         discoveryCall(id, if (quick) OpKind.IDEAS else OpKind.ASKING, base = emptyList(), userMsg = ChatMessage(ChatMessage.USER, text, p.images), onBeforeCommit = { it })
     }
@@ -507,6 +523,12 @@ class ProjectEngine(
                 }
             } catch (e: CancellationException) {
                 // 사용자가 멈춘 경우: 잘린 원고를 새 버전으로 남기지 않는다.
+                // 멈추기 전까지 받은 분량은 이미 요금이 나갔으므로 어림값으로 기록한다.
+                if (sb.isNotEmpty() && store.get(id)?.isDemo != true) {
+                    val est = estimateUsage(model, messages, p.kind, depth, sb.length)
+                    store.update(id, touch = false) { it.copy(usage = it.usage + est) }
+                    settings.addUsage(est)
+                }
                 throw e
             } catch (e: Throwable) {
                 // 처음 쓰다가 끊기면 받은 부분을 미완성 버전으로 남긴다.
@@ -516,6 +538,17 @@ class ProjectEngine(
                 throw e
             }
         }
+    }
+
+    /**
+     * 스트리밍을 중간에 멈춰 사용량 보고를 받지 못했을 때의 어림값.
+     * 글자 수를 토큰으로 바꿀 때 한국어·영어 평균(약 2.5자/토큰)을 쓴다. 실제보다 조금 높게 잡는다.
+     */
+    private fun estimateUsage(model: app.ember.ideas.ai.ClaudeModel, messages: List<ChatMessage>, kind: ProjectKind, depth: DocDepth, outChars: Int): Usage {
+        val inChars = Protocol.documentSystem(lang, kind, depth).length + messages.sumOf { it.text.length }
+        val input = (inChars / CHARS_PER_TOKEN).toLong() + 1
+        val output = (outChars / CHARS_PER_TOKEN).toLong() + 1
+        return Usage(inputTokens = input, outputTokens = output, costUsd = model.cost(input, output, 0, 0), requests = 1)
     }
 
     private fun saveVersion(id: String, md: String, note: String, complete: Boolean, usage: Usage) {

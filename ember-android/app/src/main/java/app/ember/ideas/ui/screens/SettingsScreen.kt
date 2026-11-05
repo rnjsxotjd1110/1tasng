@@ -98,6 +98,9 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         Text(s.settingsTitle, style = MaterialTheme.typography.headlineLarge, color = c.text)
         Spacer(Modifier.height(12.dp))
 
+        Group(s.benchSection) {
+            app.ember.ideas.ui.screens.project.WorkbenchSettingsBlock()
+        }
         Group(s.groupClaude) {
             NavRow(
                 if (app.ember.ideas.account.ServerConfig.creditsEnabled) s.accessTitle else s.apiKey,
@@ -108,7 +111,11 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
                 },
                 onOpenKey, icon = Icons.Rounded.Key,
             )
-            NavRow(s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Memory, body = s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))))
+            NavRow(
+                s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Memory,
+                body = if (settings.usingCredits && !settings.purchased && settings.model == app.ember.ideas.ai.ClaudeModel.OPUS) s.freeSonnetNote
+                else s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))),
+            )
             ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) }, icon = Icons.Rounded.HourglassTop)
             ToggleRow(s.webSearchSetting, s.webSearchBody(s.estimate(app.ember.ideas.ai.WEB_SEARCH_USD)), settings.webSearch, { container.settings.setWebSearch(it) }, icon = Icons.Rounded.TravelExplore)
             if (settings.model == app.ember.ideas.ai.ClaudeModel.OPUS) {
@@ -225,6 +232,8 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
             dialog = null
             container.store.projects.value.forEach { container.engine.cancel(it.id) }
             container.store.deleteAll()
+            container.memos.clear()
+            container.molds.clear()
             container.settings.clearAll()
             container.images.cleanup(emptySet(), all = true)
             app.ember.ideas.report.CrashLog.clear(ctx)
@@ -357,7 +366,7 @@ fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}) {
                 Text(s.licenses, style = MaterialTheme.typography.titleMedium, color = c.text)
                 Spacer(Modifier.height(10.dp))
                 listOf(
-                    "Pretendard" to "SIL Open Font License 1.1 · © 2021 Kil Hyung-jin",
+                    "IBM Plex Sans KR" to "SIL Open Font License 1.1 · © IBM Corp.",
                     "Anthropic Java SDK" to "MIT License · © Anthropic",
                     "Jetpack Compose, AndroidX" to "Apache License 2.0 · © The Android Open Source Project",
                     "Kotlin, kotlinx.coroutines, kotlinx.serialization" to "Apache License 2.0 · © JetBrains",

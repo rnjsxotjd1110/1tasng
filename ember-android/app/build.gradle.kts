@@ -16,8 +16,8 @@ android {
         applicationId = "app.ember.ideas"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.3.0"
         vectorDrawables { useSupportLibrary = true }
 
         // 출시 설정. gradle.properties 나 -P 옵션으로 넣는다(비우면 해당 기능이 숨겨진다).
@@ -26,7 +26,7 @@ android {
         buildConfigField("String", "REPORT_EMAIL", "\"${prop("ember.reportEmail")}\"")
         buildConfigField("String", "PRIVACY_URL", "\"${prop("ember.privacyUrl")}\"")
         buildConfigField("double", "CREDIT_MARKUP", prop("ember.creditMarkup").ifEmpty { "1.5" })
-        buildConfigField("int", "FREE_CREDITS", prop("ember.freeCredits").ifEmpty { "150" })
+        buildConfigField("int", "FREE_CREDITS", prop("ember.freeCredits").ifEmpty { "40" })
     }
 
     // 서명 정보는 저장소에 넣지 않는다. keystore.properties(무시 목록)가 있으면 그 키로 서명한다.
@@ -104,6 +104,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.exifinterface:exifinterface:1.4.1")
     implementation("com.android.billingclient:billing-ktx:8.3.0")
+    implementation("com.google.android.play:integrity:1.4.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

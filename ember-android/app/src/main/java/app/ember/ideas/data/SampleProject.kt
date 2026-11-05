@@ -55,10 +55,10 @@ object SampleProject {
             Turn("규모", 72, "짧게 즐기는 아늑한 퍼즐 게임을 원합니다.", q("개발 규모는 어느 정도인가요?", "범위를 현실적으로 맞출게요.", false, "혼자, 3개월" to "🧑‍💻", "혼자, 6개월+" to "⏳", "소규모 팀" to "👥"), Answer(listOf("o1"))),
         )
         val ideas = listOf(
-            Idea("s_1", "등불지기", "꺼져 가는 등대 마을에 빛을 이어 붙여 밤을 지키는 한 손 퍼즐 게임.", "퍼즐", listOf("Android", "iOS"), "빛 연결 퍼즐", "출퇴근길에 짧게 플레이하는 20~40대", "빛줄기를 꺾어 모든 등불을 동시에 밝히는 순간의 쾌감", listOf("거울·프리즘으로 빛 경로 만들기", "하루 한 장의 '오늘의 밤' 퍼즐", "밝힌 집마다 주민 이야기 한 줄", "실수 없는 클리어 시 별빛 보너스"), "빛이 이야기를 여는 열쇠라서 퍼즐을 풀수록 마을이 살아납니다.", "광고 없는 유료(3,900원) + 계절 퍼즐 팩", "소형", "1인 3개월", 2, "아늑함·몽환적 분위기와 짧은 퍼즐, 1인 3개월 규모를 모두 만족합니다."),
-            Idea("s_2", "구름 우체국", "구름 위 우체부가 되어 편지를 바람길에 태워 보내는 경로 퍼즐.", "퍼즐", listOf("Android", "iOS"), "경로 퍼즐", "힐링 게임을 즐기는 사람", "바람의 방향을 바꿔 편지를 정확히 배달하는 손맛", listOf("바람 타일 회전", "편지 내용 수집", "주민 관계도"), "배달한 편지가 다음 퍼즐의 힌트가 됩니다.", "프리미엄 + 코스메틱", "소형", "1인 3~4개월", 2, "아늑한 분위기와 퍼즐 선호를 반영했습니다."),
-            Idea("s_3", "잠든 정원사", "꿈속 정원을 하루 5분씩 가꾸며 식물 퍼즐을 푸는 게임.", "퍼즐·방치", listOf("Android"), "가드닝 퍼즐", "가벼운 루틴을 찾는 사람", "매일 바뀌는 정원 배치 최적화", listOf("식물 배치 퍼즐", "꿈 일지", "계절 이벤트"), "실제 수면 시간과 연동한 꿈 테마", "무료 + 광고 제거", "소형", "1인 3개월", 2, "몽환적 분위기와 짧은 세션을 우선했습니다."),
-            Idea("s_4", "별자리 재봉사", "흩어진 별을 실로 꿰어 잃어버린 별자리를 복원하는 한붓그리기 퍼즐.", "퍼즐", listOf("Android", "iOS"), "한붓그리기", "퍼즐 마니아", "한 번에 이어지는 선의 완벽함", listOf("실 길이 제한", "별자리 신화 카드", "타임어택 모드"), "별자리 신화를 퍼즐 규칙으로 바꿨습니다.", "유료", "소형", "1인 2~3개월", 3, "퍼즐 중심과 몽환적 분위기를 반영했습니다."),
+            Idea("s_1", "등불지기", "꺼져 가는 등대 마을에 빛을 이어 붙여 밤을 지키는 한 손 퍼즐 게임.", "퍼즐", listOf("Android", "iOS"), "빛 연결 퍼즐", "출퇴근길에 짧게 플레이하는 20~40대", "빛줄기를 꺾어 모든 등불을 동시에 밝히는 순간의 쾌감", listOf("거울·프리즘으로 빛 경로 만들기", "하루 한 장의 '오늘의 밤' 퍼즐", "밝힌 집마다 주민 이야기 한 줄", "실수 없는 클리어 시 별빛 보너스"), "빛이 이야기를 여는 열쇠라서 퍼즐을 풀수록 마을이 살아납니다.", "광고 없는 유료(3,900원) + 계절 퍼즐 팩", "소형", "1인 3개월", 2, "아늑함·몽환적 분위기와 짧은 퍼즐, 1인 3개월 규모를 모두 만족합니다.", funScore = 5, noveltyScore = 4),
+            Idea("s_2", "구름 우체국", "구름 위 우체부가 되어 편지를 바람길에 태워 보내는 경로 퍼즐.", "퍼즐", listOf("Android", "iOS"), "경로 퍼즐", "힐링 게임을 즐기는 사람", "바람의 방향을 바꿔 편지를 정확히 배달하는 손맛", listOf("바람 타일 회전", "편지 내용 수집", "주민 관계도"), "배달한 편지가 다음 퍼즐의 힌트가 됩니다.", "프리미엄 + 코스메틱", "소형", "1인 3~4개월", 2, "아늑한 분위기와 퍼즐 선호를 반영했습니다.", funScore = 4, noveltyScore = 3),
+            Idea("s_3", "잠든 정원사", "꿈속 정원을 하루 5분씩 가꾸며 식물 퍼즐을 푸는 게임.", "퍼즐·방치", listOf("Android"), "가드닝 퍼즐", "가벼운 루틴을 찾는 사람", "매일 바뀌는 정원 배치 최적화", listOf("식물 배치 퍼즐", "꿈 일지", "계절 이벤트"), "실제 수면 시간과 연동한 꿈 테마", "무료 + 광고 제거", "소형", "1인 3개월", 2, "몽환적 분위기와 짧은 세션을 우선했습니다.", funScore = 3, noveltyScore = 4),
+            Idea("s_4", "별자리 재봉사", "흩어진 별을 실로 꿰어 잃어버린 별자리를 복원하는 한붓그리기 퍼즐.", "퍼즐", listOf("Android", "iOS"), "한붓그리기", "퍼즐 마니아", "한 번에 이어지는 선의 완벽함", listOf("실 길이 제한", "별자리 신화 카드", "타임어택 모드"), "별자리 신화를 퍼즐 규칙으로 바꿨습니다.", "유료", "소형", "1인 2~3개월", 3, "퍼즐 중심과 몽환적 분위기를 반영했습니다.", funScore = 4, noveltyScore = 5),
         )
         val doc = SAMPLE_DOC_KO
         return Project(
@@ -94,7 +94,7 @@ object SampleProject {
             Turn("Platform", 35, "You want to make a game.", q("Where will people play?", "This shapes controls and session length.", false, "Mobile" to "📱", "PC" to "💻", "Console" to "🕹️"), Answer(listOf("o1"))),
             Turn("Mood", 60, "You are picturing a mobile game.", q("Which mood draws you in?", "Sets the art and sound direction.", true, "Cozy" to "🕯️", "Dreamy" to "🌙", "Tense" to "⚡"), Answer(listOf("o1", "o2"))),
         )
-        val idea = Idea("s_1", "Lamplighter", "A one-handed puzzle game where you link light across a fading lighthouse town to keep the night safe.", "Puzzle", listOf("Android", "iOS"), "Light-routing puzzle", "Commuters aged 20–40", "The rush of lighting every lamp at once", listOf("Bend light with mirrors and prisms", "One 'Tonight' puzzle per day", "A line of story per lit house", "Starlight bonus for flawless clears"), "Light unlocks the story, so the town comes alive as you solve.", "Premium ($2.99) + seasonal packs", "Small", "Solo, 3 months", 2, "Matches your cozy, dreamy mood, short sessions and solo scope.")
+        val idea = Idea("s_1", "Lamplighter", "A one-handed puzzle game where you link light across a fading lighthouse town to keep the night safe.", "Puzzle", listOf("Android", "iOS"), "Light-routing puzzle", "Commuters aged 20–40", "The rush of lighting every lamp at once", listOf("Bend light with mirrors and prisms", "One 'Tonight' puzzle per day", "A line of story per lit house", "Starlight bonus for flawless clears"), "Light unlocks the story, so the town comes alive as you solve.", "Premium ($2.99) + seasonal packs", "Small", "Solo, 3 months", 2, "Matches your cozy, dreamy mood, short sessions and solo scope.", funScore = 5, noveltyScore = 4)
         return k.copy(
             id = "sample_en",
             title = "Lamplighter",

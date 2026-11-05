@@ -1,16 +1,15 @@
 package app.ember.ideas.ui.screens
 
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.material.icons.rounded.AddPhotoAlternate
-import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,74 +19,92 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.Category
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Casino
-import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Savings
-import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SportsEsports
-import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.ember.ideas.container
+import app.ember.ideas.data.DailySpark
+import app.ember.ideas.data.DepthMode
+import app.ember.ideas.data.Memo
+import app.ember.ideas.data.Mold
+import app.ember.ideas.data.MoldCatalog
 import app.ember.ideas.data.Project
 import app.ember.ideas.data.ProjectKind
 import app.ember.ideas.data.ProjectStage
 import app.ember.ideas.ui.components.EmberCard
-import app.ember.ideas.ui.components.EmberChip
-import app.ember.ideas.ui.components.EmberProgress
 import app.ember.ideas.ui.components.EmberTextField
+import app.ember.ideas.ui.components.ForgeIcons
+import app.ember.ideas.ui.components.ForgeTile
 import app.ember.ideas.ui.components.GhostButton
+import app.ember.ideas.ui.components.Heat
+import app.ember.ideas.ui.components.HeatGauge
 import app.ember.ideas.ui.components.PrimaryButton
-import app.ember.ideas.ui.components.SectionLabel
 import app.ember.ideas.ui.components.SecondaryButton
-import app.ember.ideas.ui.components.Tag
 import app.ember.ideas.ui.strings.LocalStrings
+import app.ember.ideas.ui.text.Text
 import app.ember.ideas.ui.theme.Ember
-import java.util.Calendar
+import app.ember.ideas.ui.theme.EmberShape
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * 화로(홈). 오늘의 불씨, 새로 단련하기(종류·거푸집·떠오른 생각·단련 깊이), 화로 위에 있는 것.
+ */
 @Composable
 fun HomeScreen(
     onOpenProject: (String) -> Unit,
     onNeedKey: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenLibrary: () -> Unit,
+    onOpenMold: (String?) -> Unit = {},
+    onManageMolds: () -> Unit = {},
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -96,13 +113,21 @@ fun HomeScreen(
     val projects by container.store.projects.collectAsState()
     val settings by container.settings.settings.collectAsState()
     val ops by container.engine.ops.collectAsState()
+    val molds by container.molds.items.collectAsState()
+    val memos by container.memos.items.collectAsState()
     val focus = LocalFocusManager.current
 
     var kind by rememberSaveable { mutableStateOf<ProjectKind?>(null) }
     var seed by rememberSaveable { mutableStateOf("") }
-    var shuffle by remember { mutableStateOf(0) }
     var images by rememberSaveable { mutableStateOf(listOf<String>()) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var moldId by rememberSaveable { mutableStateOf<String?>(null) }
+    var memoId by rememberSaveable { mutableStateOf<String?>(null) }
+    var depth by rememberSaveable { mutableStateOf(settings.depth) }
+    var sparkOffset by rememberSaveable { mutableIntStateOf(0) }
+    var memoSheet by remember { mutableStateOf(false) }
+    var pickMemo by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val mold = molds.firstOrNull { it.id == moldId }
 
     fun addImage(uri: android.net.Uri) {
         if (images.size >= app.ember.ideas.data.ImageStore.MAX_IMAGES) return
@@ -118,41 +143,70 @@ fun HomeScreen(
 
     // 다른 앱에서 공유받은 글·이미지를 한 번만 가져온다.
     val shared = app.ember.ideas.SharedSeed.value.value
-    androidx.compose.runtime.LaunchedEffect(shared) {
+    LaunchedEffect(shared) {
         val sh = shared ?: return@LaunchedEffect
         app.ember.ideas.SharedSeed.shared = null
         if (sh.text.isNotBlank()) seed = sh.text.take(400)
         if (kind == null) kind = ProjectKind.ANY
         sh.image?.let { addImage(it) }
     }
+    // 원석함에서 '이 원석으로 단련'을 누르면 그 원석을 가져온다.
+    val oreSeed = OreSeed.value.value
+    LaunchedEffect(oreSeed) {
+        val m = oreSeed ?: return@LaunchedEffect
+        OreSeed.value.value = null
+        seed = m.text.take(400)
+        memoId = m.id
+        images = listOfNotNull(m.imagePath)
+        if (kind == null) kind = kindFromTags(m.tags) ?: ProjectKind.ANY
+    }
+    // 원석함·거푸집 화면에서 '이 거푸집으로 시작'을 누르면 그 거푸집을 고른다.
+    val moldSeed = MoldSeed.value.value
+    LaunchedEffect(moldSeed) {
+        val id = moldSeed ?: return@LaunchedEffect
+        MoldSeed.value.value = null
+        val m = container.molds.get(id) ?: return@LaunchedEffect
+        moldId = m.id
+        m.kind?.let { kind = it }
+        m.depth?.let { depth = it }
+    }
 
-    val inProgress = projects.filter { !it.isSample && it.stage != ProjectStage.DOCUMENT }.take(8)
-    val docs = projects.filter { it.design?.latest != null }.take(3)
+    val onFire = projects.filter { !it.isSample }.take(6)
 
-    fun start(quick: Boolean = false) {
-        val k = kind ?: return
+    fun start(quick: Boolean = false, overrideSeed: String? = null) {
+        val k = kind ?: ProjectKind.ANY
         if (!settings.ready) { onNeedKey(); return }
         focus.clearFocus()
-        val p = container.engine.createProject(k, seed, s.defaultProjectTitle(k), quick, images)
+        val presets = mold?.let { MoldCatalog.presets(it, s.isKorean) }.orEmpty()
+        val p = container.engine.createProject(
+            k, overrideSeed ?: seed, s.defaultProjectTitle(k), quick, images,
+            presets = presets, moldName = mold?.name.orEmpty(), depth = depth, memoId = memoId,
+        )
+        mold?.let { m -> container.molds.update(m.id) { it.copy(usedCount = it.usedCount + 1) } }
+        memoId?.let { id -> container.memos.update(id) { it.copy(projectIds = it.projectIds + p.id) } }
+        if (depth != settings.depth) container.settings.setDepth(depth)
         seed = ""
         images = emptyList()
         kind = null
+        memoId = null
         onOpenProject(p.id)
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 72.dp),
-    ) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
         item {
             Row(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 8.dp, top = 12.dp),
+                Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(androidx.compose.ui.res.painterResource(app.ember.ideas.R.drawable.ic_ember_mark), null, tint = Color.Unspecified, modifier = Modifier.size(width = 18.dp, height = 28.dp))
+                Icon(androidx.compose.ui.res.painterResource(app.ember.ideas.R.drawable.ic_ember_mark), null, tint = Color.Unspecified, modifier = Modifier.size(width = 18.dp, height = 26.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Ember", style = MaterialTheme.typography.titleLarge, color = c.text, modifier = Modifier.weight(1f))
-                GhostButton(s.profileButton, onOpenProfile, icon = Icons.Rounded.Person, color = c.textMuted)
+                Text("Ember", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
+                Box(
+                    Modifier.size(44.dp).clip(EmberShape.control).border(1.dp, c.outline, EmberShape.control)
+                        .clickable(role = Role.Button) { memoSheet = true }
+                        .semantics { contentDescription = s.memoQuick },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(ForgeIcons.Ore, null, tint = c.text, modifier = Modifier.size(20.dp)) }
             }
         }
         if (settings.monthlyBudgetUsd > 0 && settings.monthUsage.costUsd >= settings.monthlyBudgetUsd * 0.8) {
@@ -168,132 +222,139 @@ fun HomeScreen(
                 }
             }
         }
-        if (inProgress.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(16.dp))
-                SectionLabel(s.continueSection, Modifier.padding(horizontal = 20.dp))
-            }
-            item {
-                if (inProgress.size == 1) {
-                    val p = inProgress.first()
-                    Box(Modifier.padding(horizontal = 20.dp)) { ContinueCard(p, busy = ops[p.id]?.running == true, full = true) { onOpenProject(p.id) } }
-                } else {
-                    Box {
-                        LazyRow(contentPadding = PaddingValues(start = 20.dp, end = 40.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(inProgress, key = { it.id }) { p ->
-                                ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
-                            }
-                        }
-                        Box(Modifier.align(Alignment.CenterEnd).width(36.dp).height(80.dp).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(c.bg.copy(alpha = 0f), c.bg))))
+
+        // ------------------------------------------------ 오늘의 불씨
+        item {
+            val spark = DailySpark.today(s.isKorean, sparkOffset)
+            SparkCard(spark, onStart = {
+                if (!settings.ready) onNeedKey() else start(overrideSeed = spark)
+            }, onOther = { sparkOffset++ })
+        }
+
+        // ------------------------------------------------ 새로 단련하기
+        item {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                Spacer(Modifier.height(28.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.forgeNew, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
+                    Text(s.whatToMake, style = MaterialTheme.typography.labelMedium, color = c.textMuted)
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(ProjectKind.GAME, ProjectKind.APP, ProjectKind.WEB, ProjectKind.ANY).forEach { k ->
+                        ForgeTile(s.kindShort(k), kindIcon(k), kind == k, { kind = if (kind == k) null else k }, Modifier.weight(1f))
                     }
                 }
+
+                Spacer(Modifier.height(20.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.moldsSkip, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted, modifier = Modifier.weight(1f))
+                    Text(
+                        s.manage, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = c.ember,
+                        modifier = Modifier.clip(EmberShape.chip).clickable(role = Role.Button, onClick = onManageMolds).padding(horizontal = 6.dp, vertical = 8.dp),
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                molds.sortedByDescending { it.usedCount }.forEach { m ->
+                    MoldChip(m, m.id == moldId, s.moldSkips(m.picks.size)) {
+                        if (moldId == m.id) moldId = null else {
+                            moldId = m.id
+                            m.kind?.let { kind = it }
+                            m.depth?.let { depth = it }
+                        }
+                    }
+                }
+                NewMoldChip(s.newMold) { onOpenMold(null) }
             }
         }
 
         item {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Spacer(Modifier.height(if (inProgress.isNotEmpty()) 24.dp else 28.dp))
-                if (inProgress.isEmpty()) {
-                    Text(s.greeting(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)), style = MaterialTheme.typography.titleSmall, color = c.ember)
-                    Spacer(Modifier.height(8.dp))
-                    Text(s.homeHeadline, style = MaterialTheme.typography.displaySmall, color = c.text)
-                    Spacer(Modifier.height(10.dp))
-                    Text(s.homeSub, style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
-                    Spacer(Modifier.height(24.dp))
-                } else {
-                    Text(s.newIdeaHeadline, style = MaterialTheme.typography.headlineSmall, color = c.text)
-                    Spacer(Modifier.height(14.dp))
-                }
-                Text(s.pickKind, style = MaterialTheme.typography.titleSmall, color = c.textMuted)
-                Spacer(Modifier.height(10.dp))
-                listOf(listOf(ProjectKind.GAME, ProjectKind.APP), listOf(ProjectKind.WEB, ProjectKind.ANY)).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { k -> EmberChip(s.kindLabel(k), kind == k, { kind = if (kind == k) null else k }, Modifier.weight(1f), icon = kindIcon(k)) }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
                 EmberTextField(
                     value = seed,
-                    onValueChange = { seed = it },
-                    placeholder = s.seedPlaceholder,
-                    minHeight = if (inProgress.isEmpty()) 92.dp else 56.dp,
+                    onValueChange = { seed = it; if (it.isBlank()) memoId = null },
+                    placeholder = s.seedForgePlaceholder,
+                    minHeight = 56.dp,
                     maxLength = 400,
+                    leading = ForgeIcons.OreSimple,
                 )
-                Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GhostButton(modifier = Modifier.offset(x = (-14).dp), text = s.inspireMe, onClick = {
-                        shuffle++
-                        seed = s.inspirations.random()
-                        if (kind == null) kind = ProjectKind.ANY
-                    }, icon = Icons.Rounded.Casino)
+                    if (memos.isNotEmpty()) GhostButton(s.fromOreBox, { pickMemo = true }, icon = ForgeIcons.Ore, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
                     if (images.size < app.ember.ideas.data.ImageStore.MAX_IMAGES) {
-                        GhostButton(modifier = Modifier.offset(x = (-14).dp), text = s.attachImage, onClick = {
+                        GhostButton(s.attachImage, {
                             picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        }, icon = Icons.Rounded.AddPhotoAlternate)
+                        }, icon = Icons.Rounded.AddPhotoAlternate, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
                     }
                     Spacer(Modifier.weight(1f))
-                    if (seed.isNotEmpty()) Text("${seed.length}/400", style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(end = 6.dp))
+                    if (seed.isNotEmpty()) Text("${seed.length}/400", style = MaterialTheme.typography.labelSmall, color = c.textFaint)
                 }
                 if (images.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                        images.forEach { path -> ImageThumb(path, s.removeImage) { images = images - path; container.images.delete(path) } }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        images.forEach { path ->
+                            ImageThumb(path, s.removeImage) {
+                                images = images - path
+                                // 원석에 붙은 사진은 원석함에 남아 있어야 하므로 지우지 않는다.
+                                if (memos.none { it.imagePath == path }) container.images.delete(path)
+                            }
+                        }
                     }
                     Text(s.imageHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 8.dp))
                 }
-                Spacer(Modifier.height(12.dp))
-                PrimaryButton(
-                    text = when {
-                        !settings.ready -> s.connectToStart
-                        kind == null -> s.pickKindFirst
-                        else -> s.startDiscovery
-                    },
-                    onClick = { if (!settings.ready) onNeedKey() else start() },
-                    enabled = kind != null || !settings.ready,
-                    modifier = Modifier.fillMaxWidth(),
-                    icon = if (!settings.ready) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
-                )
-                if (!settings.ready) {
-                    Text(
-                        s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(app.ember.ideas.ai.ClaudeModel.OPUS)), s.modelShort(app.ember.ideas.ai.ClaudeModel.OPUS)),
-                        style = MaterialTheme.typography.bodySmall, color = c.textFaint,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    )
-                }
-                if (settings.ready) {
-                    Text(
-                        s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.textFaint,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    )
-                    if (kind != null) {
+
+                AnimatedVisibility(kind != null || mold != null || seed.isNotBlank(), enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                    Column {
+                        Spacer(Modifier.height(14.dp))
+                        Text(s.depthTitle, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
                         Spacer(Modifier.height(8.dp))
-                        SecondaryButton(s.quickIdeas, { start(quick = true) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.FastForward, height = 48.dp)
+                        DepthPicker(depth) { depth = it }
+                        Spacer(Modifier.height(14.dp))
+                        if (settings.ready) {
+                            PrimaryButton(s.startDiscovery, { start() }, Modifier.fillMaxWidth())
+                            Text(
+                                s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+                                style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            GhostButton(s.quickIdeas, { start(quick = true) }, icon = Icons.Rounded.FastForward, color = c.textMuted, modifier = Modifier.align(Alignment.CenterHorizontally))
+                        } else {
+                            PrimaryButton(s.connectToStart, onNeedKey, Modifier.fillMaxWidth(), icon = Icons.Rounded.Key)
+                        }
                     }
-                } else {
+                }
+                if (!settings.ready) {
                     Spacer(Modifier.height(12.dp))
                     SecondaryButton(s.demoTry, {
                         val p = container.engine.createDemoProject(s.demoTitle)
                         onOpenProject(p.id)
                     }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PlayArrow)
                     Text(s.noKeyHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 10.dp))
-
                 }
             }
         }
 
-        if (docs.isNotEmpty()) {
+        // ------------------------------------------------ 화로 위에 있는 것
+        if (onFire.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(28.dp))
-                SectionLabel(s.recentDocs, Modifier.padding(horizontal = 20.dp)) {
-                    GhostButton(s.seeAll, onOpenLibrary, color = c.textMuted, modifier = Modifier.offset(x = 14.dp))
+                Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.onTheFire, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
+                    Text(
+                        s.countN(projects.count { !it.isSample }), style = MaterialTheme.typography.labelMedium, color = c.textMuted,
+                        modifier = Modifier.clip(EmberShape.chip).clickable(role = Role.Button, onClick = onOpenLibrary).padding(horizontal = 6.dp, vertical = 8.dp),
+                    )
                 }
             }
-            items(docs, key = { "doc_" + it.id }) { p ->
-                DocRow(p) { onOpenProject(p.id) }
+            items(onFire, key = { "fire_" + it.id }) { p ->
+                val op = ops[p.id]
+                FireRow(p, busy = op?.running == true, opKind = op?.kind) { onOpenProject(p.id) }
             }
         }
 
@@ -315,89 +376,180 @@ fun HomeScreen(
             }
         }
     }
-}
 
-fun kindIcon(k: ProjectKind): androidx.compose.ui.graphics.vector.ImageVector = when (k) {
-    ProjectKind.GAME -> Icons.Rounded.SportsEsports
-    ProjectKind.APP -> Icons.Rounded.PhoneAndroid
-    ProjectKind.WEB -> Icons.Rounded.Language
-    ProjectKind.ANY -> Icons.Rounded.Category
-}
-
-@Composable
-private fun ContinueCard(p: Project, busy: Boolean, full: Boolean = false, onClick: () -> Unit) {
-    val s = LocalStrings.current
-    val c = Ember.colors
-    val progress = when (p.stage) {
-        ProjectStage.INTERVIEW -> (p.turns.lastOrNull()?.progress ?: 0) / 100f * 0.5f
-        ProjectStage.IDEAS -> 0.55f
-        ProjectStage.DESIGN_INTERVIEW -> 0.6f + (p.design?.turns?.lastOrNull()?.progress ?: 0) / 100f * 0.3f
-        ProjectStage.DOCUMENT -> 1f
-    }
-    EmberCard(if (full) Modifier.fillMaxWidth() else Modifier.width(240.dp), onClick = onClick, padding = PaddingValues(14.dp)) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                KindBadge(p.kind, 36)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(p.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        if (busy) s.working else if (p.stage == ProjectStage.IDEAS) continueHint(p, s) else s.stageLabel(p.stage) + " · " + continueHint(p, s),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (busy) c.ember else c.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            EmberProgress(progress, height = 4.dp)
-        }
+    if (memoSheet) QuickMemoSheet { memoSheet = false }
+    if (pickMemo) MemoPickerSheet(memos, onDismiss = { pickMemo = false }) { m ->
+        pickMemo = false
+        seed = m.text.take(400)
+        memoId = m.id
+        images = listOfNotNull(m.imagePath)
+        if (kind == null) kind = kindFromTags(m.tags)
     }
 }
 
-private fun continueHint(p: Project, s: app.ember.ideas.ui.strings.Strings): String = when (p.stage) {
-    ProjectStage.INTERVIEW -> s.answeredN(p.answeredCount)
-    ProjectStage.IDEAS -> s.ideasCount(p.allIdeas.size)
-    ProjectStage.DESIGN_INTERVIEW -> p.design?.turns?.lastOrNull()?.question?.title ?: s.stageLabel(p.stage)
-    ProjectStage.DOCUMENT -> s.stageLabel(p.stage)
+/** 원석의 태그로 만들 것의 종류를 짐작한다. */
+private fun kindFromTags(tags: List<String>): ProjectKind? {
+    val t = tags.map { it.lowercase() }
+    return when {
+        t.any { it == "게임" || it == "game" } -> ProjectKind.GAME
+        t.any { it == "앱" || it == "app" } -> ProjectKind.APP
+        t.any { it == "웹" || it == "web" } -> ProjectKind.WEB
+        else -> null
+    }
 }
 
+/** 원석함에서 고른 원석을 화로로 넘기는 곳. */
+object OreSeed { val value = mutableStateOf<Memo?>(null) }
+
+/** 거푸집 화면에서 고른 거푸집 id 를 화로로 넘기는 곳. */
+object MoldSeed { val value = mutableStateOf<String?>(null) }
+
 @Composable
-private fun DocRow(p: Project, onClick: () -> Unit) {
+private fun SparkCard(spark: String, onStart: () -> Unit, onOther: () -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
-    Row(
+    Box(
         Modifier
+            .padding(start = 20.dp, end = 20.dp, top = 18.dp)
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(EmberShape.panel)
+            .background(c.surface)
+            .border(1.dp, c.outline, EmberShape.panel),
     ) {
-        Icon(Icons.Rounded.Description, null, tint = c.textFaint, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(p.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (p.isSample) {
-                    Spacer(Modifier.width(6.dp))
-                    Tag(s.sample, color = c.gold, strong = true)
-                }
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                p.selectedIdea?.logline ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        // 오른쪽 위에서 화로 불빛이 번진다(움직이지 않는 장식 한 곳).
+        Canvas(Modifier.matchParentSize()) {
+            drawRect(
+                Brush.radialGradient(
+                    listOf(c.ember.copy(alpha = if (c.isDark) 0.30f else 0.16f), Color.Transparent),
+                    center = Offset(size.width * 0.82f, size.height * 0.12f),
+                    radius = size.width * 0.42f,
+                ),
             )
         }
-        Spacer(Modifier.width(8.dp))
-        Text(s.relativeTime(p.updatedAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint)
+        Column(Modifier.padding(20.dp)) {
+            Text(s.dailySpark, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = c.ember)
+            Spacer(Modifier.height(8.dp))
+            Text(spark, style = MaterialTheme.typography.headlineMedium, color = c.text)
+            Spacer(Modifier.height(8.dp))
+            Text(s.dailySparkBody, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton(s.startWithSpark, onStart, Modifier.weight(1f), height = 48.dp)
+                SecondaryButton(s.otherSpark, onOther, height = 48.dp)
+            }
+        }
     }
 }
 
+@Composable
+private fun MoldChip(m: Mold, selected: Boolean, sub: String, onClick: () -> Unit) {
+    val c = Ember.colors
+    Column(
+        Modifier
+            .clip(EmberShape.control)
+            .background(if (selected) c.gold.copy(alpha = 0.12f) else c.surface)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) c.gold else c.outline, EmberShape.control)
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(m.name, style = MaterialTheme.typography.labelLarge, color = c.text, maxLines = 1)
+        Text(sub, style = MaterialTheme.typography.labelSmall, color = if (selected) c.gold else c.textMuted, maxLines = 1)
+    }
+}
+
+@Composable
+private fun NewMoldChip(label: String, onClick: () -> Unit) {
+    val c = Ember.colors
+    Box(
+        Modifier
+            .clip(EmberShape.control)
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 52.dp)
+            .drawDashedBorder(c.outline)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1)
+    }
+}
+
+/** 아직 없는 것을 만드는 자리: 점선 테두리. */
+fun Modifier.drawDashedBorder(color: Color): Modifier = this.then(
+    Modifier.drawBehind {
+        drawRoundRect(
+            color = color,
+            style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx()),
+        )
+    },
+)
+
+/** 단련 깊이: 짧게·보통·길게. */
+@Composable
+fun DepthPicker(depth: DepthMode, onPick: (DepthMode) -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DepthMode.entries.forEach { d ->
+            val on = d == depth
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clip(EmberShape.control)
+                    .background(if (on) c.emberSoft else c.surface)
+                    .border(if (on) 1.5.dp else 1.dp, if (on) c.ember else c.outline, EmberShape.control)
+                    .clickable(role = Role.RadioButton) { onPick(d) }
+                    .heightIn(min = 56.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(s.depthLabel(d), style = MaterialTheme.typography.labelLarge, color = c.text, maxLines = 1)
+                Text(s.depthHint(d), style = MaterialTheme.typography.labelSmall, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FireRow(p: Project, busy: Boolean, opKind: app.ember.ideas.data.OpKind?, onClick: () -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    val heat = Heat.of(p, if (busy) opKind else null)
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp)) {
+        Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(p.title, style = MaterialTheme.typography.titleMedium, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(8.dp))
+                HeatGauge(heat, Modifier.width(170.dp), flowing = busy)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                when {
+                    busy -> s.working
+                    heat.tempered -> s.blueprintDone
+                    else -> s.stageLabel(p.stage)
+                },
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = when {
+                    heat.tempered -> c.steel
+                    busy -> c.ember
+                    p.stage == ProjectStage.IDEAS -> c.gold
+                    else -> c.heat
+                },
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline.copy(alpha = 0.6f)))
+    }
+}
+
+fun kindIcon(k: ProjectKind): ImageVector = when (k) {
+    ProjectKind.GAME -> ForgeIcons.Game
+    ProjectKind.APP -> ForgeIcons.Phone
+    ProjectKind.WEB -> ForgeIcons.Globe
+    ProjectKind.ANY -> ForgeIcons.Unknown
+}
 
 /** 분야별 색 아이콘으로 프로젝트를 구분한다. 바탕 타일 없이 아이콘만 둔다. */
 @Composable
@@ -405,15 +557,14 @@ fun KindBadge(kind: ProjectKind, sizeDp: Int) {
     val c = Ember.colors
     val tint = when (kind) {
         ProjectKind.GAME -> c.ember
-        ProjectKind.APP -> c.info
-        ProjectKind.WEB -> c.success
-        ProjectKind.ANY -> c.gold
+        ProjectKind.APP -> c.heat
+        ProjectKind.WEB -> c.gold
+        ProjectKind.ANY -> c.textMuted
     }
     Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
         Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size((sizeDp * 0.62f).dp))
     }
 }
-
 
 /** 첨부한 참고 이미지의 작은 미리 보기. 오른쪽 위 버튼으로 뺀다. */
 @Composable
@@ -424,15 +575,15 @@ fun ImageThumb(path: String, removeLabel: String?, size: androidx.compose.ui.uni
             android.graphics.BitmapFactory.decodeFile(path, android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 })?.asImageBitmap()
         }.getOrNull()
     }
-    Box(Modifier.size(size).clip(app.ember.ideas.ui.theme.EmberShape.chip).background(c.surface2)) {
+    Box(Modifier.size(size).clip(EmberShape.chip).background(c.surface2)) {
         if (bmp != null) {
             androidx.compose.foundation.Image(bmp, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         }
         if (onRemove != null) {
             Box(
-                Modifier.align(Alignment.TopEnd).size(28.dp).clip(app.ember.ideas.ui.theme.EmberShape.tag)
+                Modifier.align(Alignment.TopEnd).size(28.dp).clip(EmberShape.tag)
                     .background(Color.Black.copy(alpha = 0.55f))
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onRemove)
+                    .clickable(role = Role.Button, onClick = onRemove)
                     .semantics { contentDescription = removeLabel ?: "" },
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(16.dp)) }

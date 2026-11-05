@@ -1,5 +1,10 @@
 package app.ember.ideas.shots
 
+import app.ember.ideas.data.Memo
+import app.ember.ideas.data.Mold
+import app.ember.ideas.data.DepthMode
+import app.ember.ideas.data.PresetAnswer
+import app.ember.ideas.ui.screens.MoldScreen
 import app.ember.ideas.account.ServerConfig
 import app.ember.ideas.data.Reference
 import app.ember.ideas.SharedSeed
@@ -199,7 +204,7 @@ class ScreenshotTest {
         setContent { ProjectScreen("p_interview", {}, {}) }
         click("아늑하고 따뜻한")
         click("몽환적인")
-        click("다음")
+        click("두드리기")
         shot("07_interview_thinking", 2000)
     }
 
@@ -218,7 +223,7 @@ class ScreenshotTest {
         setContent { ProjectScreen("p_interview", {}, {}) }
         click("아늑하고 따뜻한")
         click("몽환적인")
-        click("다음")
+        click("두드리기")
         ShadowLooper.idleMainLooper()
         shot("08_interview_error")
     }
@@ -243,7 +248,7 @@ class ScreenshotTest {
         c.store.upsert(ideasProject())
         setContent(auto = true) { ProjectScreen("p_ideas", {}, {}) }
         click("지하철 정원사")
-        click("이 아이디어로 설계하기")
+        click("도면으로 단조")
         shot("11_design_setup", 1500)
     }
 
@@ -281,7 +286,9 @@ class ScreenshotTest {
         withKey()
         c.store.upsert(SampleProject.korean())
         setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
-        click("Claude로 이어가기")
+        click("작업대로 보내기")
+        shot("15_workbench_pair", 1500)
+        click("Claude 앱")
         shot("15_handoff", 1500)
     }
 
@@ -300,7 +307,7 @@ class ScreenshotTest {
         c.store.upsert(SampleProject.koreanApp())
         c.store.upsert(interviewProject())
         c.store.upsert(ideasProject().copy(favorite = true))
-        setContent { MainTabs({}, {}, {}, {}, initialTab = 1) }
+        setContent { MainTabs({}, {}, {}, {}, initialTab = 2) }
         shot("17_library")
     }
 
@@ -309,7 +316,7 @@ class ScreenshotTest {
         c.settings.setProfile(DevProfile("1~3년", listOf("Godot", "Unity", "Unreal Engine"), "혼자", ""))
         c.settings.addUsage(Usage(48_200, 21_400, 9_000, 3_000, 0.71, 23))
         c.settings.setMonthlyBudget(10000 / 1400.0)
-        setContent { MainTabs({}, {}, {}, {}, initialTab = 2) }
+        setContent { MainTabs({}, {}, {}, {}, initialTab = 3) }
         shot("18_settings")
     }
 
@@ -365,7 +372,7 @@ class ScreenshotTest {
         c.store.upsert(SampleProject.koreanApp())
         c.store.upsert(interviewProject())
         c.store.upsert(ideasProject().copy(favorite = true))
-        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 1) }
+        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 2) }
         rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("더 많은 동작")).onFirst().performClick()
         shot("25_library_menu")
     }
@@ -461,7 +468,7 @@ class ScreenshotTest {
         c.store.upsert(interviewProject())
         setContent { ProjectScreen("p_interview", {}, {}) }
         click("아늑하고 따뜻한")
-        click("다음")
+        click("두드리기")
         shot("35_partial_question", 1500)
     }
 
@@ -506,7 +513,7 @@ class ScreenshotTest {
     @Test fun s39_settings_data() {
         withKey()
         c.settings.setGithub("ghp_test", "octo")
-        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 2) }
+        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 3) }
         rule.onAllNodes(hasPlainText("Android 백업을 켜 두면"), useUnmergedTree = true).onFirst().performScrollTo()
         shot("39_settings_data", 1500)
     }
@@ -516,6 +523,55 @@ class ScreenshotTest {
         CrashLog.write(app, Thread.currentThread(), IllegalStateException("test"))
         setContent { MainTabs({}, {}, {}, {}) }
         shot("40_crash_prompt")
+    }
+
+    @Test fun s41_workbench_paired() {
+        withKey()
+        c.settings.setWorkbench("tok_test", "127.0.0.1", 1, "작업실 PC", "pc1")
+        c.store.upsert(SampleProject.korean())
+        setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
+        click("작업대로 보내기")
+        shot("41_workbench_send", 2500)
+    }
+
+    @Test fun s42_orebox() {
+        withKey()
+        val now = System.currentTimeMillis()
+        c.memos.upsert(Memo("m3", "노트에 그린 등대 지도 스케치", listOf("게임"), createdAt = now - 7 * 86_400_000L))
+        c.memos.upsert(Memo("m2", "퇴근길 1분 회고 앱에 날씨 기록을 붙이면? #앱", listOf("앱"), createdAt = now - 3 * 86_400_000L))
+        c.memos.upsert(Memo("m1", "막차를 놓친 사람들이 정류장에서 서로 이야기를 나누는 장면. 대사보다 불빛으로. #게임 #밤", listOf("게임", "밤"), pinned = true, createdAt = now - 86_400_000L))
+        c.molds.upsert(Mold("k1", "주말 바이브 코딩", mapOf("purpose" to "바이브 코딩", "method" to "AI에게 맡김", "platform" to "웹", "scope" to "주말", "engine" to "웹(JS)"), createdAt = now))
+        setContent { MainTabs({}, {}, {}, {}, initialTab = 1) }
+        shot("42_orebox")
+    }
+
+    @Test fun s43_mold_editor() {
+        val now = System.currentTimeMillis()
+        c.molds.upsert(Mold("k1", "주말 바이브 코딩", mapOf("purpose" to "바이브 코딩", "method" to "AI에게 맡김", "platform" to "웹", "scope" to "주말", "engine" to "웹(JS)"), depth = DepthMode.SHORT, kind = ProjectKind.GAME, createdAt = now))
+        setContent { MoldScreen("k1", {}, {}) }
+        shot("43_mold_editor")
+    }
+
+    @Test fun s44_home_mold() {
+        withKey()
+        val now = System.currentTimeMillis()
+        c.molds.upsert(Mold("k2", "1인 모바일 3개월", mapOf("purpose" to "출시·수익", "platform" to "모바일", "scope" to "3개월", "method" to "AI와 함께"), createdAt = now))
+        c.molds.upsert(Mold("k1", "주말 바이브 코딩", mapOf("purpose" to "바이브 코딩", "method" to "AI에게 맡김", "platform" to "웹", "scope" to "주말", "engine" to "웹(JS)"), createdAt = now, usedCount = 3))
+        c.store.upsert(interviewProject())
+        setContent { MainTabs({}, {}, {}, {}) }
+        click("주말 바이브 코딩")
+        click("게임")
+        shot("44_home_mold")
+    }
+
+    @Test fun s45_interview_mold() {
+        withKey()
+        c.store.upsert(interviewProject().copy(
+            presets = listOf(PresetAnswer("목적", "바이브 코딩"), PresetAnswer("플랫폼", "모바일")),
+            moldName = "주말 바이브 코딩", depthMode = DepthMode.LONG,
+        ))
+        setContent { ProjectScreen("p_interview", {}, {}) }
+        shot("45_interview_mold")
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

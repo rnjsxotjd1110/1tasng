@@ -25,9 +25,24 @@ CREATE TABLE IF NOT EXISTS purchases (
   credits         INTEGER NOT NULL,
   purchase_type   INTEGER,                    -- 0 = 테스트 구매(라이선스 테스터), NULL = 일반
   credited        INTEGER NOT NULL DEFAULT 0, -- 1 이면 크레딧 지급 완료
-  created_at      INTEGER NOT NULL
+  created_at      INTEGER NOT NULL,
+  voided          INTEGER NOT NULL DEFAULT 0, -- 1 이면 환불·취소되어 크레딧을 회수함(Voided Purchases API, cron)
+  voided_at       INTEGER                     -- 구글이 알려 준 환불·취소 시각
 );
 CREATE INDEX IF NOT EXISTS idx_purchases_account ON purchases(account_id);
+
+-- 작은 키-값 저장소. 예: 'voided_purchases_end_ms' = 환불 목록을 마지막으로 처리한 시각(ms).
+CREATE TABLE IF NOT EXISTS meta (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
+
+-- Play Integrity 용 일회용 nonce(GET /ember/nonce). 5분 뒤 만료, 한 번 쓰면 지운다.
+CREATE TABLE IF NOT EXISTS nonces (
+  nonce       TEXT    PRIMARY KEY,
+  expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_nonces_expires ON nonces(expires_at);
 
 -- 요청 기록(성공·실패 모두). 실패한 요청은 credits = 0.
 CREATE TABLE IF NOT EXISTS usage_log (

@@ -9,7 +9,8 @@ export type ErrorType =
   | "rate_limit_error"
   | "api_error"
   | "overloaded_error"
-  | "insufficient_credits";
+  | "insufficient_credits"
+  | "integrity_failed";
 
 export class ApiError extends Error {
   constructor(

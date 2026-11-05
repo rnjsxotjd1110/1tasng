@@ -1,7 +1,9 @@
 package app.ember.ideas.ai
 
 import app.ember.ideas.data.Answer
+import app.ember.ideas.data.DepthMode
 import app.ember.ideas.data.DevProfile
+import app.ember.ideas.data.PresetAnswer
 import app.ember.ideas.data.DocDepth
 import app.ember.ideas.data.Idea
 import app.ember.ideas.data.Project
@@ -66,6 +68,8 @@ object Protocol {
                 idea.copy(
                     id = if (dupId) "idea${i + 1}" else idea.id,
                     difficulty = idea.difficulty.coerceIn(1, 5),
+                    funScore = if (idea.funScore == 0) 0 else idea.funScore.coerceIn(1, 5),
+                    noveltyScore = if (idea.noveltyScore == 0) 0 else idea.noveltyScore.coerceIn(1, 5),
                     keyFeatures = idea.keyFeatures.filter { it.isNotBlank() },
                     platforms = idea.platforms.filter { it.isNotBlank() },
                 )
@@ -128,6 +132,8 @@ object Protocol {
         "scope" to str(),
         "dev_time" to str(),
         "difficulty" to int(),
+        "fun_score" to int(),
+        "novelty_score" to int(),
         "fit_reason" to str(),
         "similar_works" to strArray(),
         "risks" to strArray(),
@@ -178,9 +184,28 @@ object Protocol {
 - 여러 개를 고르는 것이 자연스러운 질문(장르 취향, 영감을 받은 작품, 기능 등)은 multi_select 를 true 로 합니다.
 - allow_custom 은 대부분 true 로 두고, custom_hint 에 직접 입력 예시를 적습니다.
 - subtitle 에는 이 질문을 왜 하는지 한 문장으로 적습니다.
-- 다루어야 할 영역(상황에 맞게 순서와 생략을 조절): 만들 것의 종류(게임/앱/웹), 플랫폼(모바일/PC/웹/콘솔), 대상 사용자, 장르·카테고리, 분위기·테마, 핵심 경험, 개발 규모(혼자/팀, 기간), 사용 기술·엔진, 수익 방식, 영감을 준 작품, 피하고 싶은 것.
+- 질문 갈래 16가지(상황에 맞게 순서·생략을 조절하고, 같은 갈래를 두 번 묻지 않습니다):
+  1. 목적: 왜 만드는지(바이브 코딩으로 빠르게 완성, 개인 개발·취미, 포트폴리오, 출시해서 수익, 게임잼, 공부)
+  2. 만드는 방식: 코드를 누가 쓰는지(AI 에게 전부 맡김, AI 와 함께, 직접, 팀)와 쓰려는 AI 도구
+  3. 플랫폼(모바일/PC/웹/콘솔)과 만들 것의 종류(게임/앱/웹)
+  4. 장르·카테고리
+  5. 테마와 세계: 소재, 배경, 세계관
+  6. 분위기(아늑함, 긴장감, 쓸쓸함 등)
+  7. 핵심 동사: 사용자가 가장 많이 반복할 행동(잇기, 쌓기, 피하기, 기록하기 등)
+  8. 느끼게 할 감정: 끝났을 때 남길 감정
+  9. 대상 사용자와 사용·플레이 상황(출퇴근, 잠들기 전, 친구와 함께 등)
+  10. 닮고 싶은 작품과 그 작품에서 좋았던 점
+  11. 피하고 싶은 것
+  12. 시간과 예산: 개발 기간, 한 번 하는 시간(30초, 10분, 1시간), 쓸 수 있는 돈
+  13. 배울 기술: 이번에 익히고 싶은 엔진·언어·기법
+  14. 함께 만들기: 혼자 하는지, 함께 하는지(협동, 경쟁, 비동기 공유)와 개발 팀 구성
+  15. 공개할 곳: 스토어, itch.io, 웹 링크, 친구에게만 등(수익 방식은 사용자가 꺼낼 때만 여기서 함께 묻습니다)
+  16. 접근성: 한 손 조작, 색약, 짧은 집중 시간, 소리 없이도 할 수 있는지
+- 목적과 만드는 방식은 질문의 결을 바꿉니다. 바이브 코딩이면 AI 가 한 번에 만들기 쉬운 범위·구조를 묻고, 개인 개발이면 오래 다듬을 재미와 배우고 싶은 기술을, 출시가 목적이면 대상과 차별점을 더 깊게 묻습니다.
+- 질문 형식을 섞어 지루하지 않게 합니다: 둘 중 하나 고르기, 장면을 상상하게 하는 질문("이 게임을 처음 켠 10초 동안 무엇이 보이면 좋을까요?"), 기존 작품 비교, 하지 않을 것 고르기.
 - 질문은 아이디어의 내용(장르, 핵심 경험, 소재·세계관, 분위기, 조작·주요 기능, 대상)을 바꾸는 영역을 먼저 묻습니다. 수익 방식·판매·마케팅·출시 계획처럼 컨셉과 거리가 먼 사업 질문은 사용자가 먼저 꺼내지 않는 한 묻지 않거나 맨 마지막에 하나만 묻습니다.
-- 보통 6~9개의 질문 뒤에 아이디어를 제안합니다. 사용자가 아이디어를 요청하면 즉시 제안합니다.
+- 질문 수는 시작 메시지의 "질문 길이"를 따릅니다. 사용자가 아이디어를 요청하면 즉시 제안합니다.
+- 시작 메시지에 "미리 정한 답"이 있으면 그 갈래는 이미 답을 받은 것으로 보고 묻지 않습니다. 첫 insight 에 미리 정한 답을 한 문장으로 반영합니다.
 - 사용자가 "[요청][추가 질문]" 으로 질문을 더 원하면, 요청한 개수의 질문을 모두 마칠 때까지 아이디어를 내지 않습니다. 답변 끝에 "(추가 질문 n개 남음)" 이 붙어 있으면 아이디어 대신 다음 질문을 합니다.
 - 사용자가 질문을 건너뛰면 그 영역은 당신이 합리적으로 판단합니다.
 
@@ -196,6 +221,7 @@ object Protocol {
 - web_search 도구가 있으면 아이디어를 낼 때에만 최대 3번 써서 similar_works 의 작품이 실제로 있는지, 비슷한 게임·앱이 이미 있는지 확인합니다. 질문할 때는 검색하지 않습니다.
 - references 에는 검색으로 확인한 페이지의 제목과 URL 을 아이디어마다 0~3개 넣습니다. 검색 결과에 나온 URL 만 그대로 쓰고, 검색하지 않았으면 빈 배열로 둡니다.
 - 사용자가 참고 이미지를 보냈다면 그림의 분위기·화면 구성·소재를 질문과 아이디어에 반영하고, insight 에 이미지에서 읽은 점을 한 번 언급합니다.
+- fun_score 는 대상 사용자가 느낄 재미·가치의 크기, novelty_score 는 비슷한 작품과 비교한 새로움입니다. 둘 다 1~5 정수로 냉정하게 매기고, 네 아이디어에 모두 같은 점수를 주지 않습니다.
 - risks 에는 이 아이디어의 가장 큰 위험 2개를 짧게 적고, validation 에는 1~2주 안에 아이디어를 검증할 수 있는 가장 싼 방법을 한 문장으로 적습니다.
 - 사용자의 개발 경험과 규모에 맞게 실현 가능한 범위로 제안합니다.
 """.trimIndent()
@@ -302,11 +328,30 @@ $sections
         }.trimEnd()
     }
 
-    fun startMessage(kind: ProjectKind, seed: String, profile: DevProfile, lang: ReplyLanguage, imageCount: Int = 0): String = buildString {
+    fun depthLine(depth: DepthMode): String = when (depth) {
+        DepthMode.SHORT -> "질문 길이: 짧게. 가장 중요한 질문 ${depth.questions}개 안팎만 하고 아이디어를 제안해 주세요."
+        DepthMode.NORMAL -> "질문 길이: 보통. 질문 ${depth.questions}개 안팎 뒤에 아이디어를 제안해 주세요."
+        DepthMode.LONG -> "질문 길이: 길게. 사용자가 아이디어를 요청할 때까지 질문 갈래를 넓고 깊게 이어 가 주세요. 갈래를 다 다루면 앞의 답을 더 구체적으로 파고드는 질문을 합니다. progress 는 90 을 넘기지 마세요."
+    }
+
+    fun presetBlock(presets: List<PresetAnswer>): String =
+        if (presets.isEmpty()) "" else "미리 정한 답(이 갈래는 다시 묻지 마세요):\n" + presets.joinToString("\n") { "- ${it.category}: ${it.value}" }
+
+    fun startMessage(
+        kind: ProjectKind,
+        seed: String,
+        profile: DevProfile,
+        lang: ReplyLanguage,
+        imageCount: Int = 0,
+        presets: List<PresetAnswer> = emptyList(),
+        depth: DepthMode = DepthMode.NORMAL,
+    ): String = buildString {
         appendLine("[시작] 새 아이디어 탐색을 시작합니다.")
         appendLine("관심 분야: ${kindLabel(kind, lang)}")
         appendLine("떠오른 생각: ${seed.trim().ifEmpty { "(없음)" }}")
         if (imageCount > 0) appendLine("참고 이미지: ${imageCount}장을 함께 보냅니다. 분위기·화면 구성·소재를 참고해 주세요.")
+        if (presets.isNotEmpty()) appendLine(presetBlock(presets))
+        appendLine(depthLine(depth))
         appendLine(profileBlock(profile))
         append("첫 질문을 해 주세요.")
     }
@@ -379,10 +424,12 @@ $sections
         if (idea.scope.isNotBlank() || idea.devTime.isNotBlank()) appendLine("- 규모: ${idea.scope} · ${idea.devTime} · 난이도 ${idea.difficulty}/5")
     }.trimEnd()
 
-    fun interviewBrief(turns: List<Turn>): String = turns
-        .filter { it.answer != null && !it.answer.skipped }
-        .joinToString("\n") { "- ${it.question.title} → ${it.answerSummary()}" }
-        .ifEmpty { "- (답변 없음)" }
+    fun interviewBrief(turns: List<Turn>, presets: List<PresetAnswer> = emptyList()): String =
+        (presets.map { "- ${it.category} → ${it.value}" } + turns
+            .filter { it.answer != null && !it.answer.skipped }
+            .map { "- ${it.question.title} → ${it.answerSummary()}" })
+            .joinToString("\n")
+            .ifEmpty { "- (답변 없음)" }
 
     fun designStartMessage(project: Project, idea: Idea, profile: DevProfile, lang: ReplyLanguage): String = buildString {
         appendLine("[설계 시작] 아래 아이디어를 개발 가능한 설계로 다듬고 싶습니다.")
@@ -392,7 +439,7 @@ $sections
         appendLine(ideaBrief(idea))
         appendLine()
         appendLine("## 아이디어 탐색 때의 답변")
-        appendLine(interviewBrief(project.turns))
+        appendLine(interviewBrief(project.turns, project.presets))
         appendLine()
         appendLine(profileBlock(profile))
         append("설계에 필요한 첫 질문을 해 주세요.")
@@ -407,7 +454,7 @@ $sections
         appendLine(ideaBrief(idea))
         appendLine()
         appendLine("## 아이디어 탐색 때의 답변")
-        appendLine(interviewBrief(project.turns))
+        appendLine(interviewBrief(project.turns, project.presets))
         if (d != null && d.turns.any { it.answer != null }) {
             appendLine()
             appendLine("## 설계 질문에 대한 결정")

@@ -194,7 +194,15 @@ fun EmberNavHost(nav: NavHostController, start: String) {
                 onOpenKey = { nav.navigate("key?from=settings") },
                 onOpenProfile = { nav.navigate("profile") },
                 onOpenAbout = { nav.navigate("about") },
+                onOpenMold = { id -> nav.navigate("mold?id=${id ?: ""}") },
             )
+        }
+        composable("mold?id={id}", arguments = listOf(navArgument("id") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty().ifBlank { null }
+            app.ember.ideas.ui.screens.MoldScreen(id, onBack = { nav.popBackStack() }, onStart = { moldId ->
+                app.ember.ideas.ui.screens.MoldSeed.value.value = moldId
+                nav.popBackStack("main", inclusive = false)
+            })
         }
         composable("project/{id}") { entry ->
             val id = entry.arguments?.getString("id") ?: ""
@@ -213,11 +221,17 @@ fun MainTabs(
     onOpenProfile: () -> Unit,
     onOpenAbout: () -> Unit,
     initialTab: Int = 0,
+    onOpenMold: (String?) -> Unit = {},
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
     val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    var oreTab by rememberSaveable { mutableIntStateOf(0) }
+    // 원석이나 거푸집을 골라 화로로 넘기면 화로 탭으로 돌아간다.
+    val oreSeed = app.ember.ideas.ui.screens.OreSeed.value.value
+    val moldSeed = app.ember.ideas.ui.screens.MoldSeed.value.value
+    androidx.compose.runtime.LaunchedEffect(oreSeed, moldSeed) { if (oreSeed != null || moldSeed != null) tab = 0 }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -233,8 +247,23 @@ fun MainTabs(
             Box(Modifier.weight(1f)) {
                 AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "tab") { t ->
                     when (t) {
-                        0 -> HomeScreen(onOpenProject, onNeedKey = onOpenKey, onOpenProfile = onOpenProfile, onOpenLibrary = { tab = 1 })
-                        1 -> LibraryScreen(onOpenProject, onStartNew = { tab = 0 }, onDeleted = ::onDeleted)
+                        0 -> HomeScreen(
+                            onOpenProject, onNeedKey = onOpenKey, onOpenProfile = onOpenProfile, onOpenLibrary = { tab = 2 },
+                            onOpenMold = onOpenMold, onManageMolds = { oreTab = 2; tab = 1 },
+                        )
+                        1 -> app.ember.ideas.ui.screens.OreBoxScreen(
+                            onOpenProject = onOpenProject,
+                            onForgeMemo = { m -> app.ember.ideas.ui.screens.OreSeed.value.value = m },
+                            onOpenMold = onOpenMold,
+                            onMemoDeleted = { m ->
+                                scope.launch {
+                                    val r = snackbar.showSnackbar(s.memoDeleted, actionLabel = s.undo, duration = SnackbarDuration.Long)
+                                    if (r == SnackbarResult.ActionPerformed) ctx.container.memos.upsert(m)
+                                }
+                            },
+                            initialTab = oreTab,
+                        )
+                        2 -> LibraryScreen(onOpenProject, onStartNew = { tab = 0 }, onDeleted = ::onDeleted)
                         else -> SettingsScreen(onOpenKey, onOpenProfile, onOpenAbout)
                     }
                 }
@@ -249,6 +278,20 @@ fun MainTabs(
                 }
             }
             BottomBar(tab) { tab = it }
+        }
+        // 저장 파일이 손상되어 빈 채로 시작했다면 한 번 알리고 원본을 내보낼 수 있게 한다.
+        var corrupt by remember { mutableStateOf(ctx.container.store.corruptBackup != null) }
+        if (corrupt) {
+            app.ember.ideas.ui.screens.project.EmberDialog(s.corruptTitle, s.corruptBody, s.corruptExport, {
+                corrupt = false
+                ctx.container.store.corruptText()?.let { text ->
+                    app.ember.ideas.handoff.Handoff.shareMarkdown(ctx, "ember-projects-original", text, s.corruptExport, fileName = "ember-projects-original.json")
+                }
+                ctx.container.store.acknowledgeCorrupt()
+            }, {
+                corrupt = false
+                ctx.container.store.acknowledgeCorrupt()
+            })
         }
         // 지난 실행에서 앱이 갑자기 꺼졌다면 한 번 알려 준다.
         var crashPrompt by remember { mutableStateOf(app.ember.ideas.report.CrashLog.hasUnseen(ctx)) }
@@ -271,9 +314,10 @@ private fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
     Column(Modifier.fillMaxWidth().topFade(c.bg, 20.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline.copy(alpha = 0.6f)))
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 6.dp)) {
-            TabItem(Icons.Rounded.Home, s.tabHome, selected == 0, Modifier.weight(1f)) { onSelect(0) }
-            TabItem(Icons.Rounded.Inventory2, s.tabLibrary, selected == 1, Modifier.weight(1f)) { onSelect(1) }
-            TabItem(Icons.Rounded.Settings, s.tabSettings, selected == 2, Modifier.weight(1f)) { onSelect(2) }
+            TabItem(app.ember.ideas.ui.components.ForgeIcons.Furnace, s.tabHome, selected == 0, Modifier.weight(1f)) { onSelect(0) }
+            TabItem(app.ember.ideas.ui.components.ForgeIcons.Ore, s.tabOres, selected == 1, Modifier.weight(1f)) { onSelect(1) }
+            TabItem(app.ember.ideas.ui.components.ForgeIcons.Blueprint, s.tabLibrary, selected == 2, Modifier.weight(1f)) { onSelect(2) }
+            TabItem(app.ember.ideas.ui.components.ForgeIcons.Anvil, s.tabSettings, selected == 3, Modifier.weight(1f)) { onSelect(3) }
         }
     }
 }

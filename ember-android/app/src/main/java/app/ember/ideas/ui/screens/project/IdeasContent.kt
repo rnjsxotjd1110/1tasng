@@ -38,7 +38,7 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,10 +63,10 @@ import app.ember.ideas.ui.components.EmberCard
 import app.ember.ideas.ui.components.EmberChip
 import app.ember.ideas.ui.components.ErrorPanel
 import app.ember.ideas.ui.components.GhostButton
-import app.ember.ideas.ui.components.PrimaryButton
 import app.ember.ideas.ui.components.SecondaryButton
 import app.ember.ideas.ui.components.Tag
 import app.ember.ideas.ui.components.ThinkingIndicator
+import app.ember.ideas.ui.components.topFade
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
 
@@ -77,6 +77,7 @@ fun IdeasContent(
     busy: Boolean,
     error: AiError?,
     onOpenIdea: (Idea) -> Unit,
+    onDesignIdea: (Idea) -> Unit,
     onToggleSave: (Idea) -> Unit,
     onMoreIdeas: () -> Unit,
     onMoreQuestions: () -> Unit,
@@ -96,7 +97,7 @@ fun IdeasContent(
     LaunchedEffect(project.ideaBatches.size) { if (project.ideaBatches.isNotEmpty()) listState.animateScrollToItem(0) }
 
     Column(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.weight(1f), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.weight(1f), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp)) {
             item {
                 Spacer(Modifier.height(8.dp))
                 if (project.design?.latest != null) {
@@ -137,6 +138,7 @@ fun IdeasContent(
                             chosen = project.design?.ideaId == idea.id,
                             onClick = { onOpenIdea(idea) },
                             onToggleSave = { onToggleSave(idea) },
+                            onDesign = if (busy) null else ({ onDesignIdea(idea) }),
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -148,15 +150,12 @@ fun IdeasContent(
                 }
             }
         }
-        Column(
-            Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
+        Row(
+            Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(s.ideasFooterHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SecondaryButton(s.moreQuestions, onMoreQuestions, Modifier.weight(1f), icon = Icons.Rounded.QuestionAnswer, enabled = !busy)
-                PrimaryButton(s.moreIdeas, onMoreIdeas, Modifier.weight(1f), icon = Icons.Rounded.AutoAwesome, enabled = !busy, height = 52.dp)
-            }
+            SecondaryButton(s.moreQuestions, onMoreQuestions, Modifier.weight(1f), icon = Icons.Rounded.QuestionAnswer, enabled = !busy)
+            SecondaryButton(s.moreIdeas, onMoreIdeas, Modifier.weight(1f), icon = Icons.Rounded.AutoAwesome, enabled = !busy)
         }
     }
 }
@@ -186,7 +185,7 @@ private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, onToggleSave: () -> Unit, projectTitle: String? = null) {
+fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, onToggleSave: () -> Unit, projectTitle: String? = null, onDesign: (() -> Unit)? = null) {
     val s = LocalStrings.current
     val c = Ember.colors
     EmberCard(Modifier.fillMaxWidth().animateContentSize(), onClick = onClick, highlight = chosen) {
@@ -219,6 +218,15 @@ fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, o
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime).filter { it.isNotBlank() }.forEach { Tag(it) }
                 Tag(s.difficulty(idea.difficulty), color = difficultyColor(idea.difficulty), strong = true)
+            }
+            if (onDesign != null) {
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    GhostButton(s.details, onClick, color = c.textMuted)
+                    Spacer(Modifier.weight(1f))
+                    GhostButton(s.designThisShort, onDesign, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                }
             }
         }
     }

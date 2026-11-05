@@ -169,6 +169,40 @@ abstract class Strings {
     abstract val profileTeam: String; abstract val teamOptions: List<String>
     abstract val profileNotes: String; abstract val profileNotesPlaceholder: String
 
+
+    // 2차 개선
+    abstract fun questionOf(n: Int, total: Int): String
+    abstract val waitingNote: String
+    abstract val doLater: String
+    abstract val designThisShort: String
+    abstract val details: String
+    abstract val tryDifferently: String
+    abstract val brainstormWithClaude: String
+    abstract fun decisionsCount(n: Int): String
+    abstract fun sectionProgress(done: Int, total: Int): String
+    abstract val writingNote: String
+    abstract val claudeWebNote: String
+    abstract fun handoffDocName(title: String): String
+    abstract val pin: String
+    abstract val unpin: String
+    abstract fun costApprox(usd: Double): String
+    abstract fun costPerDiscovery(cost: String, model: String): String
+    abstract fun depthMeta(d: DocDepth, cost: String, minutes: String): String
+    abstract fun reviseCost(cost: String): String
+    abstract fun modelShort(m: ClaudeModel): String
+    abstract fun modelSetCost(cost: String): String
+    abstract val quickIdeas: String
+    abstract val demoTry: String
+    abstract val demoBanner: String
+    abstract val demoConnect: String
+    abstract val demoTitle: String
+    abstract val keyStoredNote: String
+    abstract val profileButton: String
+    abstract fun profileSummary(experience: String, tools: List<String>): String
+    abstract val recommended: String
+    abstract val moreActions: String
+    abstract fun minutes(lo: Int, hi: Int): String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

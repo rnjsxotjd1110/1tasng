@@ -52,7 +52,8 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -140,7 +141,7 @@ fun PrimaryButton(
             .scale(pressScale(source))
             .heightIn(min = height)
             .clip(CircleShape)
-            .background(if (active || loading) c.emberGradient else Brush.linearGradient(listOf(c.surface3, c.surface3)))
+            .background(if (active || loading) c.buttonGradient else Brush.linearGradient(listOf(c.surface3, c.surface3)))
             .clickable(source, null, enabled = active, role = Role.Button) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
@@ -210,7 +211,7 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
         modifier
             .clip(CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -294,6 +295,7 @@ fun EmberChip(
     val border by animateColorAsState(if (selected) c.ember else c.outline, tween(160), label = "chipborder")
     Row(
         modifier
+            .minimumInteractiveComponentSize()
             .heightIn(min = 40.dp)
             .clip(CircleShape)
             .background(bg)
@@ -438,6 +440,7 @@ fun ErrorPanel(
     onFixKey: () -> Unit,
     modifier: Modifier = Modifier,
     onDismiss: (() -> Unit)? = null,
+    dismissLabel: String? = null,
 ) {
     val c = Ember.colors
     val s = LocalStrings.current
@@ -467,7 +470,7 @@ fun ErrorPanel(
                 } else {
                     PrimaryButton(s.retry, onRetry, Modifier.weight(1f), icon = Icons.Rounded.Refresh, height = 48.dp)
                 }
-                if (onDismiss != null) GhostButton(s.close, onDismiss, color = c.textMuted)
+                if (onDismiss != null) GhostButton(dismissLabel ?: s.close, onDismiss, color = c.textMuted)
             }
         }
     }
@@ -509,11 +512,23 @@ fun SelectMark(selected: Boolean, multi: Boolean, modifier: Modifier = Modifier)
         modifier
             .size(24.dp)
             .clip(shape)
-            .then(if (selected) Modifier.background(c.emberGradient) else Modifier.border(1.5.dp, c.outline, shape)),
+            .then(if (selected) Modifier.background(c.buttonGradient) else Modifier.border(1.5.dp, c.control, shape)),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedVisibility(selected, enter = scaleIn(tween(140)) + fadeIn(), exit = scaleOut(tween(100)) + fadeOut()) {
             Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
     }
+}
+
+
+/** 하단 고정 영역 위로 내용이 부드럽게 사라지게 하는 페이드. 레이아웃 크기에는 영향을 주지 않는다. */
+fun Modifier.topFade(color: Color, height: Dp = 28.dp): Modifier = this.drawBehind {
+    val h = height.toPx()
+    drawRect(
+        Brush.verticalGradient(listOf(color.copy(alpha = 0f), color), startY = -h, endY = 0f),
+        topLeft = Offset(0f, -h),
+        size = androidx.compose.ui.geometry.Size(size.width, h),
+    )
+    drawRect(color)
 }

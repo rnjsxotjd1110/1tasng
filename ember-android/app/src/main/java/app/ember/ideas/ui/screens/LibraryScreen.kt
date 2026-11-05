@@ -27,13 +27,14 @@ import androidx.compose.material.icons.rounded.DriveFileRenameOutline
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -82,7 +83,7 @@ fun LibraryScreen(
     var deleteTarget by remember { mutableStateOf<Project?>(null) }
 
     val q = query.trim().lowercase()
-    val filtered = projects.filter { p ->
+    val filtered = projects.sortedByDescending { it.favorite }.filter { p ->
         val matchFilter = when (filter) {
             LibraryFilter.ALL -> true
             LibraryFilter.FAVORITE -> p.favorite
@@ -99,7 +100,7 @@ fun LibraryScreen(
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
         item {
-            Column(Modifier.statusBarsPadding().padding(horizontal = 24.dp)) {
+            Column(Modifier.statusBarsPadding().padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(20.dp))
                 Text(s.libraryTitle, style = MaterialTheme.typography.headlineLarge, color = c.text)
                 Spacer(Modifier.height(16.dp))
@@ -121,11 +122,12 @@ fun LibraryScreen(
         }
         if (tab == 0) {
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(LibraryFilter.entries) { f ->
                         Text(
                             s.filterLabel(f),
                             modifier = Modifier
+                                .minimumInteractiveComponentSize()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (filter == f) c.surface3 else c.bg)
                                 .combinedClickable(onClick = { filter = f })
@@ -193,39 +195,43 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
     val s = LocalStrings.current
     val c = Ember.colors
     var menu by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .combinedClickable(onClick = onClick, onLongClick = { menu = true })
-                .padding(horizontal = 24.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
-                Text(kindEmoji(p.kind), style = MaterialTheme.typography.titleLarge)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (p.favorite) {
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Rounded.Star, null, tint = c.gold, modifier = Modifier.size(16.dp))
-                    }
+    val subtitle = p.selectedIdea?.title?.takeIf { it != p.title } ?: p.seed.takeIf { it.isNotBlank() }
+        ?: p.allIdeas.takeIf { it.isNotEmpty() }?.let { s.ideasCount(it.size) } ?: s.answeredN(p.answeredCount)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = { menu = true })
+            .padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        KindBadge(p.kind, 48)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (p.favorite) {
+                    Icon(Icons.Rounded.PushPin, s.pin, tint = c.gold, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
                 }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Tag(if (busy) s.working else s.stageLabel(p.stage), color = if (busy) c.ember else stageColor(p.stage), strong = true)
-                    if (p.isSample) { Spacer(Modifier.width(6.dp)); Tag(s.sample, color = c.gold, strong = true) }
-                    Spacer(Modifier.width(8.dp))
-                    Text(s.relativeTime(p.updatedAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1)
-                }
+                Text(p.title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             }
-            IconCircleButton(if (p.favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder, if (p.favorite) s.unfavorite else s.favorite, onFavorite, filled = false, tint = if (p.favorite) c.gold else c.textFaint)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Tag(if (busy) s.working else s.stageLabel(p.stage), color = if (busy) c.ember else stageColor(p.stage), strong = true)
+                if (p.isSample) { Spacer(Modifier.width(6.dp)); Tag(s.sample, color = c.textMuted) }
+                if (p.isDemo) { Spacer(Modifier.width(6.dp)); Tag("Demo", color = c.textMuted) }
+                Spacer(Modifier.width(8.dp))
+                Text(s.relativeTime(p.updatedAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1)
+            }
         }
-        DropdownMenu(menu, { menu = false }, containerColor = c.surface2) {
-            DropdownMenuItem({ Text(s.rename, color = c.text) }, { menu = false; onRename() }, leadingIcon = { Icon(Icons.Rounded.DriveFileRenameOutline, null, tint = c.textMuted) })
-            DropdownMenuItem({ Text(s.delete, color = c.danger) }, { menu = false; onDelete() }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = c.danger) })
+        Box {
+            IconCircleButton(Icons.Rounded.MoreVert, s.moreActions, { menu = true }, filled = false, tint = c.textMuted)
+            DropdownMenu(menu, { menu = false }, containerColor = c.surface2) {
+                DropdownMenuItem({ Text(if (p.favorite) s.unpin else s.pin, color = c.text) }, { menu = false; onFavorite() }, leadingIcon = { Icon(Icons.Rounded.PushPin, null, tint = c.textMuted) })
+                DropdownMenuItem({ Text(s.rename, color = c.text) }, { menu = false; onRename() }, leadingIcon = { Icon(Icons.Rounded.DriveFileRenameOutline, null, tint = c.textMuted) })
+                DropdownMenuItem({ Text(s.delete, color = c.danger) }, { menu = false; onDelete() }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = c.danger) })
+            }
         }
     }
 }

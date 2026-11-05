@@ -42,9 +42,13 @@ data class EmberColors(
     val danger: Color,
     val info: Color,
     val selection: Color,
+    val control: Color,
     val isDark: Boolean,
 ) {
+    /** 장식용 밝은 그라데이션(아이콘·진행 막대 등 글자가 올라가지 않는 곳). */
     val emberGradient: Brush get() = Brush.linearGradient(listOf(Color(0xFFFFB067), Color(0xFFFF6A3D), Color(0xFFEE3F5C)))
+    /** 흰 글자가 올라가는 버튼용 그라데이션. 모든 지점에서 흰 글자 대비 4.5:1 이상. */
+    val buttonGradient: Brush get() = Brush.linearGradient(listOf(Color(0xFFCC4126), Color(0xFFC2362F), Color(0xFFB8304A)))
     val emberSoft: Color get() = ember.copy(alpha = if (isDark) 0.14f else 0.10f)
 }
 
@@ -56,7 +60,7 @@ val DarkEmber = EmberColors(
     outline = Color(0xFF353141),
     text = Color(0xFFF4F1EC),
     textMuted = Color(0xFFB0AABB),
-    textFaint = Color(0xFF7C7688),
+    textFaint = Color(0xFF8E889A),
     ember = Color(0xFFFF7A45),
     emberDeep = Color(0xFFF2484E),
     gold = Color(0xFFFFC46B),
@@ -65,6 +69,7 @@ val DarkEmber = EmberColors(
     danger = Color(0xFFFF6B6B),
     info = Color(0xFF8AB4FF),
     selection = Color(0x33FF7A45),
+    control = Color(0xFF6A6478),
     isDark = true,
 )
 
@@ -76,15 +81,16 @@ val LightEmber = EmberColors(
     outline = Color(0xFFDDD4C8),
     text = Color(0xFF1C1A22),
     textMuted = Color(0xFF5F5969),
-    textFaint = Color(0xFF948E9C),
-    ember = Color(0xFFE85A26),
+    textFaint = Color(0xFF6E6874),
+    ember = Color(0xFFC2410C),
     emberDeep = Color(0xFFD9363E),
-    gold = Color(0xFFB57A10),
+    gold = Color(0xFF8F5F06),
     onEmber = Color(0xFFFFFFFF),
     success = Color(0xFF16915F),
     danger = Color(0xFFD23C3C),
     info = Color(0xFF2F6BD8),
     selection = Color(0x26E85A26),
+    control = Color(0xFF9C9286),
     isDark = false,
 )
 

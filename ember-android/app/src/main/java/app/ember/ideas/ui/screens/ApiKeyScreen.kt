@@ -39,7 +39,7 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -163,7 +163,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
                     Icon(Icons.Rounded.Lock, null, tint = c.textFaint, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(if (settings.secureStorageAvailable) s.keySecureNote else s.keyMemoryNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+                    Text(if (settings.secureStorageAvailable) s.keySecureNote else s.keyStoredNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
                 }
                 Spacer(Modifier.height(24.dp))
                 EmberCard(Modifier.fillMaxWidth()) {

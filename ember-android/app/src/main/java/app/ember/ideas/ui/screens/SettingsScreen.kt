@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddCircleOutline
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.FileDownload
@@ -32,7 +33,7 @@ import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -81,11 +82,11 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
 
         Group(s.groupClaude) {
             NavRow(s.apiKey, if (settings.hasKey) settings.keyHint.takeLast(8) else s.notConnected, onOpenKey, icon = Icons.Rounded.Key)
-            NavRow(s.model, s.modelName(settings.model), { dialog = "model" }, icon = Icons.Rounded.Psychology, body = s.modelBody(settings.model))
-            ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) })
+            NavRow(s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Psychology, body = s.modelSetCost(s.costApprox(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))))
+            ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) }, icon = Icons.Rounded.Bolt)
         }
         Group(s.groupPersonal) {
-            NavRow(s.devProfile, if (settings.profile.isEmpty()) s.notSet else s.set, onOpenProfile, icon = Icons.Rounded.Person, body = s.devProfileBody)
+            NavRow(s.devProfile, if (settings.profile.isEmpty()) s.notSet else s.profileSummary(settings.profile.experience, settings.profile.tools), onOpenProfile, icon = Icons.Rounded.Person, body = s.devProfileBody)
             NavRow(s.language, s.languageName(settings.language), { dialog = "language" }, icon = Icons.Rounded.Language)
             NavRow(s.theme, s.themeName(settings.theme), { dialog = "theme" }, icon = Icons.Rounded.DarkMode)
             ToggleRow(s.haptics, null, settings.haptics, { container.settings.setHaptics(it) }, icon = Icons.Rounded.Vibration)
@@ -93,10 +94,10 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         Group(s.groupUsage) {
             val u = settings.totalUsage
             Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    UsageStat(s.usageRequests, u.requests.toString())
-                    UsageStat(s.usageTokens, s.compactNumber(u.inputTokens + u.outputTokens + u.cacheReadTokens))
-                    UsageStat(s.usageCost, s.money(u.costUsd))
+                Row(Modifier.fillMaxWidth()) {
+                    UsageStat(s.usageRequests, u.requests.toString(), Modifier.weight(1f))
+                    UsageStat(s.usageTokens, s.compactNumber(u.inputTokens + u.outputTokens + u.cacheReadTokens), Modifier.weight(1f))
+                    UsageStat(s.usageCost, s.money(u.costUsd), Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(s.usageNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
@@ -104,7 +105,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
             NavRow(s.resetUsage, null, { dialog = "resetUsage" }, icon = Icons.Rounded.RestartAlt)
         }
         Group(s.groupData) {
-            NavRow(s.exportAll, null, {
+            NavRow(s.exportAll, null, chevron = false, onClick = {
                 val dir = File(ctx.cacheDir, "exports").apply { mkdirs() }
                 val f = File(dir, "ember-backup.json").apply { writeText(container.store.exportJson()) }
                 val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
@@ -132,7 +133,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         "model" -> EmberDialog(s.model, null, s.close, { dialog = null }, { dialog = null }, content = {
             Column {
                 ClaudeModel.entries.forEach { m ->
-                    ChoiceRow(s.modelName(m), s.modelBody(m), settings.model == m) { container.settings.setModel(m); dialog = null }
+                    ChoiceRow(s.modelName(m), s.modelBody(m) + "\n" + s.modelSetCost(s.costApprox(app.ember.ideas.ai.CostEstimate.fullSet(m))), settings.model == m) { container.settings.setModel(m); dialog = null }
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -176,9 +177,9 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun UsageStat(label: String, value: String) {
+private fun UsageStat(label: String, value: String, modifier: Modifier = Modifier) {
     val c = Ember.colors
-    Column {
+    Column(modifier) {
         Text(value, style = MaterialTheme.typography.titleLarge, color = c.text)
         Text(label, style = MaterialTheme.typography.labelSmall, color = c.textMuted)
     }

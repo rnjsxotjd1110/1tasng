@@ -157,6 +157,7 @@ data class Project(
     val design: DesignState? = null,
     val usage: Usage = Usage(),
     val isSample: Boolean = false,
+    val isDemo: Boolean = false,
     val titleEdited: Boolean = false,
     val note: String = "",
 ) {

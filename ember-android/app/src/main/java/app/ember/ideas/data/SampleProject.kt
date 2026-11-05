@@ -82,7 +82,7 @@ object SampleProject {
         )
     }
 
-    private val SAMPLE_DOC_KO = """
+    internal val SAMPLE_DOC_KO = """
 # 등불지기
 
 > 꺼져 가는 등대 마을에 빛을 이어 붙여 밤을 지키는, 자기 전 5분짜리 아늑한 빛 연결 퍼즐 게임입니다.
@@ -128,7 +128,7 @@ object SampleProject {
 
 ## 화면 구성과 UI 흐름
 
-1. 타이틀 → 2. 마을 지도(구역 선택) → 3. 퍼즐 화면 → 4. 클리어 연출과 주민 이야기 → 2로 복귀
+- 타이틀 → 마을 지도(구역 선택) → 퍼즐 화면 → 클리어 연출과 주민 이야기 → 마을 지도로 복귀
 
 ## 아트·사운드 방향
 
@@ -166,7 +166,7 @@ object SampleProject {
 3. "봄 계절 지도 20개의 난이도 곡선을 표로 설계해 줘."
 """.trimIndent()
 
-    private val SAMPLE_DOC_EN = """
+    internal val SAMPLE_DOC_EN = """
 # Lamplighter
 
 > A cozy five-minute light-routing puzzle where you relight a fading lighthouse town before bed.

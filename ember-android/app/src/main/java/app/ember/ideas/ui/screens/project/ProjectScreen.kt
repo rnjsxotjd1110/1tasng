@@ -4,6 +4,10 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -14,13 +18,12 @@ import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -133,7 +136,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                     IconCircleButton(Icons.Rounded.MoreVert, s.more, { menu = true }, filled = false)
                     DropdownMenu(menu, { menu = false }, containerColor = c.surface2) {
                         MenuItem(s.rename, Icons.Rounded.DriveFileRenameOutline) { menu = false; renaming = true }
-                        MenuItem(if (project.favorite) s.unfavorite else s.favorite, if (project.favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder) {
+                        MenuItem(if (project.favorite) s.unfavorite else s.favorite, Icons.Rounded.PushPin) {
                             menu = false; engine.setFavorite(project.id, !project.favorite)
                         }
                         if (project.allIdeas.isNotEmpty() && stage != ProjectStage.IDEAS) {
@@ -159,6 +162,20 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 }
             }
 
+            if (project.isDemo) {
+                androidx.compose.foundation.layout.Row(
+                    Modifier
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                        .background(c.gold.copy(alpha = 0.12f))
+                        .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text(s.demoBanner, style = MaterialTheme.typography.bodySmall, color = c.text, modifier = Modifier.weight(1f))
+                    if (!settings.hasKey) app.ember.ideas.ui.components.GhostButton(s.demoConnect, onFixKey)
+                }
+            }
             Box(Modifier.weight(1f)) {
                 when (stage) {
                     ProjectStage.INTERVIEW -> {
@@ -191,6 +208,9 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                                 onRetry = { engine.retry(project.id) },
                                 onFixKey = onFixKey,
                                 onShowHistory = { sheet = Sheet.History },
+                                expectedTotal = 8,
+                                onStop = { engine.cancel(project.id) },
+                                onLeave = { engine.dismissError(project.id); onBack() },
                             )
                         }
                     }
@@ -199,6 +219,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         busy = busy,
                         error = error,
                         onOpenIdea = { sheet = Sheet.IdeaDetail(it.id) },
+                        onDesignIdea = { if (!settings.hasKey && !project.isDemo) onFixKey() else sheet = Sheet.DesignSetup(it.id) },
                         onToggleSave = { engine.toggleSaved(project.id, it.id) },
                         onMoreIdeas = { engine.moreIdeas(project.id) },
                         onMoreQuestions = { viewStage = null; engine.moreQuestions(project.id) },
@@ -224,6 +245,9 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             onRetry = { engine.retry(project.id) },
                             onFixKey = onFixKey,
                             onShowHistory = { sheet = Sheet.DesignHistory },
+                            expectedTotal = d?.depth?.designQuestions ?: 6,
+                            onStop = { engine.cancel(project.id) },
+                            onLeave = { engine.dismissError(project.id); onBack() },
                         )
                     }
                     ProjectStage.DOCUMENT -> DocumentContent(
@@ -256,7 +280,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 onDismiss = { sheet = null },
                 onToggleSave = { engine.toggleSaved(project.id, idea.id) },
                 onDesign = {
-                    if (!settings.hasKey) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(idea.id)
+                    if (!settings.hasKey && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(idea.id)
                 },
                 onVary = { sheet = Sheet.Vary(idea.id) },
                 onCombine = { sheet = Sheet.Combine(idea.id) },
@@ -268,7 +292,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
             )
         } ?: run { sheet = null }
         is Sheet.DesignSetup -> project.idea(sh.ideaId)?.let { idea ->
-            DesignSetupSheet(idea, { sheet = null }) { depth, ask ->
+            DesignSetupSheet(idea, settings.model, { sheet = null }) { depth, ask ->
                 sheet = null
                 viewStage = null
                 engine.startDesign(project.id, idea.id, depth, ask)
@@ -277,16 +301,17 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         is Sheet.Vary -> project.idea(sh.ideaId)?.let { idea ->
             VariationSheet(idea, { sheet = null }) { dir ->
                 sheet = null
-                if (!settings.hasKey) onFixKey() else engine.variation(project.id, idea, dir)
+                if (!settings.hasKey && !project.isDemo) onFixKey() else engine.variation(project.id, idea, dir)
             }
         }
         is Sheet.Combine -> project.idea(sh.ideaId)?.let { idea ->
             CombineSheet(idea, project.allIdeas.filter { it.id != idea.id }, { sheet = null }) { other ->
                 sheet = null
-                if (!settings.hasKey) onFixKey() else engine.combine(project.id, idea, other)
+                if (!settings.hasKey && !project.isDemo) onFixKey() else engine.combine(project.id, idea, other)
             }
         }
         is Sheet.Handoff -> HandoffSheet(
+            docTitle = if (project.design?.latest != null) documentTitleOf(project) else null,
             hasDocument = project.design?.latest != null,
             defaultGoal = sh.goal,
             claudeInstalled = remember { Handoff.isClaudeInstalled(ctx) },
@@ -309,9 +334,9 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
             },
             onShare = { ch -> Handoff.shareText(ctx, handoffText(ch, sh.ideaId), s.share) },
         )
-        Sheet.Revise -> ReviseSheet({ sheet = null }) { text ->
+        Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }) { text ->
             sheet = null
-            if (!settings.hasKey) onFixKey() else engine.reviseDocument(project.id, text)
+            if (!settings.hasKey && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)
         }
         Sheet.Versions -> VersionsSheet(project.design?.versions.orEmpty(), { sheet = null }) { v ->
             sheet = null
@@ -335,7 +360,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
     if (confirmRegenerate) {
         EmberDialog(s.regenerateAll, s.regenerateBody, s.regenerate, {
             confirmRegenerate = false
-            if (!settings.hasKey) onFixKey() else engine.generateDocument(project.id)
+            if (!settings.hasKey && !project.isDemo) onFixKey() else engine.generateDocument(project.id)
         }, { confirmRegenerate = false })
     }
 

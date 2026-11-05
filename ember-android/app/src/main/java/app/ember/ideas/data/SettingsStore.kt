@@ -34,7 +34,7 @@ data class Settings(
 
 /**
  * 일반 설정은 SharedPreferences, API 키는 Android Keystore 로 암호화한 EncryptedSharedPreferences 에 둔다.
- * 암호화 저장소를 열 수 없는 기기에서는 키를 저장하지 않고 이번 실행 동안만 메모리에 둔다.
+ * 암호화 저장소를 열 수 없는 기기에서는 앱 전용 저장소에 둔다.
  */
 class SettingsStore(context: Context) {
 
@@ -50,18 +50,19 @@ class SettingsStore(context: Context) {
         )
     }.getOrNull()
 
-    @Volatile private var memoryKey: String? = null
+    /** 암호화 저장소를 열 수 없는 기기에서는 앱 전용(다른 앱이 읽을 수 없는) 저장소에 둔다. */
+    private val keyPrefs: SharedPreferences = secure ?: context.getSharedPreferences("ember_key", Context.MODE_PRIVATE)
 
     private val _settings = MutableStateFlow(read())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
 
     val secureStorageAvailable: Boolean get() = secure != null
 
-    fun apiKey(): String? = secure?.getString(KEY_API, null) ?: memoryKey
+    fun apiKey(): String? = keyPrefs.getString(KEY_API, null)
 
     fun setApiKey(key: String?) {
         val k = key?.trim()?.takeIf { it.isNotEmpty() }
-        if (secure != null) secure.edit { if (k == null) remove(KEY_API) else putString(KEY_API, k) } else memoryKey = k
+        keyPrefs.edit(commit = true) { if (k == null) remove(KEY_API) else putString(KEY_API, k) }
         refresh()
     }
 
@@ -82,8 +83,7 @@ class SettingsStore(context: Context) {
 
     fun clearAll() {
         prefs.edit { clear() }
-        secure?.edit { clear() }
-        memoryKey = null
+        keyPrefs.edit { clear() }
         refresh()
     }
 

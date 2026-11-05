@@ -30,9 +30,13 @@ import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +63,7 @@ import app.ember.ideas.ui.components.EmberTextField
 import app.ember.ideas.ui.components.GhostButton
 import app.ember.ideas.ui.components.PrimaryButton
 import app.ember.ideas.ui.components.SectionLabel
+import app.ember.ideas.ui.components.SecondaryButton
 import app.ember.ideas.ui.components.Tag
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
@@ -88,11 +93,11 @@ fun HomeScreen(
     val inProgress = projects.filter { !it.isSample && it.stage != ProjectStage.DOCUMENT }.take(8)
     val docs = projects.filter { it.design?.latest != null }.take(3)
 
-    fun start() {
+    fun start(quick: Boolean = false) {
         val k = kind ?: return
         if (!settings.hasKey) { onNeedKey(); return }
         focus.clearFocus()
-        val p = container.engine.createProject(k, seed, s.defaultProjectTitle(k))
+        val p = container.engine.createProject(k, seed, s.defaultProjectTitle(k), quick)
         seed = ""
         kind = null
         onOpenProject(p.id)
@@ -100,11 +105,11 @@ fun HomeScreen(
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 32.dp),
+        contentPadding = PaddingValues(bottom = 48.dp),
     ) {
         item {
             Row(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(start = 24.dp, end = 12.dp, top = 12.dp),
+                Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 8.dp, top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(c.emberGradient), contentAlignment = Alignment.Center) {
@@ -112,11 +117,11 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.width(10.dp))
                 Text("Ember", style = MaterialTheme.typography.titleLarge, color = c.text, modifier = Modifier.weight(1f))
-                GhostButton(if (settings.profile.isEmpty()) s.setProfileShort else s.myProfile, onOpenProfile, icon = Icons.Rounded.Person, color = c.textMuted)
+                GhostButton(s.profileButton, onOpenProfile, icon = Icons.Rounded.Person, color = c.textMuted)
             }
         }
         item {
-            Column(Modifier.padding(horizontal = 24.dp)) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(28.dp))
                 Text(s.greeting(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)), style = MaterialTheme.typography.titleSmall, color = c.ember)
                 Spacer(Modifier.height(8.dp))
@@ -128,7 +133,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(10.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(ProjectKind.GAME, ProjectKind.APP, ProjectKind.WEB, ProjectKind.ANY).forEach { k ->
-                        EmberChip(s.kindLabel(k), kind == k, { kind = if (kind == k) null else k }, leading = kindEmoji(k))
+                        EmberChip(s.kindLabel(k), kind == k, { kind = if (kind == k) null else k }, icon = kindIcon(k))
                     }
                 }
                 Spacer(Modifier.height(18.dp))
@@ -161,7 +166,22 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     icon = if (kind != null && !settings.hasKey) Icons.Rounded.Key else if (kind != null) Icons.AutoMirrored.Rounded.ArrowForward else null,
                 )
-                AnimatedVisibility(!settings.hasKey) {
+                if (settings.hasKey) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        Text(
+                            s.costPerDiscovery(s.costApprox(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textFaint,
+                            modifier = Modifier.weight(1f).padding(start = 4.dp),
+                        )
+                        GhostButton(s.quickIdeas, { start(quick = true) }, enabled = kind != null, color = c.textMuted)
+                    }
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                    SecondaryButton(s.demoTry, {
+                        val p = container.engine.createDemoProject(s.demoTitle)
+                        onOpenProject(p.id)
+                    }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PlayArrow)
                     Text(s.noKeyHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 10.dp, start = 4.dp))
                 }
             }
@@ -170,10 +190,10 @@ fun HomeScreen(
         if (inProgress.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(32.dp))
-                SectionLabel(s.continueSection, Modifier.padding(horizontal = 24.dp))
+                SectionLabel(s.continueSection, Modifier.padding(horizontal = 20.dp))
             }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(inProgress, key = { it.id }) { p ->
                         ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
                     }
@@ -184,7 +204,7 @@ fun HomeScreen(
         if (docs.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(28.dp))
-                SectionLabel(s.recentDocs, Modifier.padding(horizontal = 24.dp)) {
+                SectionLabel(s.recentDocs, Modifier.padding(start = 20.dp, end = 6.dp)) {
                     GhostButton(s.seeAll, onOpenLibrary, color = c.textMuted)
                 }
             }
@@ -196,7 +216,7 @@ fun HomeScreen(
         if (settings.profile.isEmpty()) {
             item {
                 Spacer(Modifier.height(24.dp))
-                EmberCard(Modifier.padding(horizontal = 24.dp).fillMaxWidth(), onClick = onOpenProfile) {
+                EmberCard(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), onClick = onOpenProfile) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(44.dp).clip(CircleShape).background(c.emberSoft), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.Person, null, tint = c.ember)
@@ -213,6 +233,13 @@ fun HomeScreen(
             }
         }
     }
+}
+
+fun kindIcon(k: ProjectKind): androidx.compose.ui.graphics.vector.ImageVector = when (k) {
+    ProjectKind.GAME -> Icons.Rounded.SportsEsports
+    ProjectKind.APP -> Icons.Rounded.PhoneAndroid
+    ProjectKind.WEB -> Icons.Rounded.Language
+    ProjectKind.ANY -> Icons.Rounded.AutoAwesome
 }
 
 fun kindEmoji(k: ProjectKind) = when (k) {
@@ -235,7 +262,7 @@ private fun ContinueCard(p: Project, busy: Boolean, onClick: () -> Unit) {
     EmberCard(Modifier.width(250.dp), onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(kindEmoji(p.kind), style = MaterialTheme.typography.titleMedium)
+                KindBadge(p.kind, 32)
                 Spacer(Modifier.width(8.dp))
                 Tag(if (busy) s.working else s.stageLabel(p.stage), color = if (busy) c.ember else null, strong = busy)
             }
@@ -264,10 +291,10 @@ private fun DocRow(p: Project, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(c.surface2), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Description, null, tint = c.ember, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(14.dp))
@@ -290,5 +317,21 @@ private fun DocRow(p: Project, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(8.dp))
         Text(s.relativeTime(p.updatedAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint)
+    }
+}
+
+
+/** 분야별 색과 아이콘으로 프로젝트를 구분하는 작은 배지. */
+@Composable
+fun KindBadge(kind: ProjectKind, sizeDp: Int) {
+    val c = Ember.colors
+    val tint = when (kind) {
+        ProjectKind.GAME -> c.ember
+        ProjectKind.APP -> c.info
+        ProjectKind.WEB -> c.success
+        ProjectKind.ANY -> c.gold
+    }
+    Box(Modifier.size(sizeDp.dp).clip(RoundedCornerShape((sizeDp / 3).dp)).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+        Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size((sizeDp * 0.56f).dp))
     }
 }

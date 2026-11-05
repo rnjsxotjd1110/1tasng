@@ -99,7 +99,7 @@ object EnStrings : Strings() {
     override fun keyCurrent(hint: String) = "Connected · $hint"
     override val keyFormatError = "Keys start with sk-ant-. Paste the whole key without spaces."
     override val keyModelError = "The key works but can't use the selected model. Try another model in Settings."
-    override val keySecureNote = "Your key is encrypted in this device's secure storage."
+    override val keySecureNote = "Your key is encrypted in this device's secure storage and only ever sent to Anthropic."
     override val keyMemoryNote = "Secure storage is unavailable here, so the key is forgotten when the app closes."
     override val keyGuideTitle = "Where do I get a key?"
     override val keyGuideSteps = listOf(
@@ -149,8 +149,8 @@ object EnStrings : Strings() {
     override val continueSection = "Continue"
     override val recentDocs = "Recent design docs"
     override val seeAll = "See all"
-    override val setProfileShort = "Set profile"
-    override val myProfile = "My profile"
+    override val setProfileShort = "Profile"
+    override val myProfile = "Profile"
     override val profileTipTitle = "Tell Ember about you"
     override val profileTipBody = "Knowing your experience and tools means fewer questions and more realistic ideas."
     override fun stageLabel(stage: ProjectStage) = when (stage) {
@@ -189,12 +189,12 @@ object EnStrings : Strings() {
     override val earlierIdeas = "Earlier ideas"
     override fun variationOf(label: String) = "Remix of “$label”"
     override val noSavedIdeas = "No saved ideas yet. Tap the heart on a card to keep it."
-    override val ideasFooterHint = "Tap a card for details and to start designing."
+    override val ideasFooterHint = ""
     override val moreQuestions = "More questions"
     override val moreIdeas = "More ideas"
     override val docReadyBanner = "You have a design doc for this"
     override val chosenIdea = "Being designed"
-    override fun difficulty(d: Int) = "Difficulty $d"
+    override fun difficulty(d: Int) = "Difficulty $d/5"
     override val saveIdea = "Save"
     override val unsave = "Unsave"
     override val fieldCoreHook = "Core appeal"
@@ -209,7 +209,7 @@ object EnStrings : Strings() {
     override val designThis = "Design this idea"
     override val vary = "Remix"
     override val combine = "Combine"
-    override val sendIdeaToClaude = "Send to Claude"
+    override val sendIdeaToClaude = "Brainstorm with Claude"
     override val varyTitle = "How should we remix it?"
     override fun varySub(title: String) = "Get 4 new ideas based on “$title”."
     override val varyPresets = listOf("Smaller scope", "Multiplayer", "Different genre", "More unusual", "For kids", "More profitable")
@@ -226,9 +226,9 @@ object EnStrings : Strings() {
         DocDepth.BUILD_READY -> "Build-ready spec"
     }
     override fun depthBody(d: DocDepth) = when (d) {
-        DocDepth.BRIEF -> "2–3 pages · to check direction fast · ~3 questions"
-        DocDepth.STANDARD -> "5–8 pages · features, screens, roadmap · ~6 questions"
-        DocDepth.BUILD_READY -> "10+ pages · numbers, tables, architecture · ~9 questions"
+        DocDepth.BRIEF -> "To check the direction fast"
+        DocDepth.STANDARD -> "Features, screens and roadmap"
+        DocDepth.BUILD_READY -> "Numbers, tables and folder structure"
     }
     override val askDesignQuestions = "Answer design questions first"
     override val askDesignQuestionsBody = "Pick engine, art style, core loop and more as cards for a far more accurate doc."
@@ -272,7 +272,7 @@ object EnStrings : Strings() {
         HandoffGoal.BRAINSTORM -> "Brainstorm freely"
     }
     override fun goalBody(g: HandoffGoal) = when (g) {
-        HandoffGoal.START_BUILD -> "Stack check → folder structure → first task in code (great for Claude Code)"
+        HandoffGoal.START_BUILD -> "Stack check → folder structure → first task in code. Also works in Claude Code on your PC"
         HandoffGoal.CONTINUE_DESIGN -> "Spot gaps and ask the remaining decisions one by one"
         HandoffGoal.REVIEW -> "Market fit, differentiation, scope, three biggest risks"
         HandoffGoal.BRAINSTORM -> "Strengthen the core appeal and find surprising twists"
@@ -293,8 +293,8 @@ object EnStrings : Strings() {
 
     override val rename = "Rename"
     override val renamePlaceholder = "Project name"
-    override val favorite = "Favorite"
-    override val unfavorite = "Unfavorite"
+    override val favorite = "Pin to top"
+    override val unfavorite = "Unpin"
     override val deleteTitle = "Delete this project?"
     override fun deleteBody(title: String) = "All questions, ideas and docs in “$title” will be removed."
     override fun deletedProject(title: String) = "Deleted “$title”"
@@ -307,7 +307,7 @@ object EnStrings : Strings() {
     override fun tabSavedIdeas(n: Int) = "Saved ideas $n"
     override fun filterLabel(f: LibraryFilter) = when (f) {
         LibraryFilter.ALL -> "All"
-        LibraryFilter.FAVORITE -> "Favorites"
+        LibraryFilter.FAVORITE -> "Pinned"
         LibraryFilter.EXPLORING -> "Exploring"
         LibraryFilter.IDEAS -> "Ideas"
         LibraryFilter.DOCS -> "Design docs"
@@ -335,9 +335,9 @@ object EnStrings : Strings() {
         ClaudeModel.HAIKU -> "Claude Haiku 5.5"
     }
     override fun modelBody(m: ClaudeModel) = when (m) {
-        ClaudeModel.OPUS -> "Deepest ideas and designs · higher cost · recommended"
-        ClaudeModel.SONNET -> "Fast with balanced quality · medium cost"
-        ClaudeModel.HAIKU -> "Fastest and cheapest · for light exploring"
+        ClaudeModel.OPUS -> "Deepest ideas and designs, highest cost"
+        ClaudeModel.SONNET -> "Fast, balanced quality at half the cost of Opus"
+        ClaudeModel.HAIKU -> "Fastest and cheapest, great for light browsing"
     }
     override val deepThinking = "Think deeper"
     override val deepThinkingBody = "Claude thinks longer for better ideas and docs. Slower and costs more."
@@ -386,6 +386,49 @@ object EnStrings : Strings() {
     override val teamOptions = listOf("Just me", "2–3 people", "Team of 4+")
     override val profileNotes = "Anything else"
     override val profileNotesPlaceholder = "e.g. I can draw pixel art. I only build on weekends."
+
+
+    override fun questionOf(n: Int, total: Int) = "Question $n of ~${maxOf(total, n)}"
+    override val waitingNote = "This keeps going if you leave the app and is saved to this project."
+    override val doLater = "Do it later"
+    override val designThisShort = "Design this"
+    override val details = "Details"
+    override val tryDifferently = "Try something different"
+    override val brainstormWithClaude = "Brainstorm with Claude"
+    override fun decisionsCount(n: Int) = "$n decisions"
+    override fun sectionProgress(done: Int, total: Int) = "Section $done/$total"
+    override val writingNote = "Writing continues if you leave the app. Stopping keeps what's written so far."
+    override val claudeWebNote = "claude.ai uses your Claude account, separate from your API key. The free plan works too."
+    override fun handoffDocName(title: String) = "Sending · $title"
+    override val pin = "Pin to top"
+    override val unpin = "Unpin"
+    override fun costApprox(usd: Double) = if (usd < 0.01) "< $0.01" else "~$" + "%.2f".format(java.util.Locale.ENGLISH, usd)
+    override fun costPerDiscovery(cost: String, model: String) = "One exploration costs $cost on $model"
+    override fun depthMeta(d: DocDepth, cost: String, minutes: String) = when (d) {
+        DocDepth.BRIEF -> "2–3 pages · ~3 questions · $cost · ~$minutes"
+        DocDepth.STANDARD -> "5–8 pages · ~6 questions · $cost · ~$minutes"
+        DocDepth.BUILD_READY -> "10+ pages · ~9 questions · $cost · ~$minutes"
+    }
+    override fun reviseCost(cost: String) = "Each new version costs $cost"
+    override fun modelShort(m: ClaudeModel) = when (m) {
+        ClaudeModel.OPUS -> "Opus 5.5"
+        ClaudeModel.SONNET -> "Sonnet 5.5"
+        ClaudeModel.HAIKU -> "Haiku 5.5"
+    }
+    override fun modelSetCost(cost: String) = "Exploration + standard doc: $cost"
+    override val quickIdeas = "Skip questions, get ideas now"
+    override val demoTry = "Try it without a key"
+    override val demoBanner = "Demo mode: questions and results are pre-made, so your answers aren't used."
+    override val demoConnect = "Connect Claude"
+    override val demoTitle = "Demo: Commute game"
+    override val keyStoredNote = "Your key stays on this device and is only ever sent to Anthropic."
+    override val profileButton = "Profile"
+    override fun profileSummary(experience: String, tools: List<String>) =
+        listOfNotNull(experience.takeIf { it.isNotBlank() }, tools.firstOrNull()?.let { if (tools.size > 1) "$it +${tools.size - 1}" else it }).joinToString(" · ").ifEmpty { "Set" }
+    override val recommended = "Recommended"
+    override val moreActions = "More actions"
+
+    override fun minutes(lo: Int, hi: Int) = "$lo–$hi min"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

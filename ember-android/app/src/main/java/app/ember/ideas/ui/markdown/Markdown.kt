@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import app.ember.ideas.ui.theme.Ember
 import app.ember.ideas.ui.theme.EmberColors
 
@@ -156,8 +157,8 @@ object MarkdownParser {
                 text[i] == '`' -> {
                     val end = text.indexOf('`', i + 1)
                     if (end > i + 1) {
-                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = c.surface3, color = c.gold)) {
-                            append(" " + text.substring(i + 1, end) + " ")
+                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 0.86.em, background = c.surface2, color = c.gold)) {
+                            append("\u2009" + text.substring(i + 1, end) + "\u2009")
                         }
                         i = end + 1
                     } else { append('`'); i++ }
@@ -271,20 +272,19 @@ private fun TableView(table: MdBlock.Table, modifier: Modifier) {
         Column {
             Row(Modifier.background(c.surface2).height(IntrinsicSize.Min)) {
                 table.header.forEachIndexed { i, h ->
-                    Cell(h, header = true, modifier = if (fit) Modifier.weight(if (i == 0) 0.38f else 0.62f) else Modifier.width(colWidth))
+                    Cell(h, header = true, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(colWidth))
                 }
             }
             table.rows.forEachIndexed { r, row ->
                 Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
                 Row(Modifier.background(if (r % 2 == 1) c.surface2.copy(alpha = 0.4f) else c.surface).height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
                     row.forEachIndexed { i, cell ->
-                        Cell(cell, header = false, first = i == 0, modifier = if (fit) Modifier.weight(if (i == 0) 0.38f else 0.62f) else Modifier.width(colWidth))
+                        Cell(cell, header = false, first = i == 0, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(colWidth))
                     }
                 }
             }
         }
     }
-    @Suppress("UNUSED_VARIABLE") val unused = t
 }
 
 @Composable

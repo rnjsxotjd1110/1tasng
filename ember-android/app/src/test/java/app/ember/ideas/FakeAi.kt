@@ -22,6 +22,8 @@ class FakeAi : AiService {
     /** 설정하면 요청이 이 값이 완료될 때까지 멈춘다(로딩 화면 캡처용). */
     var gate: CompletableDeferred<Unit>? = null
     var validateError: AiError? = null
+    /** 게이트가 있을 때 멈추기 전에 먼저 보낼 조각 수(스트리밍 중 화면 캡처용). */
+    var streamBeforeGate = 0
 
     override suspend fun turn(model: ClaudeModel, request: TurnRequest): TurnResult {
         turnRequests += request
@@ -32,9 +34,12 @@ class FakeAi : AiService {
 
     override fun stream(model: ClaudeModel, request: StreamRequest): Flow<StreamEvent> = flow {
         streamRequests += request
+        val chunks = docMarkdown.chunked(40)
+        val head = if (gate != null) chunks.take(streamBeforeGate) else emptyList()
+        head.forEach { emit(StreamEvent.Delta(it)) }
         gate?.await()
         docError?.let { throw it }
-        docMarkdown.chunked(40).forEach { emit(StreamEvent.Delta(it)) }
+        chunks.drop(head.size).forEach { emit(StreamEvent.Delta(it)) }
         emit(StreamEvent.Done(Usage(2000, 4000, 0, 0, 0.088, 1), truncated = false))
     }
 

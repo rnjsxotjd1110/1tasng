@@ -40,7 +40,11 @@ class ProjectEngine(
     private val settings: SettingsStore,
     private val ai: AiService,
     private val scope: CoroutineScope,
+    private val demoAi: AiService = app.ember.ideas.ai.DemoAiService(),
 ) {
+    /** 체험 프로젝트는 키 없이 준비된 응답을 쓰는 데모 AI 로 돌린다. */
+    private fun aiFor(id: String): AiService = if (store.get(id)?.isDemo == true) demoAi else ai
+
     private val _ops = MutableStateFlow<Map<String, OpState>>(emptyMap())
     val ops: StateFlow<Map<String, OpState>> = _ops.asStateFlow()
 
@@ -62,19 +66,28 @@ class ProjectEngine(
 
     // ------------------------------------------------------------ 프로젝트 생성
 
-    fun createProject(kind: ProjectKind, seed: String, defaultTitle: String): Project {
+    fun createProject(kind: ProjectKind, seed: String, defaultTitle: String, quick: Boolean = false): Project {
         val now = System.currentTimeMillis()
         val title = seed.trim().lineSequence().firstOrNull()?.take(28)?.takeIf { it.isNotBlank() } ?: defaultTitle
         val p = Project(id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now)
+        store.upsert(p)
+        startInterview(p.id, quick)
+        return p
+    }
+
+    fun createDemoProject(title: String): Project {
+        val now = System.currentTimeMillis()
+        val p = Project(id = ProjectStore.newId(), title = title, kind = ProjectKind.GAME, seed = "", createdAt = now, updatedAt = now, isDemo = true)
         store.upsert(p)
         startInterview(p.id)
         return p
     }
 
-    fun startInterview(id: String) {
+    fun startInterview(id: String, quick: Boolean = false) {
         val p = store.get(id) ?: return
-        val first = ChatMessage(ChatMessage.USER, Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang))
-        discoveryCall(id, OpKind.ASKING, base = emptyList(), userMsg = first, onBeforeCommit = { it })
+        val start = Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang)
+        val text = if (quick) start.removeSuffix("첫 질문을 해 주세요.") + Protocol.REQUEST_QUICK_IDEAS else start
+        discoveryCall(id, if (quick) OpKind.IDEAS else OpKind.ASKING, base = emptyList(), userMsg = ChatMessage(ChatMessage.USER, text), onBeforeCommit = { it })
     }
 
     // ------------------------------------------------------------ 아이디어 인터뷰
@@ -130,7 +143,7 @@ class ProjectEngine(
     ) {
         launchOp(id, kind, retry = { discoveryCall(id, kind, base, userMsg, onBeforeCommit) }) {
             val messages = base + userMsg
-            val result = ai.turn(
+            val result = aiFor(id).turn(
                 model,
                 TurnRequest(
                     system = Protocol.discoverySystem(lang),
@@ -191,6 +204,7 @@ class ProjectEngine(
             it.copy(
                 design = DesignState(ideaId = ideaId, depth = depth),
                 stage = if (askQuestions) ProjectStage.DESIGN_INTERVIEW else ProjectStage.DOCUMENT,
+                title = if (it.titleEdited) it.title else idea.title,
                 savedIdeaIds = if (ideaId in it.savedIdeaIds) it.savedIdeaIds else it.savedIdeaIds + ideaId,
             )
         }
@@ -233,7 +247,7 @@ class ProjectEngine(
         launchOp(id, OpKind.DESIGN_ASKING, retry = { designCall(id, base, userMsg, onBeforeCommit) }) {
             val depth = store.get(id)?.design?.depth ?: DocDepth.STANDARD
             val messages = base + userMsg
-            val result = ai.turn(
+            val result = aiFor(id).turn(
                 model,
                 TurnRequest(
                     system = Protocol.designSystem(lang, depth),
@@ -299,7 +313,7 @@ class ProjectEngine(
             val sb = StringBuilder()
             var lastPush = 0L
             try {
-                ai.stream(
+                aiFor(id).stream(
                     model,
                     StreamRequest(
                         system = Protocol.documentSystem(lang, p.kind, depth),

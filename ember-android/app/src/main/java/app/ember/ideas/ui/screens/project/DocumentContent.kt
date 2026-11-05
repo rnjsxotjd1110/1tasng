@@ -5,6 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.minimumInteractiveComponentSize
+import app.ember.ideas.ui.components.EmberProgress
+import app.ember.ideas.ui.components.topFade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +42,7 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -90,8 +95,12 @@ fun DocumentContent(
     val design = project.design
     val latest = design?.latest
     val showing = if (busy && streamingText.isNotEmpty()) streamingText else latest?.markdown.orEmpty()
-    val blocks = remember(showing) { MarkdownParser.parse(showing) }
+    // 제목(H1)은 상단 바에 이미 보이므로 본문에서는 뺀다.
+    val blocks = remember(showing) {
+        MarkdownParser.parse(showing).let { b -> if (b.firstOrNull() is MdBlock.Heading && (b.first() as MdBlock.Heading).level == 1) b.drop(1) else b }
+    }
     val listState = rememberLazyListState()
+    val tocState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var follow by remember { mutableStateOf(true) }
     var summaryOpen by rememberSaveable { mutableStateOf(false) }
@@ -100,6 +109,17 @@ fun DocumentContent(
     val sectionIndices = remember(blocks) {
         blocks.mapIndexedNotNull { i, b -> if (b is MdBlock.Heading && b.level == 2) i to b.text else null }
     }
+    val expectedSections = 12
+    val writtenSections = remember(streamingText) { streamingText.lineSequence().count { it.startsWith("## ") } }
+
+    // 지금 보고 있는 섹션(목차 강조용)
+    val currentSection by remember(sectionIndices) {
+        derivedStateOf {
+            val first = listState.firstVisibleItemIndex - headerCount
+            sectionIndices.indexOfLast { it.first <= first + 1 }.coerceAtLeast(0)
+        }
+    }
+    LaunchedEffect(currentSection) { if (sectionIndices.isNotEmpty()) tocState.animateScrollToItem((currentSection - 1).coerceAtLeast(0)) }
 
     // 스트리밍 중에는 사용자가 위로 올리기 전까지 끝을 따라간다.
     val atBottom by remember { derivedStateOf { !listState.canScrollForward } }
@@ -110,41 +130,54 @@ fun DocumentContent(
 
     Column(Modifier.fillMaxSize()) {
         if (sectionIndices.isNotEmpty() && !busy) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 8.dp),
-            ) {
-                itemsIndexed(sectionIndices) { n, (idx, title) ->
-                    Text(
-                        "${n + 1}. $title",
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(c.surface2)
-                            .clickable { scope.launch { listState.animateScrollToItem(headerCount + idx) } }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = c.textMuted,
-                        maxLines = 1,
-                    )
+            Box(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                LazyRow(
+                    state = tocState,
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    itemsIndexed(sectionIndices) { n, (idx, title) ->
+                        val active = n == currentSection
+                        Text(
+                            "${n + 1}. $title",
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .clip(CircleShape)
+                                .background(if (active) c.emberSoft else c.surface2)
+                                .border(1.dp, if (active) c.ember else androidx.compose.ui.graphics.Color.Transparent, CircleShape)
+                                .clickable { scope.launch { listState.animateScrollToItem(headerCount + idx) } }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (active) c.text else c.textMuted,
+                            maxLines = 1,
+                        )
+                    }
                 }
+                Box(
+                    Modifier.align(Alignment.CenterEnd).size(width = 32.dp, height = 48.dp)
+                        .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(c.bg.copy(alpha = 0f), c.bg))),
+                )
             }
         }
         Box(Modifier.weight(1f)) {
             if (blocks.isEmpty() && busy) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    ThinkingIndicator(s.docThinkingLines, title = if (revising) s.revisingTitle else s.writingTitle, modifier = Modifier.padding(24.dp))
+                Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    ThinkingIndicator(s.docThinkingLines, title = if (revising) s.revisingTitle else s.writingTitle)
+                    Spacer(Modifier.height(20.dp))
+                    Text(s.writingNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.height(8.dp))
+                    GhostButton(s.stop, onStop, icon = Icons.Rounded.Stop, color = c.textMuted)
                 }
             } else if (blocks.isEmpty() && error != null) {
-                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
                     ErrorPanel(error, onRetry, onFixKey)
                 }
             } else {
-                LazyColumn(state = listState, contentPadding = PaddingValues(start = 22.dp, end = 22.dp, bottom = 40.dp)) {
+                LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 40.dp)) {
                     item {
                         Column {
                             if (latest != null && !busy) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 40.dp)) {
                                     Tag(s.versionLabel(design.versions.size), color = c.ember, strong = true)
                                     Spacer(Modifier.width(8.dp))
                                     Text(
@@ -155,6 +188,26 @@ fun DocumentContent(
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f),
                                     )
+                                    val decided = design.turns.count { it.answer != null && it.answer.skipped.not() }
+                                    if (design.readySummary.isNotBlank() || decided > 0) {
+                                        GhostButton(
+                                            s.decisionsCount(maxOf(decided, design.readySummary.lines().count { it.trimStart().startsWith("-") })),
+                                            { summaryOpen = !summaryOpen },
+                                            icon = if (summaryOpen) Icons.Rounded.ExpandLess else Icons.Rounded.Checklist,
+                                            color = c.textMuted,
+                                        )
+                                    }
+                                }
+                                AnimatedVisibility(summaryOpen) {
+                                    Column(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                        if (design.readySummary.isNotBlank()) {
+                                            MarkdownParser.parse(design.readySummary).forEach { MarkdownBlockView(it) }
+                                        } else {
+                                            design.turns.filter { it.answer != null && !it.answer.skipped }.forEach {
+                                                MarkdownBlockView(MdBlock.ListBlock(false, listOf(app.ember.ideas.ui.markdown.ListItem(0, "•", "**${it.question.title}** ${it.answerSummary()}"))))
+                                            }
+                                        }
+                                    }
                                 }
                                 if (!latest.complete) {
                                     Spacer(Modifier.height(12.dp))
@@ -169,42 +222,29 @@ fun DocumentContent(
                                 }
                             }
                             if (busy) {
-                                Row(
-                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.emberSoft).padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    CircularProgressIndicator(Modifier.size(16.dp), color = c.ember, strokeWidth = 2.dp)
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        (if (revising) s.revisingTitle else s.writingTitle) + " · " + s.charCount(streamingText.length),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = c.text,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    IconCircleButton(Icons.Rounded.Stop, s.stop, onStop, filled = false, tint = c.textMuted)
+                                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.emberSoft).padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(Modifier.size(16.dp), color = c.ember, strokeWidth = 2.dp)
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(if (revising) s.revisingTitle else s.writingTitle, style = MaterialTheme.typography.titleSmall, color = c.text)
+                                            Text(
+                                                s.sectionProgress(writtenSections.coerceAtMost(expectedSections), expectedSections) + " · " + s.charCount(streamingText.length),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = c.textMuted,
+                                            )
+                                        }
+                                        GhostButton(s.stop, onStop, icon = Icons.Rounded.Stop, color = c.text)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Box(Modifier.padding(end = 10.dp)) { EmberProgress(writtenSections / expectedSections.toFloat(), height = 4.dp) }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(s.writingNote, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(end = 10.dp))
                                 }
                             }
                             if (error != null && blocks.isNotEmpty()) {
                                 Spacer(Modifier.height(12.dp))
                                 ErrorPanel(error, onRetry, onFixKey, onDismiss = onDismissError)
-                            }
-                            if (design != null && design.readySummary.isNotBlank() && !busy) {
-                                Spacer(Modifier.height(12.dp))
-                                EmberCard(Modifier.fillMaxWidth(), onClick = { summaryOpen = !summaryOpen }, padding = PaddingValues(14.dp)) {
-                                    Column {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Rounded.Checklist, null, tint = c.success, modifier = Modifier.size(20.dp))
-                                            Spacer(Modifier.width(10.dp))
-                                            Text(s.decisionsTitle, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
-                                            Icon(if (summaryOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.textMuted)
-                                        }
-                                        AnimatedVisibility(summaryOpen) {
-                                            Column(Modifier.padding(top = 8.dp)) {
-                                                MarkdownParser.parse(design.readySummary).forEach { MarkdownBlockView(it) }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
@@ -227,7 +267,7 @@ fun DocumentContent(
         }
         if (!busy && latest != null) {
             Row(
-                Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 SecondaryButton(s.revise, onRevise, Modifier.weight(1f), icon = Icons.Rounded.Tune)

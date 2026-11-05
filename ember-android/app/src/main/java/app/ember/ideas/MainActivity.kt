@@ -37,7 +37,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -67,6 +67,7 @@ import app.ember.ideas.data.LanguageMode
 import app.ember.ideas.data.Project
 import app.ember.ideas.data.ThemeMode
 import app.ember.ideas.ui.components.EmberBackground
+import app.ember.ideas.ui.components.topFade
 import app.ember.ideas.ui.screens.AboutScreen
 import app.ember.ideas.ui.screens.ApiKeyScreen
 import app.ember.ideas.ui.screens.HomeScreen
@@ -218,7 +219,7 @@ fun MainTabs(
 private fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
-    Column(Modifier.fillMaxWidth().background(c.bg)) {
+    Column(Modifier.fillMaxWidth().topFade(c.bg, 36.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline.copy(alpha = 0.6f)))
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
             TabItem(Icons.Rounded.Home, s.tabHome, selected == 0, Modifier.weight(1f)) { onSelect(0) }

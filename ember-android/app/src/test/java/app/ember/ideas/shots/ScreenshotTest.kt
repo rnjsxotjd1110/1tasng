@@ -70,6 +70,7 @@ class ScreenshotTest {
         ai = FakeAi()
         c = AppContainer(app, ai)
         c.store.deleteAll()
+        c.settings.setLanguage(LanguageMode.KO)
         app.replaceContainer(c)
     }
 
@@ -92,8 +93,14 @@ class ScreenshotTest {
 
     private fun withKey() = c.settings.setApiKey("sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCD")
 
+    /** 화면 글자에는 한국어 줄바꿈용 WORD JOINER 가 들어 있으므로 빼고 비교한다. */
+    private fun hasPlainText(text: String) = androidx.compose.ui.test.SemanticsMatcher("text~$text") { node ->
+        node.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.Text) { null }
+            ?.any { it.text.replace("\u2060", "").contains(text) } == true
+    }
+
     private fun click(text: String) {
-        rule.onAllNodesWithText(text, substring = true, useUnmergedTree = true).onFirst().performClick()
+        rule.onAllNodes(hasPlainText(text), useUnmergedTree = true).onFirst().performClick()
         if (rule.mainClock.autoAdvance) rule.waitForIdle() else rule.mainClock.advanceTimeBy(600)
     }
 
@@ -105,13 +112,13 @@ class ScreenshotTest {
     }
 
     private val q1 = FakeAi.question("무엇을 만들고 싶으세요?", stage = "종류", progress = 8, options = listOf("게임" to "🎮", "앱" to "📱", "웹 서비스" to "🌐"))
-    private val q2 = FakeAi.question("주로 어디서 플레이하나요?", stage = "플랫폼", progress = 20, insight = "사용자는 게임을 만들고 싶어 합니다.")
-    private val q3 = """{"kind":"question","stage":"분위기","progress":42,"insight":"모바일에서 짧게 즐기는 게임을 원하고 있습니다.","question":{"title":"어떤 분위기에 끌리나요?","subtitle":"아트와 사운드의 방향을 정하는 데 쓰여요.","multi_select":true,"options":[{"id":"a","label":"아늑하고 따뜻한","description":"코지 게임처럼 편안한 분위기","emoji":"🕯️"},{"id":"b","label":"몽환적인","description":"꿈속 같은 색감과 음악","emoji":"🌙"},{"id":"c","label":"긴장감 넘치는","description":"손에 땀을 쥐는 순간들","emoji":"⚡"},{"id":"d","label":"유쾌하고 엉뚱한","description":"웃음이 터지는 상황과 캐릭터","emoji":"🎈"},{"id":"e","label":"어둡고 진지한","description":"무게감 있는 이야기","emoji":"🌑"}],"allow_custom":true,"custom_hint":"예: 지브리 영화 같은 느낌"},"ideas_intro":"","ideas":[]}"""
+    private val q2 = FakeAi.question("주로 어디서 플레이하나요?", stage = "플랫폼", progress = 20, insight = "게임을 만들고 싶어 하시는군요.")
+    private val q3 = """{"kind":"question","stage":"분위기","progress":42,"insight":"모바일에서 짧게 즐기는 게임을 원하고 있어요.","question":{"title":"어떤 분위기에 끌리나요?","subtitle":"아트와 사운드의 방향을 정하는 데 쓰여요.","multi_select":true,"options":[{"id":"a","label":"아늑하고 따뜻한","description":"코지 게임처럼 편안한 분위기","emoji":"🕯️"},{"id":"b","label":"몽환적인","description":"꿈속 같은 색감과 음악","emoji":"🌙"},{"id":"c","label":"긴장감 넘치는","description":"손에 땀을 쥐는 순간들","emoji":"⚡"},{"id":"d","label":"유쾌하고 엉뚱한","description":"웃음이 터지는 상황과 캐릭터","emoji":"🎈"},{"id":"e","label":"어둡고 진지한","description":"무게감 있는 이야기","emoji":"🌑"}],"allow_custom":true,"custom_hint":"예: 지브리 영화 같은 느낌"},"ideas_intro":"","ideas":[]}"""
 
     private fun interviewProject(): Project {
         val now = System.currentTimeMillis()
         return Project(
-            id = "p_interview", title = "출퇴근길 게임", kind = ProjectKind.GAME, seed = "출퇴근길 20분",
+            id = "p_interview", title = "비 오는 날 게임", kind = ProjectKind.GAME, seed = "비 오는 날 창가에서",
             createdAt = now - 600_000, updatedAt = now - 60_000, stage = ProjectStage.INTERVIEW,
             turns = listOf(turn(q1, Answer(listOf("o1"))), turn(q2, Answer(listOf("o1"))), turn(q3)),
         )
@@ -223,7 +230,7 @@ class ScreenshotTest {
 
     @Test fun s12_design_question() {
         withKey()
-        val dq = """{"kind":"question","stage":"기술","progress":35,"insight":"한 판 3~5분의 노선도 퍼즐로 방향을 정했습니다.","question":{"title":"어떤 엔진으로 만들까요?","subtitle":"프로필에 적힌 도구를 기준으로 추천했어요.","multi_select":false,"options":[{"id":"a","label":"Godot 4","description":"추천 · 가볍고 2D 퍼즐에 최적, 무료","emoji":"🤖"},{"id":"b","label":"Unity","description":"에셋이 많지만 빌드가 무거워요","emoji":"🧊"},{"id":"c","label":"Flutter + Flame","description":"앱 UI 와 섞기 쉬워요","emoji":"🦋"}],"allow_custom":true,"custom_hint":""},"ready_summary":""}"""
+        val dq = """{"kind":"question","stage":"기술","progress":35,"insight":"한 판 3~5분의 노선도 퍼즐로 방향을 정했어요.","question":{"title":"어떤 엔진으로 만들까요?","subtitle":"프로필에 적힌 도구를 기준으로 추천했어요.","multi_select":false,"options":[{"id":"a","label":"Godot 4","description":"추천 · 가볍고 2D 퍼즐에 최적, 무료","emoji":"🤖"},{"id":"b","label":"Unity","description":"에셋이 많지만 빌드가 무거워요","emoji":"🧊"},{"id":"c","label":"Flutter + Flame","description":"앱 UI 와 섞기 쉬워요","emoji":"🦋"}],"allow_custom":true,"custom_hint":""},"ready_summary":""}"""
         val base = ideasProject()
         val r = Protocol.parseReply(dq)
         c.store.upsert(base.copy(stage = ProjectStage.DESIGN_INTERVIEW, design = DesignState("b1_1", DocDepth.STANDARD, turns = listOf(
@@ -254,7 +261,7 @@ class ScreenshotTest {
         withKey()
         c.store.upsert(SampleProject.korean())
         setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
-        click("Claude 로 이어가기")
+        click("Claude로 이어가기")
         shot("15_handoff", 1500)
     }
 
@@ -306,6 +313,8 @@ class ScreenshotTest {
     @Test fun s22_document_writing() {
         withKey()
         ai.gate = CompletableDeferred()
+        ai.docMarkdown = SampleProject.korean().design!!.latest!!.markdown
+        ai.streamBeforeGate = 30
         val base = ideasProject()
         c.store.upsert(base.copy(stage = ProjectStage.DOCUMENT, design = DesignState("b1_1", DocDepth.STANDARD)))
         c.engine.generateDocument("p_ideas")
@@ -318,6 +327,22 @@ class ScreenshotTest {
         c.store.upsert(SampleProject.korean())
         setContent(theme = ThemeMode.LIGHT) { ProjectScreen("sample_ko", {}, {}) }
         shot("23_document_light")
+    }
+
+    @Test fun s24_demo_interview() {
+        val p = c.engine.createDemoProject("체험: 출퇴근길 게임")
+        ShadowLooper.idleMainLooper(3, java.util.concurrent.TimeUnit.SECONDS)
+        setContent { ProjectScreen(p.id, {}, {}) }
+        shot("24_demo_interview")
+    }
+
+    @Test fun s25_library_menu() {
+        withKey()
+        c.store.upsert(SampleProject.korean())
+        c.store.upsert(ideasProject().copy(favorite = true))
+        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 1) }
+        rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("더 많은 동작")).onFirst().performClick()
+        shot("25_library_menu")
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

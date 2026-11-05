@@ -138,9 +138,10 @@ class EngineTest {
         ai.turnReplies += Result.success(FakeAi.question("Q1"))
         val p = c.engine.createProject(ProjectKind.GAME, "", "새 게임")
         idle()
-        Thread.sleep(300)
-        idle()
         val app = ApplicationProvider.getApplicationContext<Application>()
+        val file = java.io.File(app.filesDir, "projects.json")
+        var waited = 0
+        while ((!file.exists() || !file.readText().contains("Q1")) && waited < 5000) { Thread.sleep(50); waited += 50; idle() }
         val c2 = AppContainer(app, FakeAi())
         assertEquals("Q1", c2.store.get(p.id)?.currentTurn?.question?.title)
     }

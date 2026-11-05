@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -25,7 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -123,7 +126,7 @@ fun ToggleRow(title: String, body: String?, checked: Boolean, onChange: (Boolean
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .clickable(role = Role.Switch) { onChange(!checked) }
-            .padding(horizontal = 4.dp, vertical = 10.dp),
+            .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
@@ -155,7 +158,7 @@ fun ToggleRow(title: String, body: String?, checked: Boolean, onChange: (Boolean
 
 /** 아이콘·제목·값이 있는 이동형 설정 행. */
 @Composable
-fun NavRow(title: String, value: String?, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, danger: Boolean = false, body: String? = null) {
+fun NavRow(title: String, value: String?, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, danger: Boolean = false, body: String? = null, chevron: Boolean = true) {
     val c = Ember.colors
     Row(
         modifier
@@ -180,9 +183,11 @@ fun NavRow(title: String, value: String?, onClick: () -> Unit, modifier: Modifie
         }
         if (!value.isNullOrBlank()) {
             Spacer(Modifier.width(12.dp))
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weightIn())
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+        }
+        if (chevron && !danger) {
+            Spacer(Modifier.width(4.dp))
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textFaint, modifier = Modifier.size(20.dp))
         }
     }
 }
-
-private fun Modifier.weightIn(): Modifier = this.then(Modifier.padding(end = 4.dp))

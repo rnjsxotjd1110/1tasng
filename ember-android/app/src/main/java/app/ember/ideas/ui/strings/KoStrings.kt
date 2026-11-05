@@ -65,7 +65,7 @@ object KoStrings : Strings() {
         AiError.InvalidKey -> "API 키를 확인해 주세요"
         AiError.NoCredit -> "크레딧이 부족해요"
         AiError.RateLimited -> "요청이 잠시 몰렸어요"
-        AiError.Overloaded -> "Claude 가 잠시 바빠요"
+        AiError.Overloaded -> "Claude가 잠시 바빠요"
         AiError.Offline -> "인터넷에 연결되어 있지 않아요"
         AiError.Refused -> "이 요청에는 답할 수 없어요"
         AiError.BadResponse -> "응답을 읽지 못했어요"
@@ -76,10 +76,10 @@ object KoStrings : Strings() {
     override fun errorBody(e: AiError) = when (e) {
         AiError.NoKey -> "설정에서 Anthropic API 키를 연결하면 바로 시작할 수 있어요."
         AiError.InvalidKey -> "키가 만료되었거나 잘못 입력되었어요. 콘솔에서 키를 확인한 뒤 다시 연결해 주세요."
-        AiError.NoCredit -> "Anthropic 콘솔의 Billing 에서 크레딧을 충전한 뒤 다시 시도해 주세요."
+        AiError.NoCredit -> "Anthropic 콘솔의 Billing에서 크레딧을 충전한 뒤 다시 시도해 주세요."
         AiError.RateLimited -> "1분쯤 기다렸다가 다시 시도해 주세요."
         AiError.Overloaded -> "서버가 혼잡해요. 잠시 후 다시 시도하면 대부분 해결돼요."
-        AiError.Offline -> "Wi‑Fi 나 모바일 데이터를 확인해 주세요. 저장된 프로젝트는 오프라인에서도 볼 수 있어요."
+        AiError.Offline -> "Wi‑Fi나 모바일 데이터를 확인해 주세요. 저장된 프로젝트는 오프라인에서도 볼 수 있어요."
         AiError.Refused -> "표현을 바꾸거나 다른 방향으로 요청해 주세요."
         AiError.BadResponse -> "응답 형식이 어긋났어요. 다시 시도하면 대부분 해결돼요."
         AiError.ModelUnavailable -> "설정에서 다른 모델을 고르거나, 이 키에 모델 권한이 있는지 확인해 주세요."
@@ -88,30 +88,30 @@ object KoStrings : Strings() {
     override val fixKey = "키 다시 연결"
 
     override val onb1Title = "질문 카드에\n답하기만 하세요"
-    override val onb1Body = "Claude 가 무엇을, 어디서, 누구를 위해 만들고 싶은지 하나씩 물어봐요. 고르기만 해도 충분해요."
+    override val onb1Body = "Claude가 무엇을, 어디서, 누구를 위해 만들고 싶은지 하나씩 물어봐요. 고르기만 해도 충분해요."
     override val onb2Title = "나에게 꼭 맞는\n아이디어를 받아요"
     override val onb2Body = "답변을 바탕으로 독창적인 게임·앱 아이디어를 제안해요. 마음에 드는 것은 찜하고, 섞고, 변형할 수 있어요."
-    override val onb3Title = "설계서까지 만들고\nClaude 로 이어가요"
-    override val onb3Body = "고른 아이디어로 개발에 바로 쓸 설계서를 만들고, 버튼 하나로 Claude 에서 작업을 이어가요."
+    override val onb3Title = "설계서까지 만들고\nClaude로 이어가요"
+    override val onb3Body = "고른 아이디어로 개발에 바로 쓸 설계서를 만들고, 버튼 하나로 Claude에서 작업을 이어가요."
     override val getStarted = "시작하기"
 
     override val keyTitleSettings = "API 키"
     override val keyHeadline = "Claude 연결하기"
-    override val keyBody = "Ember 는 내 Anthropic API 키로 Claude 를 직접 불러요. 서버를 거치지 않아 컴퓨터 없이 휴대폰만으로 쓸 수 있어요."
+    override val keyBody = "Ember는 내 Anthropic API 키로 Claude를 직접 불러요. 서버를 거치지 않아 컴퓨터 없이 휴대폰만으로 쓸 수 있어요."
     override fun keyCurrent(hint: String) = "연결됨 · $hint"
-    override val keyFormatError = "키는 sk-ant- 로 시작해야 해요. 공백 없이 전체를 붙여 넣어 주세요."
+    override val keyFormatError = "키는 sk-ant-로 시작해야 해요. 공백 없이 전체를 붙여 넣어 주세요."
     override val keyModelError = "키는 맞지만 선택한 모델을 쓸 권한이 없어요. 설정에서 모델을 바꿔 보세요."
-    override val keySecureNote = "키는 이 기기의 보안 저장소에 암호화되어 저장돼요."
+    override val keySecureNote = "키는 이 기기의 보안 저장소에 암호화되어 저장되고, Anthropic 외에는 어디에도 보내지 않아요."
     override val keyMemoryNote = "이 기기는 보안 저장소를 쓸 수 없어 앱을 닫으면 키가 지워져요."
     override val keyGuideTitle = "API 키는 어디서 받나요?"
     override val keyGuideSteps = listOf(
-        "console.anthropic.com 에 접속해 로그인해요.",
-        "Settings → API Keys 에서 Create Key 를 눌러요.",
-        "Billing 에서 결제 수단을 등록하고 크레딧을 충전해요.",
+        "console.anthropic.com에 접속해 로그인해요.",
+        "Settings → API Keys에서 Create Key를 눌러요.",
+        "Billing에서 결제 수단을 등록하고 크레딧을 충전해요.",
         "만든 키를 복사해 위 칸에 붙여 넣어요.",
     )
     override val openConsole = "Anthropic 콘솔 열기"
-    override val keyCostNote = "요금은 사용한 만큼 Anthropic 에 직접 결제돼요. 설정의 사용량에서 대략적인 비용을 확인할 수 있어요."
+    override val keyCostNote = "요금은 사용한 만큼 Anthropic에 직접 결제돼요. 설정의 사용량에서 대략적인 비용을 확인할 수 있어요."
     override val keyConnect = "연결 확인"
     override val keyConnected = "연결됐어요"
     override val removeKey = "키 삭제"
@@ -123,7 +123,7 @@ object KoStrings : Strings() {
         else -> "늦은 밤에도 반가워요"
     }
     override val homeHeadline = "오늘은 무엇을\n만들어 볼까요?"
-    override val homeSub = "질문 몇 개에 답하면 Claude 가 나에게 맞는 아이디어와 설계서를 만들어 드려요."
+    override val homeSub = "질문 몇 개에 답하면 Claude가 나에게 맞는 아이디어와 설계서를 만들어 드려요."
     override val pickKind = "관심 있는 분야"
     override fun kindLabel(k: ProjectKind) = when (k) {
         ProjectKind.GAME -> "게임"
@@ -151,8 +151,8 @@ object KoStrings : Strings() {
     override val continueSection = "이어서 하기"
     override val recentDocs = "최근 설계서"
     override val seeAll = "전체 보기"
-    override val setProfileShort = "프로필 설정"
-    override val myProfile = "내 프로필"
+    override val setProfileShort = "프로필"
+    override val myProfile = "프로필"
     override val profileTipTitle = "개발자 프로필을 알려 주세요"
     override val profileTipBody = "경험과 쓰는 도구를 알면 질문이 줄고 아이디어가 더 현실적이 돼요."
     override fun stageLabel(stage: ProjectStage) = when (stage) {
@@ -191,12 +191,12 @@ object KoStrings : Strings() {
     override val earlierIdeas = "이전 아이디어"
     override fun variationOf(label: String) = "‘$label’ 변형"
     override val noSavedIdeas = "아직 찜한 아이디어가 없어요. 카드의 하트를 눌러 보관해 보세요."
-    override val ideasFooterHint = "카드를 누르면 자세히 보고, 설계를 시작할 수 있어요."
+    override val ideasFooterHint = ""
     override val moreQuestions = "질문 더 받기"
     override val moreIdeas = "다른 아이디어"
     override val docReadyBanner = "만들어 둔 설계서가 있어요"
     override val chosenIdea = "설계 중인 아이디어"
-    override fun difficulty(d: Int) = "난이도 $d"
+    override fun difficulty(d: Int) = "난이도 $d/5"
     override val saveIdea = "찜하기"
     override val unsave = "찜 해제"
     override val fieldCoreHook = "핵심 재미·가치"
@@ -211,26 +211,26 @@ object KoStrings : Strings() {
     override val designThis = "이 아이디어로 설계하기"
     override val vary = "변형하기"
     override val combine = "섞기"
-    override val sendIdeaToClaude = "Claude 에 보내기"
+    override val sendIdeaToClaude = "Claude와 브레인스토밍"
     override val varyTitle = "어떻게 바꿔 볼까요?"
-    override fun varySub(title: String) = "‘$title’ 을 바탕으로 새 아이디어 4개를 받아요."
+    override fun varySub(title: String) = "‘$title’에서 출발한 새 아이디어 4개를 받아요."
     override val varyPresets = listOf("더 작은 규모로", "멀티플레이로", "다른 장르로", "더 독특하게", "아이들 대상으로", "수익성 높게")
     override val varyPlaceholder = "원하는 방향을 적어 주세요"
     override val makeVariations = "변형 아이디어 받기"
     override val combineTitle = "어떤 아이디어와 섞을까요?"
-    override fun combineSub(title: String) = "‘$title’ 과 고른 아이디어의 장점을 섞어요."
+    override fun combineSub(title: String) = "‘$title’에 섞을 아이디어를 하나 골라 주세요."
 
     override val designSetupTitle = "설계서 만들기"
-    override fun designSetupSub(title: String) = "‘$title’ 을 어느 정도 깊이로 설계할지 골라 주세요."
+    override fun designSetupSub(title: String) = "‘$title’ · 설계 깊이를 골라 주세요. 비용과 시간은 현재 모델 기준이에요."
     override fun depthTitle(d: DocDepth) = when (d) {
         DocDepth.BRIEF -> "핵심 요약"
         DocDepth.STANDARD -> "표준 설계서"
         DocDepth.BUILD_READY -> "개발 착수용 설계서"
     }
     override fun depthBody(d: DocDepth) = when (d) {
-        DocDepth.BRIEF -> "2~3쪽 · 방향을 빠르게 확인할 때 · 질문 약 3개"
-        DocDepth.STANDARD -> "5~8쪽 · 기능·화면·로드맵까지 · 질문 약 6개"
-        DocDepth.BUILD_READY -> "10쪽 이상 · 수치·표·구조까지 · 질문 약 9개"
+        DocDepth.BRIEF -> "방향을 빠르게 확인할 때"
+        DocDepth.STANDARD -> "기능·화면·로드맵까지"
+        DocDepth.BUILD_READY -> "수치·표·폴더 구조까지"
     }
     override val askDesignQuestions = "설계 질문에 먼저 답하기"
     override val askDesignQuestionsBody = "엔진, 아트, 핵심 루프 같은 결정을 카드로 고르면 설계서가 훨씬 정확해져요."
@@ -250,7 +250,7 @@ object KoStrings : Strings() {
     override val regenerateBody = "지금까지의 결정으로 설계서를 처음부터 다시 써요. 기존 버전은 버전 기록에 남아요."
     override val followWriting = "작성 위치로"
     override val revise = "수정 요청"
-    override val continueInClaude = "Claude 로 이어가기"
+    override val continueInClaude = "Claude로 이어가기"
     override val reviseTitle = "무엇을 고칠까요?"
     override val reviseSub = "요청을 반영한 새 버전을 만들고, 이전 버전은 기록에 남겨요."
     override val revisePresets = listOf("더 간단하게", "더 자세하게", "MVP 범위 줄이기", "수익 모델 보강", "기술 스택 구체화", "일정을 현실적으로")
@@ -264,9 +264,9 @@ object KoStrings : Strings() {
     override val viewIdeas = "아이디어 목록 보기"
     override val viewDocument = "설계서로 돌아가기"
 
-    override val handoffTitle = "Claude 로 이어가기"
+    override val handoffTitle = "Claude로 이어가기"
     override val handoffSubApp = "정리한 내용을 Claude 앱의 새 대화로 보내요. 프롬프트는 클립보드에도 복사돼요."
-    override val handoffSubWeb = "Claude 앱이 없어 claude.ai 를 열어요. 프롬프트는 클립보드에도 복사돼요."
+    override val handoffSubWeb = "Claude 앱이 없어 claude.ai를 열어요. 프롬프트는 클립보드에도 복사돼요."
     override fun goalTitle(g: HandoffGoal) = when (g) {
         HandoffGoal.START_BUILD -> "개발 시작하기"
         HandoffGoal.CONTINUE_DESIGN -> "설계 더 다듬기"
@@ -274,7 +274,7 @@ object KoStrings : Strings() {
         HandoffGoal.BRAINSTORM -> "자유롭게 브레인스토밍"
     }
     override fun goalBody(g: HandoffGoal) = when (g) {
-        HandoffGoal.START_BUILD -> "기술 스택 확인 → 폴더 구조 → 첫 작업 코드까지 (Claude Code 에도 좋아요)"
+        HandoffGoal.START_BUILD -> "기술 스택 확인 → 폴더 구조 → 첫 작업 코드까지. PC의 코딩 도구 Claude Code에 붙여 넣어도 좋아요"
         HandoffGoal.CONTINUE_DESIGN -> "빠진 부분을 짚고 남은 결정을 하나씩 질문해요"
         HandoffGoal.REVIEW -> "시장성, 차별점, 범위, 가장 큰 위험 3가지"
         HandoffGoal.BRAINSTORM -> "핵심 재미를 키우고 의외의 변형을 찾아요"
@@ -283,23 +283,23 @@ object KoStrings : Strings() {
     override val includeAnswers = "탐색·설계 답변"
     override val includeDocument = "설계서 전문"
     override val includeProfile = "개발자 프로필"
-    override val handoffExtraPlaceholder = "Claude 에게 덧붙일 말 (선택)"
+    override val handoffExtraPlaceholder = "Claude에게 덧붙일 말 (선택)"
     override val previewPrompt = "보낼 프롬프트 미리 보기"
     override val openClaudeApp = "Claude 앱 열기"
     override val openClaudeWeb = "claude.ai 열기"
     override val copyPrompt = "프롬프트 복사"
     override val openedClaudeApp = "Claude 앱으로 보냈어요"
-    override val openedClaudeWeb = "claude.ai 를 열었어요. 프롬프트가 입력되어 있어요"
-    override val openedPaste = "프롬프트를 복사했어요. Claude 에서 붙여 넣어 주세요"
+    override val openedClaudeWeb = "claude.ai를 열었어요. 프롬프트가 입력되어 있어요"
+    override val openedPaste = "프롬프트를 복사했어요. Claude에서 붙여 넣어 주세요"
     override val openFailed = "열 수 있는 앱이 없어요. 프롬프트는 복사해 두었어요"
 
     override val rename = "이름 바꾸기"
     override val renamePlaceholder = "프로젝트 이름"
-    override val favorite = "즐겨찾기"
-    override val unfavorite = "즐겨찾기 해제"
+    override val favorite = "상단 고정"
+    override val unfavorite = "고정 해제"
     override val deleteTitle = "프로젝트를 삭제할까요?"
-    override fun deleteBody(title: String) = "‘$title’ 의 질문, 아이디어, 설계서가 모두 사라져요."
-    override fun deletedProject(title: String) = "‘$title’ 을 삭제했어요"
+    override fun deleteBody(title: String) = "‘$title’ 안의 질문, 아이디어, 설계서가 모두 사라져요."
+    override fun deletedProject(title: String) = "프로젝트를 삭제했어요 · $title"
     override val projectMissingTitle = "프로젝트를 찾을 수 없어요"
     override val projectMissingBody = "삭제되었거나 다른 기기에서 옮겨진 프로젝트예요."
 
@@ -309,7 +309,7 @@ object KoStrings : Strings() {
     override fun tabSavedIdeas(n: Int) = "찜한 아이디어 $n"
     override fun filterLabel(f: LibraryFilter) = when (f) {
         LibraryFilter.ALL -> "전체"
-        LibraryFilter.FAVORITE -> "즐겨찾기"
+        LibraryFilter.FAVORITE -> "고정됨"
         LibraryFilter.EXPLORING -> "탐색 중"
         LibraryFilter.IDEAS -> "아이디어"
         LibraryFilter.DOCS -> "설계서"
@@ -337,16 +337,16 @@ object KoStrings : Strings() {
         ClaudeModel.HAIKU -> "Claude Haiku 5.5"
     }
     override fun modelBody(m: ClaudeModel) = when (m) {
-        ClaudeModel.OPUS -> "가장 깊이 있는 아이디어와 설계 · 비용 높음 · 추천"
-        ClaudeModel.SONNET -> "빠르고 균형 잡힌 품질 · 비용 중간"
-        ClaudeModel.HAIKU -> "가장 빠르고 저렴함 · 가벼운 탐색용"
+        ClaudeModel.OPUS -> "가장 깊이 있는 아이디어와 설계, 비용이 가장 높아요"
+        ClaudeModel.SONNET -> "빠르고 균형 잡힌 품질, 비용은 Opus의 절반"
+        ClaudeModel.HAIKU -> "가장 빠르고 저렴해 가볍게 둘러볼 때 좋아요"
     }
     override val deepThinking = "깊게 생각하기"
     override val deepThinkingBody = "더 오래 생각해 아이디어와 설계서의 완성도를 높여요. 느려지고 비용이 늘어요."
     override val devProfile = "개발자 프로필"
     override val devProfileBody = "경험·도구·팀 규모를 모든 질문에 반영해요"
     override val language = "언어"
-    override val languageBody = "화면과 Claude 의 답변 언어를 함께 바꿔요."
+    override val languageBody = "화면과 Claude의 답변 언어를 함께 바꿔요."
     override fun languageName(l: LanguageMode) = when (l) {
         LanguageMode.AUTO -> "기기 설정 따르기"
         LanguageMode.KO -> "한국어"
@@ -373,10 +373,10 @@ object KoStrings : Strings() {
     override val deleteAllBody = "이 기기의 모든 프로젝트를 지워요. 되돌릴 수 없어요."
     override val deletedAll = "모든 프로젝트를 삭제했어요"
     override val about = "Ember 정보"
-    override val privacyNote = "API 키와 프로젝트는 이 기기에만 저장돼요. 질문과 답변은 Claude 를 부를 때만 Anthropic API 로 전송돼요."
-    override val aboutBody = "Ember 는 질문 카드로 나에게 맞는 게임·앱 아이디어를 찾고, 개발에 바로 쓸 설계서로 다듬어 Claude 에서 이어갈 수 있게 돕는 설계 스튜디오예요."
+    override val privacyNote = "API 키와 프로젝트는 이 기기에만 저장돼요. 질문과 답변은 Claude를 부를 때만 Anthropic API로 전송돼요."
+    override val aboutBody = "Ember는 질문 카드로 나에게 맞는 게임·앱 아이디어를 찾고, 개발에 바로 쓸 설계서로 다듬어 Claude에서 이어갈 수 있게 돕는 설계 스튜디오예요."
     override val licenses = "오픈소스 라이선스"
-    override val trademarkNote = "Claude 와 Anthropic 은 Anthropic PBC 의 상표예요. Ember 는 Anthropic 의 공식 앱이 아니에요."
+    override val trademarkNote = "Claude와 Anthropic은 Anthropic PBC의 상표예요. Ember는 Anthropic의 공식 앱이 아니에요."
 
     override val profileIntro = "여기 적은 내용은 모든 인터뷰와 설계에 배경 정보로 들어가요. 비워 두어도 괜찮아요."
     override val profileExperience = "개발 경험"
@@ -388,6 +388,56 @@ object KoStrings : Strings() {
     override val teamOptions = listOf("혼자", "2~3명", "4명 이상 팀")
     override val profileNotes = "그 밖에 알려 줄 것"
     override val profileNotesPlaceholder = "예: 픽셀아트를 직접 그릴 수 있어요. 주말에만 개발해요."
+
+
+    override fun questionOf(n: Int, total: Int) = "질문 $n / 약 ${maxOf(total, n)}"
+    override val waitingNote = "앱을 나가도 계속 진행돼요. 끝나면 이 프로젝트에 저장돼요."
+    override val doLater = "나중에 하기"
+    override val designThisShort = "이걸로 설계"
+    override val details = "자세히"
+    override val tryDifferently = "다르게 해 보기"
+    override val brainstormWithClaude = "Claude와 브레인스토밍"
+    override fun decisionsCount(n: Int) = "결정 ${n}개"
+    override fun sectionProgress(done: Int, total: Int) = "섹션 $done/$total"
+    override val writingNote = "앱을 나가도 계속 써요. 멈추면 그때까지 쓴 부분이 저장돼요."
+    override val claudeWebNote = "claude.ai는 API 키와 별개인 Claude 계정으로 로그인해서 써요. 무료 플랜으로도 쓸 수 있어요."
+    override fun handoffDocName(title: String) = "보낼 설계서 · $title"
+    override val pin = "상단 고정"
+    override val unpin = "고정 해제"
+    override fun costApprox(usd: Double): String {
+        val krw = usd * 1400
+        return when {
+            krw < 10 -> "약 ₩10 미만"
+            krw < 1000 -> "약 ₩${((krw / 10).toInt().coerceAtLeast(1)) * 10}"
+            else -> "약 ₩" + "%,d".format(((krw / 100).toInt()) * 100)
+        }
+    }
+    override fun costPerDiscovery(cost: String, model: String) = "탐색 한 번에 $cost · $model 기준"
+    override fun depthMeta(d: DocDepth, cost: String, minutes: String) = when (d) {
+        DocDepth.BRIEF -> "2~3쪽 분량 · 질문 약 3개 · $cost · 약 $minutes"
+        DocDepth.STANDARD -> "5~8쪽 분량 · 질문 약 6개 · $cost · 약 $minutes"
+        DocDepth.BUILD_READY -> "10쪽 이상 · 질문 약 9개 · $cost · 약 $minutes"
+    }
+    override fun reviseCost(cost: String) = "새 버전 한 번에 $cost"
+    override fun modelShort(m: ClaudeModel) = when (m) {
+        ClaudeModel.OPUS -> "Opus 5.5"
+        ClaudeModel.SONNET -> "Sonnet 5.5"
+        ClaudeModel.HAIKU -> "Haiku 5.5"
+    }
+    override fun modelSetCost(cost: String) = "탐색과 표준 설계서 한 세트 $cost"
+    override val quickIdeas = "질문 없이 바로 아이디어 받기"
+    override val demoTry = "키 없이 체험해 보기"
+    override val demoBanner = "체험 모드예요. 미리 준비된 질문과 결과라 내 답변은 반영되지 않아요."
+    override val demoConnect = "Claude 연결"
+    override val demoTitle = "체험: 출퇴근길 게임"
+    override val keyStoredNote = "키는 이 기기 안에만 저장되고 Anthropic 외에는 어디에도 보내지 않아요."
+    override val profileButton = "프로필"
+    override fun profileSummary(experience: String, tools: List<String>) =
+        listOfNotNull(experience.takeIf { it.isNotBlank() }, tools.firstOrNull()?.let { if (tools.size > 1) "$it 외 ${tools.size - 1}" else it }).joinToString(" · ").ifEmpty { "설정됨" }
+    override val recommended = "추천"
+    override val moreActions = "더 많은 동작"
+
+    override fun minutes(lo: Int, hi: Int) = "$lo~${hi}분"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

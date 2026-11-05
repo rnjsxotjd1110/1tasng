@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -37,9 +38,10 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.ember.ideas.ui.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,6 +68,7 @@ import app.ember.ideas.ui.components.PrimaryButton
 import app.ember.ideas.ui.components.SelectMark
 import app.ember.ideas.ui.components.Tag
 import app.ember.ideas.ui.components.ThinkingIndicator
+import app.ember.ideas.ui.components.topFade
 import app.ember.ideas.ui.strings.LocalStrings
 import app.ember.ideas.ui.theme.Ember
 
@@ -89,6 +92,9 @@ fun QuestionFlow(
     onRetry: () -> Unit,
     onFixKey: () -> Unit,
     onShowHistory: () -> Unit,
+    expectedTotal: Int = 8,
+    onStop: (() -> Unit)? = null,
+    onLeave: (() -> Unit)? = null,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -98,27 +104,39 @@ fun QuestionFlow(
 
     Column(Modifier.fillMaxSize().imePadding()) {
         // 진행 표시줄
-        Column(Modifier.padding(horizontal = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 48.dp)) {
                 val stage = current?.stage ?: turns.lastOrNull()?.stage ?: ""
-                if (stage.isNotBlank()) Tag(stage, color = c.ember, strong = true)
-                Spacer(Modifier.width(8.dp))
-                Text(s.questionN(index.coerceAtLeast(1)), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
+                if (stage.isNotBlank()) {
+                    Tag(stage, color = c.ember, strong = true)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(s.questionOf(index.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                 if (answered > 0) {
-                    GhostButton(s.answersSoFar(answered), onShowHistory, icon = Icons.Rounded.History, color = c.textMuted)
+                    IconCircleButton(Icons.Rounded.History, s.answersTitle, onShowHistory, filled = false, tint = c.textMuted)
                 }
             }
-            Spacer(Modifier.height(8.dp))
             EmberProgress((current?.progress ?: turns.lastOrNull()?.progress ?: 3) / 100f)
+            if (canFinish && current != null && !busy && error == null) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    GhostButton(finishLabel, onFinish, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                }
+            }
         }
 
         Box(Modifier.weight(1f)) {
             when {
-                error != null -> Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
-                    ErrorPanel(error, onRetry, onFixKey)
+                error != null -> Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
+                    ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater)
                 }
-                busy || current == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    ThinkingIndicator(thinkingLines, title = thinkingTitle, modifier = Modifier.padding(24.dp))
+                busy || current == null -> Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    ThinkingIndicator(thinkingLines, title = thinkingTitle)
+                    Spacer(Modifier.height(20.dp))
+                    Text(s.waitingNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 300.dp))
+                    if (onStop != null && busy) {
+                        Spacer(Modifier.height(8.dp))
+                        GhostButton(s.stop, onStop, icon = Icons.Rounded.Stop, color = c.textMuted)
+                    }
                 }
                 else -> AnimatedContent(
                     targetState = current,
@@ -133,11 +151,8 @@ fun QuestionFlow(
                         turn = turn,
                         draft = draft,
                         canUndo = turns.size >= 2,
-                        finishLabel = finishLabel,
-                        canFinish = canFinish,
                         onSubmit = onSubmit,
                         onUndo = onUndo,
-                        onFinish = onFinish,
                     )
                 }
             }
@@ -150,11 +165,8 @@ private fun QuestionCard(
     turn: Turn,
     draft: Answer?,
     canUndo: Boolean,
-    finishLabel: String,
-    canFinish: Boolean,
     onSubmit: (Answer) -> Unit,
     onUndo: () -> Unit,
-    onFinish: () -> Unit,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -173,7 +185,7 @@ private fun QuestionCard(
             Modifier
                 .weight(1f)
                 .verticalScroll(scroll)
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(20.dp))
             if (turn.insight.isNotBlank()) {
@@ -203,11 +215,15 @@ private fun QuestionCard(
                     } else {
                         if (isSel) emptyList() else listOf(opt.id)
                     }
+                    if (!q.multiSelect && !isSel) customOpen = false
                 }
                 Spacer(Modifier.height(10.dp))
             }
             if (q.allowCustom) {
-                CustomRow(open = customOpen, filled = custom.isNotBlank(), onClick = { customOpen = !customOpen })
+                CustomRow(open = customOpen, filled = custom.isNotBlank(), multi = q.multiSelect, onClick = {
+                    customOpen = !customOpen
+                    if (customOpen && !q.multiSelect) selected = emptyList()
+                })
                 AnimatedVisibility(customOpen, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                     Column {
                         Spacer(Modifier.height(10.dp))
@@ -224,29 +240,26 @@ private fun QuestionCard(
             Spacer(Modifier.height(24.dp))
         }
 
-        // 하단 동작
-        Column(
+        // 하단 동작: 되돌리기 · 건너뛰기 · 다음
+        Row(
             Modifier
                 .fillMaxWidth()
-                .background(c.bg)
+                .topFade(c.bg)
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (canUndo) {
-                    IconCircleButton(Icons.AutoMirrored.Rounded.Undo, s.previousQuestion, onUndo, tint = c.textMuted)
-                    Spacer(Modifier.width(4.dp))
-                }
-                GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted)
-                Spacer(Modifier.weight(1f))
-                if (canFinish) GhostButton(finishLabel, onFinish)
+            if (canUndo) {
+                IconCircleButton(Icons.AutoMirrored.Rounded.Undo, s.previousQuestion, onUndo, tint = c.textMuted)
+                Spacer(Modifier.width(4.dp))
             }
-            Spacer(Modifier.height(6.dp))
+            GhostButton(s.skip, { onSubmit(Answer(skipped = true)) }, color = c.textMuted)
+            Spacer(Modifier.width(8.dp))
             PrimaryButton(
                 text = s.next,
                 onClick = { onSubmit(Answer(selectedIds = selected, customText = if (customOpen) custom.trim() else "")) },
                 enabled = hasAnswer,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 icon = Icons.AutoMirrored.Rounded.ArrowForward,
             )
         }
@@ -275,19 +288,18 @@ private fun OptionRow(opt: QuestionOption, selected: Boolean, multi: Boolean, on
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(opt.label, style = MaterialTheme.typography.titleSmall, color = c.text)
-            if (opt.description.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                val recommended = opt.description.startsWith("추천 · ") || opt.description.startsWith("Recommended · ")
-                if (recommended) {
-                    Tag(opt.description.substringBefore(" · "), color = c.success, strong = true)
-                    Spacer(Modifier.height(4.dp))
+            val rec = listOf("추천 · ", "Recommended · ").firstOrNull { opt.description.startsWith(it) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(opt.label, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f, fill = false))
+                if (rec != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Tag(LocalStrings.current.recommended, color = c.success, strong = true)
                 }
-                Text(
-                    if (recommended) opt.description.substringAfter(" · ") else opt.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.textMuted,
-                )
+            }
+            val desc = if (rec != null) opt.description.removePrefix(rec) else opt.description
+            if (desc.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(desc, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
             }
         }
         Spacer(Modifier.width(10.dp))
@@ -296,7 +308,7 @@ private fun OptionRow(opt: QuestionOption, selected: Boolean, multi: Boolean, on
 }
 
 @Composable
-private fun CustomRow(open: Boolean, filled: Boolean, onClick: () -> Unit) {
+private fun CustomRow(open: Boolean, filled: Boolean, multi: Boolean, onClick: () -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
     val shape = RoundedCornerShape(18.dp)
@@ -315,6 +327,6 @@ private fun CustomRow(open: Boolean, filled: Boolean, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(14.dp))
         Text(s.customAnswer, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        SelectMark(open || filled, multi = true)
+        SelectMark(open || filled, multi = multi)
     }
 }

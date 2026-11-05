@@ -40,6 +40,9 @@ data class OpState(
  */
 private const val SEARCH_FROM_PROGRESS = 60
 
+/** 새로 받은 아이디어 중 겹치지 않는 것이 이보다 적으면 한 번 더 요청한다. */
+private const val MIN_FRESH_IDEAS = 3
+
 class ProjectEngine(
     private val store: ProjectStore,
     private val settings: SettingsStore,
@@ -117,43 +120,98 @@ class ProjectEngine(
     fun answer(id: String, answer: Answer) {
         val p = store.get(id) ?: return
         val turn = p.currentTurn ?: return
-        val msg = ChatMessage(ChatMessage.USER, Protocol.answerMessage(turn.question, answer))
-        discoveryCall(id, OpKind.ASKING, base = p.messages, userMsg = msg, onBeforeCommit = { proj ->
-            proj.copy(turns = proj.turns.dropLast(1) + turn.copy(answer = answer))
-        })
+        val left = p.extraQuestionsLeft
+        // 추가 질문 중이면 남은 개수를 알려 아이디어로 건너뛰지 않게 하고, 마지막 답이면 새 아이디어를 요청한다.
+        val text = Protocol.answerMessage(turn.question, answer) + when {
+            left > 0 -> Protocol.remainingNote(left)
+            left == 0 -> "\n" + Protocol.freshIdeasMessage(previousTitles(p))
+            else -> ""
+        }
+        discoveryCall(
+            id, if (left == 0) OpKind.IDEAS else OpKind.ASKING, base = p.messages, userMsg = ChatMessage(ChatMessage.USER, text),
+            onBeforeCommit = { proj -> proj.copy(turns = proj.turns.dropLast(1) + turn.copy(answer = answer)) },
+            extraAfter = { isQuestion -> if (left < 0 || !isQuestion) -1 else (left - 1).coerceAtLeast(0) },
+            fromExtra = left >= 0,
+        )
+    }
+
+    /** 지금 질문에서 바로 앞 질문으로 돌아갈 수 있는지. 요청으로 시작된 질문은 앞 질문과 이어져 있지 않아 되돌릴 수 없다. */
+    fun canUndo(p: Project): Boolean {
+        if (p.currentTurn == null || p.turns.size < 2 || p.messages.size < 2) return false
+        val trigger = p.messages[p.messages.size - 2]
+        return trigger.role == ChatMessage.USER && (trigger.text.startsWith("[답변]") || trigger.text.startsWith("[건너뜀]"))
     }
 
     /** 바로 직전 질문으로 돌아간다. 돌아간 질문의 이전 답은 반환해 화면에서 미리 선택해 둔다. */
     fun undo(id: String): Answer? {
         if (isBusy(id)) return null
         val p = store.get(id) ?: return null
-        if (p.currentTurn == null || p.turns.size < 2) return null
+        if (!canUndo(p)) return null
         val prev = p.turns[p.turns.size - 2]
         store.update(id) {
             it.copy(
                 turns = it.turns.dropLast(2) + prev.copy(answer = null),
                 messages = it.messages.dropLast(2),
+                extraQuestionsLeft = if (it.inExtraQuestions) it.extraQuestionsLeft + 1 else -1,
             )
         }
         return prev.answer
     }
 
-    fun requestIdeasNow(id: String) = discoveryRequest(id, Protocol.REQUEST_IDEAS_NOW, OpKind.IDEAS)
-    fun moreIdeas(id: String) = discoveryRequest(id, Protocol.REQUEST_MORE_IDEAS, OpKind.IDEAS)
-    fun moreQuestions(id: String) = discoveryRequest(id, Protocol.REQUEST_MORE_QUESTIONS, OpKind.ASKING)
+    fun requestIdeasNow(id: String) {
+        val p = store.get(id) ?: return
+        // 추가 질문을 하다가 멈추면 지금까지의 추가 답을 반영한 새 아이디어를 받는다.
+        if (p.inExtraQuestions) discoveryRequest(id, Protocol.freshIdeasMessage(previousTitles(p)), OpKind.IDEAS, fromExtra = true)
+        else discoveryRequest(id, Protocol.REQUEST_IDEAS_NOW, OpKind.IDEAS)
+    }
+
+    fun moreIdeas(id: String) {
+        val p = store.get(id) ?: return
+        discoveryRequest(id, Protocol.moreIdeasMessage(previousTitles(p)), OpKind.IDEAS)
+    }
+
+    fun moreQuestions(id: String) {
+        val p = store.get(id) ?: return
+        val asked = p.turns.map { it.question.title }.filter { it.isNotBlank() }
+        discoveryRequest(
+            id, Protocol.moreQuestionsMessage(asked, previousTitles(p)), OpKind.ASKING,
+            extraAfter = { isQuestion -> if (isQuestion) Protocol.EXTRA_QUESTIONS - 1 else -1 },
+            fromExtra = true,
+        )
+    }
 
     fun variation(id: String, idea: Idea, direction: String) =
-        discoveryRequest(id, Protocol.variationMessage(idea, direction), OpKind.IDEAS)
+        discoveryRequest(id, Protocol.variationMessage(idea, direction), OpKind.IDEAS, label = idea.title)
 
-    fun combine(id: String, a: Idea, b: Idea) = discoveryRequest(id, Protocol.combineMessage(a, b), OpKind.IDEAS)
+    fun combine(id: String, a: Idea, b: Idea) =
+        discoveryRequest(id, Protocol.combineMessage(a, b), OpKind.IDEAS, label = "${a.title} + ${b.title}")
 
-    private fun discoveryRequest(id: String, text: String, kind: OpKind) {
+    private fun previousTitles(p: Project): List<String> = p.allIdeas.map { it.title }.distinct()
+
+    private fun discoveryRequest(
+        id: String,
+        text: String,
+        kind: OpKind,
+        label: String = "",
+        extraAfter: (Boolean) -> Int = { -1 },
+        fromExtra: Boolean = false,
+    ) {
         val p = store.get(id) ?: return
         val pending = p.currentTurn
         discoveryCall(id, kind, base = p.messages, userMsg = ChatMessage(ChatMessage.USER, text), onBeforeCommit = { proj ->
             // 답하지 않은 질문이 남아 있으면 건너뛴 것으로 처리한다.
             if (pending != null && proj.currentTurn != null) proj.copy(turns = proj.turns.dropLast(1) + pending.copy(answer = Answer(skipped = true))) else proj
-        })
+        }, label = label, extraAfter = extraAfter, fromExtra = fromExtra)
+    }
+
+    /** 같은 아이디어인지 판단할 때 쓰는 비교용 문자열(공백·기호·대소문자 무시). */
+    private fun ideaKey(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+
+    /** [fresh] 가운데 이미 받은 아이디어와 제목이나 한 줄 소개가 같은 것. */
+    private fun duplicatesOf(fresh: List<Idea>, previous: List<Idea>): List<Idea> {
+        val titles = previous.map { ideaKey(it.title) }.toSet()
+        val loglines = previous.map { ideaKey(it.logline) }.filter { it.length > 8 }.toSet()
+        return fresh.filter { ideaKey(it.title) in titles || ideaKey(it.logline) in loglines }
     }
 
     private fun discoveryCall(
@@ -162,8 +220,11 @@ class ProjectEngine(
         base: List<ChatMessage>,
         userMsg: ChatMessage,
         onBeforeCommit: (Project) -> Project,
+        label: String = "",
+        extraAfter: (Boolean) -> Int = { -1 },
+        fromExtra: Boolean = false,
     ) {
-        launchOp(id, kind, retry = { discoveryCall(id, kind, base, userMsg, onBeforeCommit) }) {
+        launchOp(id, kind, retry = { discoveryCall(id, kind, base, userMsg, onBeforeCommit, label, extraAfter, fromExtra) }) {
             val messages = base + userMsg
             // 아이디어가 나올 차례일 때만 웹 검색을 준다(질문 단계의 비용·대기 시간을 늘리지 않으려고).
             val lastProgress = store.get(id)?.turns?.lastOrNull()?.progress ?: 0
@@ -178,13 +239,46 @@ class ProjectEngine(
                     webSearch = search,
                 ),
             ) { text -> showPartial(id, text) }
-            val reply = parse(result.text).let { r -> r.copy(ideas = r.ideas.map { it.copy(references = verifiedReferences(it.references, result.sources)) }) }
+            var reply = parse(result.text).let { r -> r.copy(ideas = r.ideas.map { it.copy(references = verifiedReferences(it.references, result.sources)) }) }
             if (!reply.isQuestion && !reply.isIdeas) throw AiError.BadResponse
+            var history = messages + ChatMessage(ChatMessage.ASSISTANT, result.text)
+            var usage = result.usage
+            // 앞에서 받은 아이디어를 그대로 다시 보내면 겹치는 것을 빼고, 대부분 겹치면 한 번 더 요청한다.
+            val previous = store.get(id)?.allIdeas.orEmpty()
+            if (reply.isIdeas && previous.isNotEmpty() && store.get(id)?.isDemo != true) {
+                val dups = duplicatesOf(reply.ideas, previous)
+                if (reply.ideas.size - dups.size < MIN_FRESH_IDEAS) {
+                    val ask = ChatMessage(ChatMessage.USER, Protocol.duplicateMessage(dups.map { it.title }, previous.map { it.title }.distinct()))
+                    val again = aiFor(id).turn(
+                        questionModel(OpKind.IDEAS),
+                        TurnRequest(Protocol.discoverySystem(lang), history + ask, Protocol.discoverySchema, if (deep) Effort.HIGH else Effort.MEDIUM),
+                    )
+                    usage += again.usage
+                    val r2 = parse(again.text)
+                    if (!r2.isIdeas) {
+                        settings.addUsage(usage)
+                        throw AiError.BadResponse
+                    }
+                    history = history + ask + ChatMessage(ChatMessage.ASSISTANT, again.text)
+                    reply = r2
+                }
+                val fresh = reply.ideas - duplicatesOf(reply.ideas, previous).toSet()
+                if (fresh.isEmpty()) {
+                    settings.addUsage(usage)
+                    throw AiError.DuplicateIdeas
+                }
+                reply = reply.copy(ideas = fresh)
+            }
+            val finalHistory = history
+            val finalUsage = usage
+            val finalReply = reply
             store.update(id) { proj0 ->
                 val proj = onBeforeCommit(proj0)
+                val reply = finalReply
                 val withMsgs = proj.copy(
-                    messages = messages + ChatMessage(ChatMessage.ASSISTANT, result.text),
-                    usage = proj.usage + result.usage,
+                    messages = finalHistory,
+                    usage = proj.usage + finalUsage,
+                    extraQuestionsLeft = extraAfter(reply.isQuestion),
                 )
                 if (reply.isQuestion) {
                     withMsgs.copy(
@@ -193,10 +287,6 @@ class ProjectEngine(
                     )
                 } else {
                     val batchId = ProjectStore.newId().take(6)
-                    val label = when {
-                        userMsg.text.startsWith("[요청] \"") -> userMsg.text.substringAfter("\"").substringBefore("\"")
-                        else -> ""
-                    }
                     withMsgs.copy(
                         stage = ProjectStage.IDEAS,
                         ideaBatches = withMsgs.ideaBatches + IdeaBatch(
@@ -205,11 +295,12 @@ class ProjectEngine(
                             intro = reply.ideasIntro,
                             label = label,
                             ideas = reply.ideas.map { it.copy(id = "${batchId}_${it.id}") },
+                            fromExtraQuestions = fromExtra,
                         ),
                     )
                 }
             }
-            settings.addUsage(result.usage)
+            settings.addUsage(finalUsage)
         }
     }
 

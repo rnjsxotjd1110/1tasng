@@ -97,6 +97,8 @@ data class IdeaBatch(
     val intro: String = "",
     val label: String = "",
     val ideas: List<Idea> = emptyList(),
+    /** '질문 더 받기'로 추가 답변을 반영해 받은 묶음. */
+    val fromExtraQuestions: Boolean = false,
 )
 
 /** API 로 그대로 다시 보내는 대화 기록. assistant 는 Claude 가 돌려준 원문(JSON)을 보관한다. */
@@ -175,7 +177,11 @@ data class Project(
     val note: String = "",
     /** 처음에 함께 보낸 참고 이미지(앱 저장소 경로). */
     val images: List<String> = emptyList(),
+    /** '질문 더 받기' 중이면 지금 질문 뒤에 남은 추가 질문 수. 추가 질문 중이 아니면 -1. */
+    val extraQuestionsLeft: Int = -1,
 ) {
+    val inExtraQuestions: Boolean get() = extraQuestionsLeft >= 0
+
     val allIdeas: List<Idea> get() = ideaBatches.flatMap { it.ideas }
     fun idea(id: String): Idea? = allIdeas.firstOrNull { it.id == id }
     val selectedIdea: Idea? get() = design?.let { idea(it.ideaId) }

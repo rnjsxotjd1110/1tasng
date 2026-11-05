@@ -359,6 +359,11 @@ abstract class Strings {
 
     abstract val writingQuestion: String
 
+    abstract val newIdeasNow: String
+    abstract fun extraQuestionOf(n: Int, total: Int): String
+    abstract val extraIdeasHeader: String
+    abstract fun combinedOf(label: String): String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

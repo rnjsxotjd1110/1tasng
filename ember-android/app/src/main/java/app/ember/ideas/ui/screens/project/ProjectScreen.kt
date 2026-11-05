@@ -224,13 +224,17 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                                     else -> s.nextQuestionTitle
                                 },
                                 thinkingLines = if (op?.kind == OpKind.IDEAS) s.ideaThinkingLines else s.questionThinkingLines,
-                                finishLabel = if (noIdeasYet) s.showIdeasNow else s.backToIdeasShort,
+                                finishLabel = when {
+                                    noIdeasYet -> s.showIdeasNow
+                                    project.inExtraQuestions -> s.newIdeasNow
+                                    else -> s.backToIdeasShort
+                                },
                                 canFinish = project.answeredCount >= 2 || !noIdeasYet,
                                 draft = draft,
                                 onSubmit = { a -> draft = null; engine.answer(project.id, a) },
                                 onUndo = { draft = engine.undo(project.id) },
                                 onFinish = {
-                                    if (noIdeasYet) engine.requestIdeasNow(project.id) else engine.backToIdeas(project.id)
+                                    if (noIdeasYet || project.inExtraQuestions) engine.requestIdeasNow(project.id) else engine.backToIdeas(project.id)
                                 },
                                 onRetry = { engine.retry(project.id) },
                                 onFixKey = onFixKey,
@@ -239,6 +243,11 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                                 onStop = { engine.cancel(project.id) },
                                 onLeave = { engine.dismissError(project.id); onBack() },
                                 partial = op?.partial,
+                                canUndoCurrent = engine.canUndo(project),
+                                counter = if (project.inExtraQuestions) ({ sending ->
+                                    val total = app.ember.ideas.ai.Protocol.EXTRA_QUESTIONS
+                                    s.extraQuestionOf((total - project.extraQuestionsLeft + if (sending) 1 else 0).coerceIn(1, total), total)
+                                }) else null,
                             )
                         }
                     }

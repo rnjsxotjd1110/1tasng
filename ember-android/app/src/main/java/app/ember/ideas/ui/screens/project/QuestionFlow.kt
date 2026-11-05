@@ -112,6 +112,10 @@ fun QuestionFlow(
     onStop: (() -> Unit)? = null,
     onLeave: (() -> Unit)? = null,
     partial: app.ember.ideas.ai.PartialQuestion? = null,
+    /** 지금 질문에서 '이전'으로 돌아갈 수 있는지(요청으로 시작된 질문은 못 돌아간다). */
+    canUndoCurrent: Boolean = true,
+    /** 기본 "질문 n / 약 m" 대신 쓸 진행 문구. 인자는 답을 보내는 중인지. */
+    counter: ((Boolean) -> String)? = null,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -141,7 +145,7 @@ fun QuestionFlow(
                 // 답을 보내는 즉시 카운터와 진행 막대를 한 칸 올린다.
                 val sending = busy && lastSubmitted != null
                 val shownIndex = if (sending) index + 1 else index
-                Text(s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
+                Text(counter?.invoke(sending) ?: s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                 if (canFinish && !busy && current != null && error == null) {
                     Row(
                         Modifier.clip(EmberShape.chip).border(1.dp, c.ember.copy(alpha = 0.5f), EmberShape.chip).clickable(onClick = onFinish).heightIn(min = 36.dp).padding(horizontal = 12.dp),
@@ -205,7 +209,7 @@ fun QuestionFlow(
                     QuestionCard(
                         turn = turn,
                         draft = if (error != null && pendingAnswer != null && !pendingAnswer!!.skipped) pendingAnswer else draft,
-                        canUndo = turns.size >= 2,
+                        canUndo = turns.size >= 2 && canUndoCurrent,
                         onSubmit = submit,
                         onUndo = onUndo,
                         historyLabel = if (answered > 0) s.answersSoFar(answered) else null,

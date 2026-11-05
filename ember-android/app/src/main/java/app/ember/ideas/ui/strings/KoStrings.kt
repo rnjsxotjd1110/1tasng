@@ -71,6 +71,7 @@ object KoStrings : Strings() {
         AiError.BadResponse -> "응답을 읽지 못했어요"
         AiError.ModelUnavailable -> "선택한 모델을 쓸 수 없어요"
         AiError.OverBudget -> "이번 달 예산을 다 썼어요"
+        AiError.DuplicateIdeas -> "새 아이디어를 받지 못했어요"
         AiError.OutOfCredits -> "Ember 크레딧을 다 썼어요"
         is AiError.Other -> "문제가 생겼어요"
     }
@@ -86,6 +87,7 @@ object KoStrings : Strings() {
         AiError.BadResponse -> "응답 형식이 어긋났어요. 다시 시도하면 대부분 해결돼요."
         AiError.ModelUnavailable -> "설정에서 다른 모델을 고르거나, 이 키에 모델 권한이 있는지 확인해 주세요."
         AiError.OverBudget -> "설정한 월 예산에 도달해 요청을 멈췄어요. 설정 → 월 예산에서 한도를 올리거나 끌 수 있어요."
+        AiError.DuplicateIdeas -> "Claude가 앞에서 낸 아이디어를 다시 보냈어요. 다시 시도하거나 '질문 더 받기'로 방향을 바꿔 보세요."
         AiError.OutOfCredits -> "설정 → Claude 연결에서 크레딧을 충전하거나, 내 API 키를 연결해 계속할 수 있어요."
         is AiError.Other -> e.detail.take(160).ifBlank { "잠시 후 다시 시도해 주세요." }
     }
@@ -606,6 +608,11 @@ object KoStrings : Strings() {
     override val tabPreview = "미리 보기"
 
     override val writingQuestion = "질문을 쓰고 있어요"
+
+    override val newIdeasNow = "새 아이디어 받기"
+    override fun extraQuestionOf(n: Int, total: Int) = "추가 질문 $n / $total"
+    override val extraIdeasHeader = "추가 답변을 반영한 아이디어"
+    override fun combinedOf(label: String) = "‘$label’ 섞기"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

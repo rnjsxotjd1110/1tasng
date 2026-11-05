@@ -176,7 +176,13 @@ private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
     Column(Modifier.padding(top = 18.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (batch.label.isNotBlank()) s.variationOf(batch.label) else if (latest) s.latestIdeas else s.earlierIdeas,
+                when {
+                    batch.label.contains(" + ") -> s.combinedOf(batch.label)
+                    batch.label.isNotBlank() -> s.variationOf(batch.label)
+                    batch.fromExtraQuestions -> s.extraIdeasHeader
+                    latest -> s.latestIdeas
+                    else -> s.earlierIdeas
+                },
                 style = MaterialTheme.typography.titleMedium,
                 color = c.text,
                 modifier = Modifier.weight(1f),

@@ -68,6 +68,8 @@ sealed class AiError(message: String) : Exception(message) {
     data object BadResponse : AiError("bad_response") { private fun readResolve(): Any = BadResponse }
     data object ModelUnavailable : AiError("model_unavailable") { private fun readResolve(): Any = ModelUnavailable }
     data object OverBudget : AiError("over_budget") { private fun readResolve(): Any = OverBudget }
+    /** 앞에서 받은 아이디어와 같은 것만 돌아왔다. */
+    data object DuplicateIdeas : AiError("duplicate_ideas") { private fun readResolve(): Any = DuplicateIdeas }
     /** Ember 크레딧이 바닥났다(중계 서버 402). */
     data object OutOfCredits : AiError("out_of_credits") { private fun readResolve(): Any = OutOfCredits }
     class Other(val detail: String) : AiError(detail)

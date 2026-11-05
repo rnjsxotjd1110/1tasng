@@ -70,6 +70,7 @@ object EnStrings : Strings() {
         AiError.BadResponse -> "Couldn't read the response"
         AiError.ModelUnavailable -> "That model isn't available"
         AiError.OverBudget -> "Monthly budget reached"
+        AiError.DuplicateIdeas -> "No new ideas came back"
         AiError.OutOfCredits -> "You're out of Ember credits"
         is AiError.Other -> "Something went wrong"
     }
@@ -84,6 +85,7 @@ object EnStrings : Strings() {
         AiError.BadResponse -> "The response was malformed. Trying again usually fixes it."
         AiError.ModelUnavailable -> "Choose another model in Settings, or check this key's model access."
         AiError.OverBudget -> "Requests are paused because you hit your monthly budget. Raise or turn it off in Settings → Monthly budget."
+        AiError.DuplicateIdeas -> "Claude repeated earlier ideas. Try again, or use More questions to steer in a new direction."
         AiError.OutOfCredits -> "Top up in Settings → Claude connection, or connect your own API key to keep going."
         is AiError.Other -> e.detail.take(160).ifBlank { "Please try again in a moment." }
     }
@@ -597,6 +599,11 @@ object EnStrings : Strings() {
     override val tabPreview = "Preview"
 
     override val writingQuestion = "Writing your question"
+
+    override val newIdeasNow = "Get new ideas"
+    override fun extraQuestionOf(n: Int, total: Int) = "Extra question $n of $total"
+    override val extraIdeasHeader = "Ideas from your extra answers"
+    override fun combinedOf(label: String) = "Mix of $label"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

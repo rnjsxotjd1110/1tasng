@@ -177,11 +177,14 @@ object Protocol {
 - allow_custom 은 대부분 true 로 두고, custom_hint 에 직접 입력 예시를 적습니다.
 - subtitle 에는 이 질문을 왜 하는지 한 문장으로 적습니다.
 - 다루어야 할 영역(상황에 맞게 순서와 생략을 조절): 만들 것의 종류(게임/앱/웹), 플랫폼(모바일/PC/웹/콘솔), 대상 사용자, 장르·카테고리, 분위기·테마, 핵심 경험, 개발 규모(혼자/팀, 기간), 사용 기술·엔진, 수익 방식, 영감을 준 작품, 피하고 싶은 것.
+- 질문은 아이디어의 내용(장르, 핵심 경험, 소재·세계관, 분위기, 조작·주요 기능, 대상)을 바꾸는 영역을 먼저 묻습니다. 수익 방식·판매·마케팅·출시 계획처럼 컨셉과 거리가 먼 사업 질문은 사용자가 먼저 꺼내지 않는 한 묻지 않거나 맨 마지막에 하나만 묻습니다.
 - 보통 6~9개의 질문 뒤에 아이디어를 제안합니다. 사용자가 아이디어를 요청하면 즉시 제안합니다.
+- 사용자가 "[요청][추가 질문]" 으로 질문을 더 원하면, 요청한 개수의 질문을 모두 마칠 때까지 아이디어를 내지 않습니다. 답변 끝에 "(추가 질문 n개 남음)" 이 붙어 있으면 아이디어 대신 다음 질문을 합니다.
 - 사용자가 질문을 건너뛰면 그 영역은 당신이 합리적으로 판단합니다.
 
 ## 아이디어 품질
 - 기존 작품을 그대로 베끼지 않은 독창적인 아이디어를 냅니다. 각 아이디어는 서로 확실히 달라야 합니다.
+- 이 대화에서 이미 제안한 아이디어를 다시 내지 않습니다. 제목만 바꾸거나 같은 핵심 재미·같은 장르 조합을 되풀이하는 것도 같은 아이디어로 봅니다. 새로 받은 답이 있으면 그 답이 아이디어를 어떻게 바꿨는지 fit_reason 에 드러냅니다.
 - title 은 기억에 남는 가제, logline 은 한 문장 소개입니다.
 - core_hook 은 사용자가 계속하게 만드는 핵심 재미/가치, unique_point 는 비슷한 작품과의 차별점입니다.
 - key_features 는 3~5개의 구체적인 기능입니다.
@@ -318,8 +321,41 @@ $sections
 
     const val REQUEST_QUICK_IDEAS = "[요청] 질문 없이 지금 알려 준 정보만으로 아이디어 4개를 바로 제안해 주세요. 정보가 부족한 부분은 다양하게 가정해서 서로 다른 방향의 아이디어를 내 주세요."
     const val REQUEST_IDEAS_NOW = "[요청] 지금까지의 답변을 바탕으로 아이디어 4개를 바로 제안해 주세요."
+    /** '질문 더 받기'로 한 번에 더 묻는 질문 수. */
+    const val EXTRA_QUESTIONS = 3
+    const val TAG_MORE_QUESTIONS = "[요청][추가 질문]"
+    const val TAG_FRESH_IDEAS = "[요청][새 아이디어]"
+    const val TAG_DUPLICATE = "[요청][중복]"
+
+    fun moreIdeasMessage(previousTitles: List<String>): String =
+        "[요청] 앞에서 제안한 아이디어와 겹치지 않는 새로운 아이디어 4개를 제안해 주세요." + avoidLine(previousTitles)
+
+    /** 아이디어를 본 뒤 질문을 더 받는다. 컨셉을 좁히는 질문만, 정해진 개수만큼. */
+    fun moreQuestionsMessage(askedTitles: List<String>, previousTitles: List<String>): String = buildString {
+        append("$TAG_MORE_QUESTIONS 아이디어를 내 취향에 더 정확히 맞추고 싶어요. ")
+        append("아이디어의 컨셉 자체를 바꾸는 질문을 ${EXTRA_QUESTIONS}개, 한 번에 하나씩 이어서 해 주세요. 지금은 첫 번째 질문만 보내 주세요. ")
+        append("핵심 플레이·사용 경험, 소재와 세계관, 분위기, 조작이나 주요 기능, 영감을 준 작품, 피하고 싶은 요소처럼 아이디어 내용이 달라지는 영역에서 고르고, ")
+        append("수익·판매·마케팅·출시 계획처럼 컨셉과 거리가 먼 질문은 하지 마세요. 앞에서 낸 아이디어 중 사용자가 무엇을 더 원하는지 가려낼 수 있는 질문이면 더 좋아요.")
+        if (askedTitles.isNotEmpty()) append("\n이미 한 질문(다시 묻지 마세요): " + askedTitles.joinToString(" / "))
+        append(avoidLine(previousTitles))
+    }
+
+    /** 추가 질문을 마쳤거나 중간에 그만둘 때 보내는 새 아이디어 요청. */
+    fun freshIdeasMessage(previousTitles: List<String>): String =
+        "$TAG_FRESH_IDEAS 방금 추가로 답한 내용을 꼭 반영해서 아이디어 4개를 새로 제안해 주세요. 추가 답변이 아이디어를 어떻게 바꿨는지 ideas_intro 에 한 문장으로 적어 주세요." + avoidLine(previousTitles)
+
+    /** 받은 아이디어가 앞에서 낸 것과 겹칠 때 한 번 더 요청한다. */
+    fun duplicateMessage(duplicates: List<String>, previousTitles: List<String>): String =
+        "$TAG_DUPLICATE 방금 낸 아이디어 중 ${duplicates.joinToString(", ") { "\"$it\"" }} 는 앞에서 이미 제안한 아이디어와 같아요. 이전 아이디어와 제목·핵심 재미·장르 조합이 모두 다른 새 아이디어 4개를 다시 제안해 주세요." + avoidLine(previousTitles)
+
+    private fun avoidLine(titles: List<String>): String =
+        if (titles.isEmpty()) "" else "\n이미 제안한 아이디어(다시 내지 마세요): " + titles.joinToString(", ")
+
+    /** 추가 질문 중 답변 끝에 붙여 아이디어 대신 다음 질문을 하게 한다. */
+    fun remainingNote(left: Int): String = "\n(추가 질문 ${left}개 남음: 아이디어 대신 다음 질문을 해 주세요.)"
+
     const val REQUEST_MORE_IDEAS = "[요청] 앞에서 제안한 아이디어와 겹치지 않는 새로운 아이디어 4개를 제안해 주세요."
-    const val REQUEST_MORE_QUESTIONS = "[요청] 아이디어를 더 정확하게 맞추고 싶습니다. 아직 묻지 않은 중요한 질문을 이어서 해 주세요."
+    const val REQUEST_MORE_QUESTIONS = "$TAG_MORE_QUESTIONS 아이디어를 내 취향에 더 정확히 맞추고 싶어요. 컨셉을 바꾸는 질문을 이어서 해 주세요."
     const val REQUEST_READY_NOW = "[요청] 질문은 충분합니다. 지금까지 정한 내용으로 ready 를 보내 주세요. 정하지 않은 부분은 추천안으로 정리해 주세요."
 
     fun variationMessage(idea: Idea, direction: String): String =

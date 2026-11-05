@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -458,6 +459,7 @@ fun ErrorPanel(
     modifier: Modifier = Modifier,
     onDismiss: (() -> Unit)? = null,
     dismissLabel: String? = null,
+    showRetry: Boolean = true,
 ) {
     val c = Ember.colors
     val s = LocalStrings.current
@@ -485,13 +487,13 @@ fun ErrorPanel(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column {
                 if (keyProblem) {
-                    PrimaryButton(s.fixKey, onFixKey, Modifier.weight(1f), icon = Icons.Rounded.Key, height = 48.dp)
-                } else {
-                    PrimaryButton(s.retry, onRetry, Modifier.weight(1f), icon = Icons.Rounded.Refresh, height = 48.dp)
+                    PrimaryButton(s.fixKey, onFixKey, Modifier.fillMaxWidth(), icon = Icons.Rounded.Key, height = 48.dp)
+                } else if (showRetry) {
+                    PrimaryButton(s.retry, onRetry, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, height = 48.dp)
                 }
-                if (onDismiss != null) GhostButton(dismissLabel ?: s.close, onDismiss, color = c.textMuted)
+                if (onDismiss != null) GhostButton(dismissLabel ?: s.close, onDismiss, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
             }
         }
     }

@@ -194,7 +194,7 @@ fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier) {
         is MdBlock.Heading -> {
             val style = when (block.level) {
                 1 -> t.headlineMedium
-                2 -> t.titleLarge
+                2 -> t.headlineSmall
                 3 -> t.titleMedium
                 else -> t.titleSmall
             }
@@ -270,13 +270,14 @@ private fun TableView(table: MdBlock.Table, modifier: Modifier) {
             .then(if (fit) Modifier else Modifier.horizontalScroll(rememberScrollState())),
     ) {
         Column {
-            Row(Modifier.background(c.surface3).height(IntrinsicSize.Min)) {
+            val genericHeader = cols == 2 && table.header.all { h -> h.length <= 4 || h.lowercase() in setOf("item", "detail", "details", "value") }
+            if (!genericHeader) Row(Modifier.background(c.surface3).height(IntrinsicSize.Min)) {
                 table.header.forEachIndexed { i, h ->
                     Cell(h, header = true, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(if (i == 0) 112.dp else colWidth))
                 }
             }
             table.rows.forEachIndexed { r, row ->
-                Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
+                if (!(genericHeader && r == 0)) Box(Modifier.fillMaxWidth().height(1.dp).background(c.outline))
                 Row(Modifier.background(if (r % 2 == 1) c.surface2.copy(alpha = 0.4f) else c.surface).height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
                     row.forEachIndexed { i, cell ->
                         Cell(cell, header = false, first = i == 0, modifier = if (fit) Modifier.weight(if (i == 0) 0.3f else 0.7f) else Modifier.width(if (i == 0) 112.dp else colWidth))

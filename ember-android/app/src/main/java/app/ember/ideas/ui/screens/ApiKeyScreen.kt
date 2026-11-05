@@ -139,6 +139,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     }
                 }
                 Spacer(Modifier.height(24.dp))
+                Text(s.apiKey, style = MaterialTheme.typography.labelLarge, color = c.textMuted, modifier = Modifier.padding(bottom = 8.dp))
                 EmberTextField(
                     value = key,
                     onValueChange = { key = it.trim(); error = null },

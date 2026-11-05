@@ -290,6 +290,7 @@ class ScreenshotTest {
     @Test fun s17_library() {
         withKey()
         c.store.upsert(SampleProject.korean())
+        c.store.upsert(SampleProject.koreanApp())
         c.store.upsert(interviewProject())
         c.store.upsert(ideasProject().copy(favorite = true))
         setContent { MainTabs({}, {}, {}, {}, initialTab = 1) }
@@ -345,7 +346,7 @@ class ScreenshotTest {
     }
 
     @Test fun s24_demo_interview() {
-        val p = c.engine.createDemoProject("체험: 출퇴근길 게임")
+        val p = c.engine.createDemoProject("체험 프로젝트")
         ShadowLooper.idleMainLooper(3, java.util.concurrent.TimeUnit.SECONDS)
         setContent { ProjectScreen(p.id, {}, {}) }
         shot("24_demo_interview")
@@ -354,6 +355,8 @@ class ScreenshotTest {
     @Test fun s25_library_menu() {
         withKey()
         c.store.upsert(SampleProject.korean())
+        c.store.upsert(SampleProject.koreanApp())
+        c.store.upsert(interviewProject())
         c.store.upsert(ideasProject().copy(favorite = true))
         setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 1) }
         rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("더 많은 동작")).onFirst().performClick()

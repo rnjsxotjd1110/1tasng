@@ -167,7 +167,7 @@ object KoStrings : Strings() {
     override fun ideasCount(n: Int) = "아이디어 ${n}개"
 
     override fun questionN(n: Int) = "질문 $n"
-    override fun answersSoFar(n: Int) = "내 답변 ${n}개"
+    override fun answersSoFar(n: Int) = "답변 $n"
     override val multiHint = "여러 개 골라도 돼요"
     override val singleHint = "하나를 골라 주세요"
     override val customAnswer = "직접 입력하기"
@@ -382,12 +382,12 @@ object KoStrings : Strings() {
 
     override val profileIntro = "여기 적은 내용은 모든 인터뷰와 설계에 배경 정보로 들어가요. 비워 두어도 괜찮아요."
     override val profileExperience = "개발 경험"
-    override val experienceOptions = listOf("처음이에요", "1년 미만", "1~3년", "3년 이상", "현업 개발자", "기획자·PM (코딩은 맡김)")
+    override val experienceOptions = listOf("처음이에요", "1년 미만", "1~3년", "3년 이상", "현업 개발자")
     override val profileTools = "쓸 수 있는 도구·엔진"
     override val toolOptions = listOf("Godot", "Unity", "Unreal Engine", "Flutter", "React Native", "Kotlin·Android", "Swift·iOS", "React·웹", "Python", "노코드 도구")
     override val addToolPlaceholder = "다른 도구 직접 추가"
     override val profileTeam = "함께 만드는 사람"
-    override val teamOptions = listOf("혼자", "2~3명", "4명 이상 팀")
+    override val teamOptions = listOf("혼자", "2~3명", "4명 이상 팀", "기획만 하고 개발은 맡겨요")
     override val profileNotes = "그 밖에 알려 줄 것"
     override val profileNotesPlaceholder = "예: 픽셀아트를 직접 그릴 수 있어요. 주말에만 개발해요."
 
@@ -431,7 +431,7 @@ object KoStrings : Strings() {
     override val demoTry = "키 없이 체험해 보기"
     override val demoBanner = "체험 모드예요. 미리 준비된 질문과 결과라 내 답변은 반영되지 않아요."
     override val demoConnect = "Claude 연결"
-    override val demoTitle = "체험: 출퇴근길 게임"
+    override val demoTitle = "체험 프로젝트"
     override val keyStoredNote = "키는 이 기기 안에만 저장되고 Anthropic 외에는 어디에도 보내지 않아요."
     override val profileButton = "프로필"
     override fun profileSummary(experience: String, tools: List<String>) =
@@ -476,6 +476,8 @@ object KoStrings : Strings() {
     override fun costPreview(discovery: String, doc: String) = "Opus 기준으로 아이디어 탐색 1회 $discovery, 표준 설계서 1편 $doc 정도예요. Sonnet은 절반, Haiku는 훨씬 저렴해요."
     override val resend = "다시 보내기"
     override fun compareCount(n: Int) = "아이디어 ${n}개 · 옆으로 밀어 보세요"
+
+    override fun moreSections(n: Int) = "이어서 ${n}개 섹션을 더 써요"
 
     override val tabHome = "홈"
     override val tabLibrary = "보관함"

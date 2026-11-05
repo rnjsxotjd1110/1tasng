@@ -79,7 +79,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(20.dp))
-        Text(s.settingsTitle, style = MaterialTheme.typography.headlineLarge, color = c.text, modifier = Modifier.padding(horizontal = 4.dp))
+        Text(s.settingsTitle, style = MaterialTheme.typography.headlineLarge, color = c.text)
         Spacer(Modifier.height(12.dp))
 
         Group(s.groupClaude) {
@@ -190,7 +190,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
 private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     val c = Ember.colors
     Spacer(Modifier.height(18.dp))
-    Text(title, style = MaterialTheme.typography.labelLarge, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+    Text(title, style = MaterialTheme.typography.labelLarge, color = c.textMuted, modifier = Modifier.padding(vertical = 6.dp))
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).padding(horizontal = 12.dp, vertical = 6.dp),
         content = content,

@@ -126,17 +126,7 @@ fun LibraryScreen(
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(LibraryFilter.entries.filter { it != LibraryFilter.FAVORITE }) { f ->
-                        Text(
-                            s.filterLabel(f),
-                            modifier = Modifier
-                                .minimumInteractiveComponentSize()
-                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(if (filter == f) c.surface3 else c.surface)
-                                .combinedClickable(onClick = { filter = f })
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (filter == f) c.text else c.textMuted,
-                        )
+                        EmberChip(s.filterLabel(f), filter == f, { filter = f })
                     }
                 }
             }
@@ -229,7 +219,7 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
         }
         Box {
             IconCircleButton(Icons.Rounded.MoreVert, s.moreActions, { menu = true }, filled = false, tint = c.textMuted)
-            DropdownMenu(menu, { menu = false }, containerColor = c.surface2, offset = androidx.compose.ui.unit.DpOffset((-12).dp, 0.dp)) {
+            DropdownMenu(menu, { menu = false }, containerColor = c.surface2, offset = androidx.compose.ui.unit.DpOffset((-12).dp, 0.dp), shadowElevation = 8.dp, tonalElevation = 0.dp) {
                 DropdownMenuItem({ Text(if (p.favorite) s.unpin else s.pin, color = c.text) }, { menu = false; onFavorite() }, leadingIcon = { Icon(Icons.Rounded.PushPin, null, tint = c.textMuted) })
                 DropdownMenuItem({ Text(s.rename, color = c.text) }, { menu = false; onRename() }, leadingIcon = { Icon(Icons.Rounded.DriveFileRenameOutline, null, tint = c.textMuted) })
                 DropdownMenuItem({ Text(s.delete, color = c.danger) }, { menu = false; onDelete() }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = c.danger) })

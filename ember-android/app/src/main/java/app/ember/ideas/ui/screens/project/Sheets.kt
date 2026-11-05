@@ -151,15 +151,11 @@ fun IdeaDetailSheet(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 (listOf(idea.genre.ifBlank { idea.category }, idea.scope, idea.devTime) + idea.platforms).filter { it.isNotBlank() }.distinct().forEach { Tag(it) }
             }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().offset(x = (-12).dp)) {
-                GhostButton(s.vary, onVary, icon = Icons.Rounded.Shuffle, enabled = !busy)
-                if (hasOtherIdeas) GhostButton(s.combine, onCombine, icon = Icons.Rounded.CallMerge, enabled = !busy)
-                GhostButton(s.copy, onCopy, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(14.dp))
             StatRow(idea)
             DetailBlock(s.fieldCoreHook, idea.coreHook)
+            if (idea.risks.isNotEmpty()) BulletBlock(s.fieldRisks, idea.risks)
+            DetailBlock(s.fieldValidation, idea.validation)
             if (idea.keyFeatures.isNotEmpty()) {
                 DetailTitle(s.fieldFeatures)
                 idea.keyFeatures.forEach { f ->
@@ -174,8 +170,12 @@ fun IdeaDetailSheet(
             DetailBlock(s.fieldMonetization, idea.monetization)
             DetailBlock(s.fieldFit, idea.fitReason, accent = true)
             if (idea.similarWorks.isNotEmpty()) BulletBlock(s.fieldSimilar, idea.similarWorks)
-            if (idea.risks.isNotEmpty()) BulletBlock(s.fieldRisks, idea.risks)
-            DetailBlock(s.fieldValidation, idea.validation)
+            DetailTitle(s.tryDifferently)
+            Row(Modifier.fillMaxWidth().offset(x = (-12).dp)) {
+                GhostButton(s.vary, onVary, icon = Icons.Rounded.Shuffle, enabled = !busy)
+                if (hasOtherIdeas) GhostButton(s.combine, onCombine, icon = Icons.Rounded.CallMerge, enabled = !busy)
+                GhostButton(s.copy, onCopy, icon = Icons.Rounded.ContentCopy, color = c.textMuted)
+            }
             Spacer(Modifier.height(8.dp))
             GhostButton(s.sendIdeaToClaude, onSendToClaude, icon = Icons.AutoMirrored.Rounded.Send, modifier = Modifier.offset(x = (-12).dp))
             Spacer(Modifier.height(16.dp))
@@ -465,18 +465,6 @@ fun HandoffSheet(
             if (docTitle != null) {
                 Text(s.handoffDocName(docTitle), style = MaterialTheme.typography.labelMedium, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 8.dp))
             }
-            (listOf(defaultGoal) + HandoffGoal.entries.filter { it != defaultGoal }).forEach { g ->
-                GoalTile(s.goalTitle(g), s.goalShort(g), goal == g, Modifier.fillMaxWidth()) { goal = g }
-                Spacer(Modifier.height(8.dp))
-            }
-            Text(s.goalBody(goal), style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(bottom = 4.dp))
-            Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(top = 10.dp))
-            ToggleRow(s.includeAnswers, null, answers, { answers = it })
-            if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
-            ToggleRow(s.includeProfile, null, profile, { profile = it })
-            Spacer(Modifier.height(8.dp))
-            EmberTextField(extra, { extra = it }, s.handoffExtraPlaceholder, minHeight = 56.dp, maxLength = 500)
-            Spacer(Modifier.height(12.dp))
             // 미리 보기: 처음 몇 줄을 항상 보여 주고 눌러서 펼친다.
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface2).clickable { showPreview = !showPreview }.padding(14.dp),
@@ -492,10 +480,23 @@ fun HandoffSheet(
                     if (showPreview) text.take(4000) + if (text.length > 4000) "\n…" else "" else text,
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textMuted,
-                    maxLines = if (showPreview) Int.MAX_VALUE else 4,
+                    maxLines = if (showPreview) Int.MAX_VALUE else 3,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            Spacer(Modifier.height(12.dp))
+            (listOf(defaultGoal) + HandoffGoal.entries.filter { it != defaultGoal }).forEach { g ->
+                GoalTile(s.goalTitle(g), if (goal == g) s.goalBody(g) else s.goalShort(g), goal == g, Modifier.fillMaxWidth()) { goal = g }
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(s.includeLabel, style = MaterialTheme.typography.titleSmall, color = c.textMuted, modifier = Modifier.padding(top = 10.dp))
+            ToggleRow(s.includeAnswers, null, answers, { answers = it })
+            if (hasDocument) ToggleRow(s.includeDocument, null, document, { document = it })
+            ToggleRow(s.includeProfile, null, profile, { profile = it })
+            Spacer(Modifier.height(8.dp))
+            EmberTextField(extra, { extra = it }, s.handoffExtraPlaceholder, minHeight = 56.dp, maxLength = 500)
+            Spacer(Modifier.height(12.dp))
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.topFade(c.surface).padding(horizontal = 20.dp, vertical = 8.dp)) {
@@ -576,12 +577,13 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
         s.fieldCoreHook to { it.coreHook },
         s.fieldMonetization to { it.monetization },
         s.fieldUnique to { it.uniquePoint },
+        s.fieldRisks to { it.risks.firstOrNull().orEmpty() },
     )
     val density = androidx.compose.ui.platform.LocalDensity.current
     // 각 행의 실제 높이를 재서 고정된 항목 열과 맞춘다.
     val heights = remember { androidx.compose.runtime.mutableStateListOf(*Array(rows.size + 1) { 0 }) }
-    val labelW = 76.dp
-    val colW = 156.dp
+    val labelW = 88.dp
+    val colW = 164.dp
     EmberSheet(onDismiss) {
         SheetTitle(s.compareTitle, s.compareCount(ideas.size), onDismiss)
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
@@ -621,8 +623,10 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
                     Row {
                         ideas.forEach { idea ->
                             Column(Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 4.dp)) {
-                                GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
-                                GhostButton(s.details, { onOpen(idea) }, color = c.textMuted)
+                                Row {
+                                    GhostButton(s.details, { onOpen(idea) }, color = c.textMuted)
+                                    GhostButton(s.designThisShort.substringBefore(" "), { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                                }
                             }
                         }
                     }
@@ -659,7 +663,7 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = c.text)
-                Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(body, style = MaterialTheme.typography.bodySmall, color = c.textMuted, maxLines = if (selected) 3 else 1, overflow = TextOverflow.Ellipsis)
             }
             SelectMark(selected, multi = false)
         }

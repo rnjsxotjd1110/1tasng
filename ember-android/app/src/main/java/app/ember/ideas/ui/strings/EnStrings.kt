@@ -137,7 +137,7 @@ object EnStrings : Strings() {
         ProjectKind.WEB -> "New web idea"
         ProjectKind.ANY -> "New idea"
     }
-    override val seedPlaceholder = "Any words on your mind? e.g. cats, my commute, studying alone"
+    override val seedPlaceholder = "Any words on your mind? (optional) e.g. cats, my commute"
     override val inspireMe = "Inspire me"
     override val inspirations = listOf(
         "Rainy days by the window", "A 20-minute subway commute", "Old photo albums", "Growing houseplants", "Studying alone",
@@ -147,7 +147,7 @@ object EnStrings : Strings() {
     override val pickKindFirst = "Pick a category first"
     override val connectToStart = "Connect Claude to start"
     override val startDiscovery = "Start finding ideas"
-    override val noKeyHint = "Without a key you can still browse the sample project in your Library."
+    override val noKeyHint = "Without a key you can still browse the sample projects in your Library."
     override val continueSection = "Continue"
     override val recentDocs = "Recent design docs"
     override val seeAll = "See all"
@@ -165,7 +165,7 @@ object EnStrings : Strings() {
     override fun ideasCount(n: Int) = "$n ideas"
 
     override fun questionN(n: Int) = "Question $n"
-    override fun answersSoFar(n: Int) = "My $n answers"
+    override fun answersSoFar(n: Int) = "Answers $n"
     override val multiHint = "Pick as many as you like"
     override val singleHint = "Pick one"
     override val customAnswer = "Write my own"
@@ -380,12 +380,12 @@ object EnStrings : Strings() {
 
     override val profileIntro = "Everything here is shared as background in every interview and design. You can leave it blank."
     override val profileExperience = "Experience"
-    override val experienceOptions = listOf("Total beginner", "Under 1 year", "1–3 years", "3+ years", "Professional", "PM / planner (no coding)")
+    override val experienceOptions = listOf("Total beginner", "Under 1 year", "1–3 years", "3+ years", "Professional")
     override val profileTools = "Tools & engines you can use"
     override val toolOptions = listOf("Godot", "Unity", "Unreal Engine", "Flutter", "React Native", "Kotlin/Android", "Swift/iOS", "React/Web", "Python", "No-code tools")
     override val addToolPlaceholder = "Add another tool (press done)"
     override val profileTeam = "Who's building"
-    override val teamOptions = listOf("Just me", "2–3 people", "Team of 4+")
+    override val teamOptions = listOf("Just me", "2–3 people", "Team of 4+", "I plan, others build")
     override val profileNotes = "Anything else"
     override val profileNotesPlaceholder = "e.g. I can draw pixel art. I only build on weekends."
 
@@ -422,7 +422,7 @@ object EnStrings : Strings() {
     override val demoTry = "Try it without a key"
     override val demoBanner = "Demo mode: questions and results are pre-made, so your answers aren't used."
     override val demoConnect = "Connect Claude"
-    override val demoTitle = "Demo: Commute game"
+    override val demoTitle = "Demo project"
     override val keyStoredNote = "Your key stays on this device and is only ever sent to Anthropic."
     override val profileButton = "Profile"
     override fun profileSummary(experience: String, tools: List<String>) =
@@ -464,9 +464,11 @@ object EnStrings : Strings() {
     override val nextQuestionTag = "Next"
     override val newIdeaHeadline = "Find a new idea"
 
-    override fun costPreview(discovery: String, doc: String) = "On Opus, one exploration is about $discovery and a standard design doc about $doc. Sonnet costs half, Haiku far less."
+    override fun costPreview(discovery: String, doc: String) = "On Opus, one exploration costs $discovery and a standard design doc $doc. Sonnet costs half, Haiku far less."
     override val resend = "Send again"
     override fun compareCount(n: Int) = "$n ideas · swipe sideways"
+
+    override fun moreSections(n: Int) = "$n more sections to go"
 
     override val tabHome = "Home"
     override val tabLibrary = "Library"

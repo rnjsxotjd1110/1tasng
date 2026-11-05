@@ -267,12 +267,17 @@ fun DocumentContent(
                                         }
                                     }
                                     val planned = Protocol.plannedSections(project.kind, s.isKorean)
-                                    planned.drop(done.size).take(if (done.isEmpty()) 3 else 2).forEachIndexed { i, title ->
+                                    val upcoming = planned.drop(done.size)
+                                    val shownUpcoming = if (done.isEmpty()) 3 else 2
+                                    upcoming.take(shownUpcoming).forEachIndexed { i, title ->
                                         Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Box(Modifier.size(14.dp).clip(CircleShape).border(1.5.dp, c.control, CircleShape))
                                             Spacer(Modifier.width(12.dp))
                                             Text("${done.size + i + 1}. $title", style = MaterialTheme.typography.bodySmall, color = c.textFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
+                                    }
+                                    if (upcoming.size > shownUpcoming) {
+                                        Text(s.moreSections(upcoming.size - shownUpcoming), style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(start = 26.dp, top = 2.dp))
                                     }
                                 }
                             }

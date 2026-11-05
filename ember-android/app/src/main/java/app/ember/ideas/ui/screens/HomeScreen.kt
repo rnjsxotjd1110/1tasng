@@ -146,10 +146,13 @@ fun HomeScreen(
                     val p = inProgress.first()
                     Box(Modifier.padding(horizontal = 20.dp)) { ContinueCard(p, busy = ops[p.id]?.running == true, full = true) { onOpenProject(p.id) } }
                 } else {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(inProgress, key = { it.id }) { p ->
-                            ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
+                    Box {
+                        LazyRow(contentPadding = PaddingValues(start = 20.dp, end = 40.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(inProgress, key = { it.id }) { p ->
+                                ContinueCard(p, busy = ops[p.id]?.running == true) { onOpenProject(p.id) }
+                            }
                         }
+                        Box(Modifier.align(Alignment.CenterEnd).width(36.dp).height(80.dp).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(c.bg.copy(alpha = 0f), c.bg))))
                     }
                 }
             }

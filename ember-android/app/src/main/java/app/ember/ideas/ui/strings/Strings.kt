@@ -202,6 +202,7 @@ abstract class Strings {
     abstract val recommended: String
     abstract val moreActions: String
     abstract fun minutes(lo: Int, hi: Int): String
+    abstract fun moreSections(n: Int): String
     abstract fun costPreview(discovery: String, doc: String): String
     abstract val resend: String
     abstract fun compareCount(n: Int): String

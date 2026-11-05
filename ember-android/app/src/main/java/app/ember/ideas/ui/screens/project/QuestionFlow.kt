@@ -51,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -133,14 +134,14 @@ fun QuestionFlow(
                 }
                 // 답을 보내는 즉시 카운터와 진행 막대를 한 칸 올린다.
                 val sending = busy && lastSubmitted != null
-                val shownIndex = if (sending) index + 1 else index
+                val shownIndex = index
                 Text(s.questionOf(shownIndex.coerceAtLeast(1), expectedTotal), style = MaterialTheme.typography.labelMedium, color = c.textMuted, modifier = Modifier.weight(1f))
                 if (canFinish && !busy && current != null) {
                     Row(
-                        Modifier.clip(CircleShape).background(c.emberSoft).clickable(onClick = onFinish).heightIn(min = 40.dp).padding(horizontal = 14.dp),
+                        Modifier.clip(CircleShape).border(1.dp, c.ember.copy(alpha = 0.5f), CircleShape).clickable(onClick = onFinish).heightIn(min = 36.dp).padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(finishLabel, style = MaterialTheme.typography.labelLarge, color = c.ember)
+                        Text(finishLabel, style = MaterialTheme.typography.labelMedium, color = c.ember)
                         Spacer(Modifier.width(4.dp))
                         Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = c.ember, modifier = Modifier.size(16.dp))
                     }
@@ -200,7 +201,7 @@ fun QuestionFlow(
                         onUndo = onUndo,
                         historyLabel = if (answered > 0) s.answersSoFar(answered) else null,
                         onShowHistory = onShowHistory,
-                        errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater) }) else null,
+                        errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater, showRetry = false) }) else null,
                     )
                 }
             }
@@ -257,7 +258,7 @@ private fun QuestionCard(
                         color = c.textMuted,
                         modifier = Modifier.weight(1f).padding(vertical = 8.dp),
                     )
-                    if (historyLabel != null) GhostButton(historyLabel.filter { it.isDigit() }, onShowHistory, icon = Icons.Rounded.History, color = c.ember)
+                    if (historyLabel != null) GhostButton(historyLabel, onShowHistory, icon = Icons.AutoMirrored.Rounded.List, color = c.ember)
                 }
                 Spacer(Modifier.height(20.dp))
             }

@@ -143,6 +143,7 @@ fun IdeaDetailSheet(
     onSendToClaude: () -> Unit,
     onCopy: () -> Unit,
     onReport: () -> Unit = {},
+    hasDesign: Boolean = false,
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -191,7 +192,7 @@ fun IdeaDetailSheet(
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.topFade(c.surface).padding(horizontal = 20.dp, vertical = 10.dp)) {
-            PrimaryButton(s.designThis, onDesign, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description, enabled = !busy)
+            PrimaryButton(if (hasDesign) s.openDesign else s.designThis, onDesign, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description, enabled = !busy)
         }
     }
 }
@@ -610,7 +611,7 @@ fun ideaAsText(idea: Idea): String = Protocol.ideaBrief(idea).removePrefix("### 
 // ------------------------------------------------------------------ 아이디어 비교
 
 @Composable
-fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Unit, onDesign: (Idea) -> Unit) {
+fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Unit, busy: Boolean = false, hasDesign: (String) -> Boolean = { false }, onDesign: (Idea) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
     val easiest = ideas.minByOrNull { it.difficulty }?.id
@@ -667,7 +668,7 @@ fun CompareSheet(ideas: List<Idea>, onDismiss: () -> Unit, onOpen: (Idea) -> Uni
                     Row {
                         ideas.forEach { idea ->
                             Column(Modifier.width(colW).padding(end = 8.dp).clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)).background(if (idea.id == easiest) c.emberSoft else c.surface2).padding(horizontal = 4.dp)) {
-                                GhostButton(s.designThisShort, { onDesign(idea) }, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                                GhostButton(if (hasDesign(idea.id)) s.openDesignShort else s.designThisShort, { onDesign(idea) }, enabled = !busy)
                             }
                         }
                     }

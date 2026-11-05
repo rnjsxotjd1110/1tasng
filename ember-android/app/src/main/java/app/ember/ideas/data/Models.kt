@@ -54,6 +54,8 @@ data class Turn(
     val insight: String = "",
     val question: Question,
     val answer: Answer? = null,
+    /** 이 질문이 나왔을 때의 남은 추가 질문 수(되돌리기에서 그대로 되살린다). */
+    val extraLeft: Int = -1,
 ) {
     fun answerSummary(): String {
         val a = answer ?: return ""
@@ -179,7 +181,13 @@ data class Project(
     val images: List<String> = emptyList(),
     /** '질문 더 받기' 중이면 지금 질문 뒤에 남은 추가 질문 수. 추가 질문 중이 아니면 -1. */
     val extraQuestionsLeft: Int = -1,
+    /** 지금 설계 중이 아닌 다른 아이디어의 설계서. 다른 아이디어로 설계를 시작해도 이전 설계서를 잃지 않게 보관한다. */
+    val otherDesigns: Map<String, DesignState> = emptyMap(),
 ) {
+    /** 이 아이디어로 만든 설계서가 있으면 돌려준다(지금 설계 중인 것 포함). */
+    fun designFor(ideaId: String): DesignState? =
+        design?.takeIf { it.ideaId == ideaId && it.latest != null } ?: otherDesigns[ideaId]?.takeIf { it.latest != null }
+
     val inExtraQuestions: Boolean get() = extraQuestionsLeft >= 0
 
     val allIdeas: List<Idea> get() = ideaBatches.flatMap { it.ideas }

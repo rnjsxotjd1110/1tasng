@@ -248,7 +248,8 @@ fun MarkdownBlockView(block: MdBlock, modifier: Modifier = Modifier, headingActi
                     .horizontalScroll(rememberScrollState())
                     .padding(14.dp),
             ) {
-                Text(block.text, style = t.bodySmall.copy(fontFamily = FontFamily.Monospace), color = c.text)
+                // 복사한 코드에 한국어 줄바꿈용 WORD JOINER 가 섞이지 않도록 기본 Text 를 쓴다.
+                androidx.compose.material3.Text(block.text, style = t.bodySmall.copy(fontFamily = FontFamily.Monospace), color = c.text, softWrap = false)
             }
         }
         is MdBlock.Table -> TableView(block, modifier)

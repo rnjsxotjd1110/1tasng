@@ -99,6 +99,8 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
         scope.launch {
             try {
                 container.credits.connect()
+                // 크레딧 탭에서 직접 연결한 경우에만 크레딧을 우선으로 쓴다.
+                settings.setPreferCredits(true)
             } catch (e: AiError) {
                 creditError = s.errorBody(e)
             } finally {

@@ -4,7 +4,7 @@
 
 ## 휴대폰에 설치하기
 
-1. `release/Ember-1.2.0.apk` 를 휴대폰으로 받습니다.
+1. `release/Ember-1.2.1.apk` 를 휴대폰으로 받습니다.
 2. 파일을 열면 "출처를 알 수 없는 앱 설치" 허용 화면이 나옵니다. 사용하는 앱(파일 관리자·브라우저 등)에 설치를 허용합니다.
 3. 설치 후 Ember를 열고, 온보딩 다음 화면에서 Anthropic API 키(`sk-ant-…`)를 붙여 넣어 연결합니다.
    - 키 발급: console.anthropic.com → Settings → API Keys → Create Key (Billing에서 크레딧 충전 필요)

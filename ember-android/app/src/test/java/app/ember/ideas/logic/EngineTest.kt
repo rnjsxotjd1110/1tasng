@@ -388,4 +388,152 @@ class EngineTest {
         assertTrue(reply.isIdeas)
         assertTrue(reply.ideas.none { it.title in first })
     }
+
+    // ------------------------------------------------------------ 검토에서 나온 버그
+
+    private fun toDocument(): String {
+        val id = toIdeas()
+        val idea = c.store.get(id)!!.allIdeas.first()
+        c.engine.startDesign(id, idea.id, DocDepth.BRIEF, askQuestions = false)
+        idle()
+        assertNotNull(c.store.get(id)!!.design!!.latest)
+        return id
+    }
+
+    @Test fun designingAnotherIdeaKeepsEarlierDocument() {
+        val id = toDocument()
+        val p0 = c.store.get(id)!!
+        val firstIdea = p0.design!!.ideaId
+        val second = p0.allIdeas[1]
+        ai.docMarkdown = "# 두 번째\n\n## 한눈에 보기\n\n본문 둘"
+        c.engine.startDesign(id, second.id, DocDepth.BRIEF, askQuestions = false)
+        idle()
+        var p = c.store.get(id)!!
+        assertEquals(second.id, p.design!!.ideaId)
+        assertNotNull("첫 설계서는 보관돼야 해요", p.otherDesigns[firstIdea]?.latest)
+        assertNotNull(p.designFor(firstIdea))
+        c.engine.openDesign(id, firstIdea)
+        p = c.store.get(id)!!
+        assertEquals(firstIdea, p.design!!.ideaId)
+        assertEquals(ProjectStage.DOCUMENT, p.stage)
+        assertNotNull(p.otherDesigns[second.id]?.latest)
+    }
+
+    @Test fun redesigningSameIdeaKeepsVersions() {
+        val id = toDocument()
+        val ideaId = c.store.get(id)!!.design!!.ideaId
+        c.engine.startDesign(id, ideaId, DocDepth.BRIEF, askQuestions = false)
+        idle()
+        assertEquals(2, c.store.get(id)!!.design!!.versions.size)
+    }
+
+    @Test fun startDesignWhileBusyIsIgnored() {
+        val id = toIdeas()
+        ai.gate = kotlinx.coroutines.CompletableDeferred()
+        ai.turnReplies += Result.success(FakeAi.ideas("E", "F", "G", "H"))
+        c.engine.moreIdeas(id)
+        idle()
+        val idea = c.store.get(id)!!.allIdeas.first()
+        c.engine.startDesign(id, idea.id, DocDepth.BRIEF, askQuestions = true)
+        assertNull("작업 중에는 설계가 시작되지 않아요", c.store.get(id)!!.design)
+        assertEquals(ProjectStage.IDEAS, c.store.get(id)!!.stage)
+        ai.gate!!.complete(Unit)
+        idle()
+    }
+
+    @Test fun stoppingReviseKeepsLatestComplete() {
+        val id = toDocument()
+        val before = c.store.get(id)!!.design!!.versions
+        ai.docMarkdown = "# 수정본\n\n" + "긴 문장 ".repeat(200)
+        ai.gate = kotlinx.coroutines.CompletableDeferred()
+        ai.streamBeforeGate = 10
+        c.engine.reviseDocument(id, "더 짧게")
+        idle()
+        c.engine.cancel(id)
+        idle()
+        assertEquals("중지한 수정은 새 버전을 만들지 않아요", before, c.store.get(id)!!.design!!.versions)
+
+        ai.gate = kotlinx.coroutines.CompletableDeferred()
+        ai.docError = AiError.Offline
+        c.engine.reviseDocument(id, "더 짧게")
+        idle()
+        ai.gate!!.complete(Unit)
+        idle()
+        assertEquals("실패한 수정도 잘린 원고를 최신본으로 만들지 않아요", before, c.store.get(id)!!.design!!.versions)
+        ai.docError = null
+    }
+
+    @Test fun lateCancelledOpDoesNotClobberNewOne() {
+        // 취소해도 바로 끝나지 않는(블로킹) 호출을 흉내 낸다.
+        val slowGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slow = object : app.ember.ideas.ai.AiService by ai {
+            var calls = 0
+            override suspend fun turnStreaming(model: app.ember.ideas.ai.ClaudeModel, request: app.ember.ideas.ai.TurnRequest, onText: (String) -> Unit): app.ember.ideas.ai.TurnResult {
+                calls++
+                if (calls == 2) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { slowGate.await() }
+                    return app.ember.ideas.ai.TurnResult(FakeAi.question("Q2-늦은"), app.ember.ideas.data.Usage())
+                }
+                return ai.turn(model, request)
+            }
+        }
+        val c2 = AppContainer(ApplicationProvider.getApplicationContext<Application>(), slow)
+        c2.store.deleteAll()
+        ai.turnReplies += Result.success(FakeAi.question("Q1"))
+        val p = c2.engine.createProject(ProjectKind.GAME, "", "새 게임")
+        idle()
+        // 두 번째 호출(답 보내기)은 취소해도 끝나지 않는다.
+        c2.engine.answer(p.id, Answer(listOf("o1")))
+        idle()
+        c2.engine.cancel(p.id)
+        idle()
+        // 사용자가 다시 보낸다.
+        ai.gate = kotlinx.coroutines.CompletableDeferred()
+        ai.turnReplies += Result.success(FakeAi.question("Q2"))
+        c2.engine.answer(p.id, Answer(listOf("o1")))
+        idle()
+        assertTrue(c2.engine.isBusy(p.id))
+        // 늦게 끝난 첫 작업은 새 작업의 상태를 지우지 않는다.
+        slowGate.complete(Unit)
+        idle()
+        assertTrue("새 작업이 아직 진행 중이어야 해요", c2.engine.isBusy(p.id))
+        ai.gate!!.complete(Unit)
+        idle()
+        val after = c2.store.get(p.id)!!
+        assertEquals(listOf("Q1", "Q2"), after.turns.map { it.question.title })
+        after.messages.zipWithNext().forEach { (a, b) -> assertTrue(a.role != b.role) }
+    }
+
+    @Test fun designResumeAfterStoppedFirstQuestion() {
+        val id = toIdeas()
+        val idea = c.store.get(id)!!.allIdeas.first()
+        ai.gate = kotlinx.coroutines.CompletableDeferred()
+        ai.turnReplies += Result.success(FakeAi.question("엔진은?", stage = "기술"))
+        c.engine.startDesign(id, idea.id, DocDepth.BRIEF, askQuestions = true)
+        idle()
+        c.engine.cancel(id)
+        idle()
+        assertTrue(c.store.get(id)!!.design!!.turns.isEmpty())
+        ai.gate = null
+        c.engine.designStart(id)
+        idle()
+        assertEquals("엔진은?", c.store.get(id)!!.design!!.turns.single().question.title)
+    }
+
+    @Test fun undoClearsErrorAndRestoresExactExtraCount() {
+        val id = toIdeas()
+        ai.turnReplies += Result.success(FakeAi.question("X1"))
+        c.engine.moreQuestions(id)
+        idle()
+        ai.turnReplies += Result.success(FakeAi.question("X2"))
+        c.engine.answer(id, Answer(listOf("o1")))
+        idle()
+        ai.turnReplies += Result.failure(AiError.Offline)
+        c.engine.answer(id, Answer(listOf("o1")))
+        idle()
+        assertNotNull(c.engine.ops.value[id]?.error)
+        c.engine.undo(id)
+        assertNull("되돌리면 오류 표시도 지워요", c.engine.ops.value[id])
+        assertEquals(2, c.store.get(id)!!.extraQuestionsLeft)
+    }
 }

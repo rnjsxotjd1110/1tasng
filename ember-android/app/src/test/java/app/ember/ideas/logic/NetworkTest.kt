@@ -83,6 +83,16 @@ class NetworkTest {
         }
     }
 
+    @Test fun connectingForReportDoesNotSwitchKeyUsersToCredits() = runBlocking {
+        settings.setApiKey("sk-ant-test-0000000000000000000000000000000000")
+        mock.on("POST /ember/register", Res(200, """{"token":"tok_r","credits":150,"freeGranted":true}"""))
+            .on("POST /ember/report", Res(200, """{"ok":true,"id":1}"""))
+        CreditAccount(settings).report("idea", "기타", "내용", "", "1.2.0")
+        val st = settings.settings.value
+        assertTrue(st.creditsReady)
+        assertFalse("신고하려고 등록해도 내 키로 계속 요청해야 해요", st.usingCredits)
+    }
+
     @Test fun preferKeyWhenNotChosen() {
         settings.setApiKey("sk-ant-test-0000000000000000000000000000000000")
         settings.setCreditAccount("tok", 50)

@@ -90,6 +90,12 @@ class MainActivity : ComponentActivity() {
     /** 알림·공유로 열렸을 때 처리할 일. EmberNavHost 가 처리한 뒤 비운다. */
     val incoming = androidx.compose.runtime.mutableStateOf<Incoming?>(null)
 
+    override fun onResume() {
+        super.onResume()
+        // 결제 직후 앱이 꺼졌던 구매를 마저 처리한다(크레딧 계정이 있을 때만).
+        if (container.settings.settings.value.creditsReady) container.billing.start()
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         Incoming.from(intent)?.let { incoming.value = it }
@@ -105,7 +111,7 @@ class MainActivity : ComponentActivity() {
             val dark = when (st.theme) {
                 ThemeMode.DARK -> true
                 ThemeMode.LIGHT -> false
-                ThemeMode.SYSTEM -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
             }
             androidx.compose.runtime.LaunchedEffect(dark) {
                 val bg = (if (dark) DarkEmber.bg else LightEmber.bg).toArgb()

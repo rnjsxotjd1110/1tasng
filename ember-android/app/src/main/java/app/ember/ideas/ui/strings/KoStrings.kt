@@ -614,6 +614,12 @@ object KoStrings : Strings() {
     override val extraIdeasHeader = "추가 답변을 반영한 아이디어"
     override fun combinedOf(label: String) = "‘$label’ 섞기"
 
+    override val designResumeBody = "첫 설계 질문을 받기 전에 멈췄어요. 이어서 하면 고른 아이디어로 설계 질문을 다시 받아요."
+    override val docResumeTitle = "설계서를 다 쓰기 전에 멈췄어요"
+    override val docResumeBody = "이어서 하면 지금까지 정한 내용으로 설계서를 처음부터 다시 써요."
+    override val openDesignShort = "설계서 보기"
+    override val openDesign = "이 아이디어의 설계서 보기"
+
     override val tabHome = "홈"
     override val tabLibrary = "보관함"
     override val tabSettings = "설정"

@@ -96,4 +96,10 @@ class ProtocolTest {
         assertFalse(props.containsKey("ideas"))
         assertEquals(JsonArray(listOf(JsonPrimitive("question"), JsonPrimitive("ready"))), props["kind"]!!.jsonObject["enum"])
     }
+
+    @org.junit.Test fun duplicateIdeaIdsAreRenumbered() {
+        val json = app.ember.ideas.FakeAi.ideas("A", "B", "C").replace("\"id\":\"i2\"", "\"id\":\"i1\"").replace("\"id\":\"i3\"", "\"id\":\"\"")
+        val ids = app.ember.ideas.ai.Protocol.parseReply(json).ideas.map { it.id }
+        org.junit.Assert.assertEquals(listOf("i1", "idea2", "idea3"), ids)
+    }
 }

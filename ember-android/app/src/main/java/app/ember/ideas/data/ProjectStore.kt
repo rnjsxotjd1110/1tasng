@@ -97,9 +97,10 @@ class ProjectStore(private val dir: File, private val scope: CoroutineScope) {
     }
 
     private fun persist() {
-        val snapshot = _projects.value
         scope.launch(Dispatchers.IO) {
             writeLock.withLock {
+                // 잠금을 얻은 뒤의 최신 상태를 쓴다. 저장 요청이 순서를 바꿔 도착해도 옛 상태로 덮어쓰지 않는다.
+                val snapshot = _projects.value
                 runCatching {
                     tmp.writeText(Protocol.json.encodeToString(serializer, snapshot))
                     if (!tmp.renameTo(file)) {

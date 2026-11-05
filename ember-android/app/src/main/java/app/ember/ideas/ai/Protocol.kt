@@ -60,9 +60,11 @@ object Protocol {
         return reply.copy(
             progress = reply.progress.coerceIn(0, 100),
             question = sanitizeQuestion(reply.question),
+            // 모델이 같은 id 를 두 번 주면 목록 키가 겹쳐 화면이 죽으므로 순서대로 다시 매긴다.
             ideas = reply.ideas.mapIndexed { i, idea ->
+                val dupId = idea.id.isBlank() || reply.ideas.take(i).any { it.id == idea.id }
                 idea.copy(
-                    id = idea.id.ifBlank { "idea${i + 1}" },
+                    id = if (dupId) "idea${i + 1}" else idea.id,
                     difficulty = idea.difficulty.coerceIn(1, 5),
                     keyFeatures = idea.keyFeatures.filter { it.isNotBlank() },
                     platforms = idea.platforms.filter { it.isNotBlank() },

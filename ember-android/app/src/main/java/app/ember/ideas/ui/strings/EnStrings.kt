@@ -605,6 +605,12 @@ object EnStrings : Strings() {
     override val extraIdeasHeader = "Ideas from your extra answers"
     override fun combinedOf(label: String) = "Mix of $label"
 
+    override val designResumeBody = "This stopped before the first design question arrived. Resume to get design questions for the chosen idea."
+    override val docResumeTitle = "The design doc stopped before it was written"
+    override val docResumeBody = "Resume to write the doc again from the decisions you've made."
+    override val openDesignShort = "View doc"
+    override val openDesign = "View this idea's design doc"
+
     override val tabHome = "Home"
     override val tabLibrary = "Library"
     override val tabSettings = "Settings"

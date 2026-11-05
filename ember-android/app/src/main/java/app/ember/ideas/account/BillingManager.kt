@@ -69,7 +69,8 @@ class BillingManager(context: Context, private val account: CreditAccount, priva
 
     /** Play 에 연결하고 상품 가격을 읽은 뒤, 처리하지 못한 구매가 있으면 마저 처리한다. */
     fun start() {
-        if (!ServerConfig.creditsEnabled || connected) return
+        if (!ServerConfig.creditsEnabled) return
+        if (connected) { restore(); return }
         // Play 스토어가 없는 기기(에뮬레이터·테스트)에서는 연결 자체가 실패할 수 있다.
         runCatching { connect() }.onFailure { _state.value = PurchaseState.Unavailable }
     }
@@ -140,7 +141,9 @@ class BillingManager(context: Context, private val account: CreditAccount, priva
                     var credits = 0
                     purchase.products.forEach { id -> credits = account.redeem(id, purchase.purchaseToken) }
                     // 서버가 크레딧을 준 뒤에만 소비해야 결제가 사라지지 않는다.
-                    client.consumePurchase(ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build())
+                    val consumed = client.consumePurchase(ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build())
+                    // 소비에 실패해도 크레딧은 이미 받았다. 다음 복원 때 서버가 같은 영수증을 다시 지급하지 않으므로 안전하다.
+                    if (consumed.billingResult.responseCode != BillingClient.BillingResponseCode.OK) restore()
                     _state.value = PurchaseState.Done(credits)
                 } catch (e: AiError) {
                     _state.value = PurchaseState.Failed(e)

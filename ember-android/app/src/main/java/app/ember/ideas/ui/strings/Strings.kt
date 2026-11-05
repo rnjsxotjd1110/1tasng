@@ -364,6 +364,12 @@ abstract class Strings {
     abstract val extraIdeasHeader: String
     abstract fun combinedOf(label: String): String
 
+    abstract val designResumeBody: String
+    abstract val docResumeTitle: String
+    abstract val docResumeBody: String
+    abstract val openDesignShort: String
+    abstract val openDesign: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

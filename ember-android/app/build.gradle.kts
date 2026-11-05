@@ -16,8 +16,8 @@ android {
         applicationId = "app.ember.ideas"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
         vectorDrawables { useSupportLibrary = true }
 
         // 출시 설정. gradle.properties 나 -P 옵션으로 넣는다(비우면 해당 기능이 숨겨진다).

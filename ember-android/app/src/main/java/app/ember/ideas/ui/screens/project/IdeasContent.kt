@@ -148,6 +148,7 @@ fun IdeasContent(
                             onClick = { onOpenIdea(idea) },
                             onToggleSave = { onToggleSave(idea) },
                             onDesign = if (busy) null else ({ onDesignIdea(idea) }),
+                            hasDesign = project.designFor(idea.id) != null,
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -200,7 +201,7 @@ private fun BatchHeader(batch: IdeaBatch, latest: Boolean) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, onToggleSave: () -> Unit, projectTitle: String? = null, onDesign: (() -> Unit)? = null) {
+fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, onToggleSave: () -> Unit, projectTitle: String? = null, onDesign: (() -> Unit)? = null, hasDesign: Boolean = false) {
     val s = LocalStrings.current
     val c = Ember.colors
     EmberCard(Modifier.fillMaxWidth().animateContentSize(), onClick = onClick, highlight = chosen, padding = PaddingValues(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 8.dp)) {
@@ -236,7 +237,7 @@ fun IdeaCard(idea: Idea, saved: Boolean, chosen: Boolean, onClick: () -> Unit, o
                 Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     GhostButton(s.details, onClick, color = c.textMuted, modifier = Modifier.offset(x = (-12).dp))
                     Spacer(Modifier.weight(1f))
-                    GhostButton(s.designThisShort, onDesign, icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                    GhostButton(if (hasDesign) s.openDesignShort else s.designThisShort, onDesign)
                 }
             }
         }

@@ -125,6 +125,11 @@ fun QuestionFlow(
     var lastSubmitted by remember { mutableStateOf<String?>(null) }
     // 요청이 실패했을 때 고른 답을 그대로 되살리기 위해 마지막 답을 기억한다.
     var pendingAnswer by remember { mutableStateOf<Answer?>(null) }
+    // 새 질문이 나타나거나 작업이 끝나면 '내 답변' 표시와 실패 시 되살릴 답을 비운다.
+    androidx.compose.runtime.LaunchedEffect(current?.question?.title, turns.size, busy) {
+        if (!busy) lastSubmitted = null
+        if (current != null && error == null) pendingAnswer = null
+    }
     val submit: (Answer) -> Unit = { a ->
         pendingAnswer = a
         lastSubmitted = current?.let { t ->
@@ -211,7 +216,7 @@ fun QuestionFlow(
                         draft = if (error != null && pendingAnswer != null && !pendingAnswer!!.skipped) pendingAnswer else draft,
                         canUndo = turns.size >= 2 && canUndoCurrent,
                         onSubmit = submit,
-                        onUndo = onUndo,
+                        onUndo = { pendingAnswer = null; lastSubmitted = null; onUndo() },
                         historyLabel = if (answered > 0) s.answersSoFar(answered) else null,
                         onShowHistory = onShowHistory,
                         errorBanner = if (error != null) ({ ErrorPanel(error, onRetry, onFixKey, onDismiss = onLeave, dismissLabel = s.doLater, showRetry = false, compact = true) }) else null,

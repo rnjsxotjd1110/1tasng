@@ -1,5 +1,7 @@
 package app.ember.ideas.data
 
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import app.ember.ideas.ai.ClaudeModel
 import app.ember.ideas.ai.AiError
 import app.ember.ideas.ai.AiService
@@ -148,11 +150,12 @@ class ProjectEngine(
         val p = store.get(id) ?: return null
         if (!canUndo(p)) return null
         val prev = p.turns[p.turns.size - 2]
+        dismissError(id)
         store.update(id) {
             it.copy(
                 turns = it.turns.dropLast(2) + prev.copy(answer = null),
                 messages = it.messages.dropLast(2),
-                extraQuestionsLeft = if (it.inExtraQuestions) it.extraQuestionsLeft + 1 else -1,
+                extraQuestionsLeft = prev.extraLeft,
             )
         }
         return prev.answer
@@ -272,6 +275,8 @@ class ProjectEngine(
             val finalHistory = history
             val finalUsage = usage
             val finalReply = reply
+            // 중지된 작업이 늦게 돌아와도 결과를 저장하지 않는다.
+            currentCoroutineContext().ensureActive()
             store.update(id) { proj0 ->
                 val proj = onBeforeCommit(proj0)
                 val reply = finalReply
@@ -283,7 +288,7 @@ class ProjectEngine(
                 if (reply.isQuestion) {
                     withMsgs.copy(
                         stage = ProjectStage.INTERVIEW,
-                        turns = withMsgs.turns + Turn(reply.stage, reply.progress, reply.insight, reply.question),
+                        turns = withMsgs.turns + Turn(reply.stage, reply.progress, reply.insight, reply.question, extraLeft = withMsgs.extraQuestionsLeft),
                     )
                 } else {
                     val batchId = ProjectStore.newId().take(6)
@@ -315,21 +320,50 @@ class ProjectEngine(
     // ------------------------------------------------------------ 설계 인터뷰
 
     fun startDesign(id: String, ideaId: String, depth: DocDepth, askQuestions: Boolean) {
+        if (isBusy(id)) return
         val p = store.get(id) ?: return
         val idea = p.idea(ideaId) ?: return
         store.update(id) {
+            val cur = it.design
+            // 지금 설계서는 버리지 않는다: 다른 아이디어면 보관하고, 같은 아이디어면 버전 기록을 이어 간다.
+            val stash = if (cur != null && cur.latest != null && cur.ideaId != ideaId) it.otherDesigns + (cur.ideaId to cur) else it.otherDesigns
+            val keepVersions = when {
+                cur != null && cur.ideaId == ideaId -> cur.versions
+                else -> it.otherDesigns[ideaId]?.versions.orEmpty()
+            }
             it.copy(
-                design = DesignState(ideaId = ideaId, depth = depth),
+                design = DesignState(ideaId = ideaId, depth = depth, versions = keepVersions),
+                otherDesigns = stash - ideaId,
                 stage = if (askQuestions) ProjectStage.DESIGN_INTERVIEW else ProjectStage.DOCUMENT,
                 title = if (it.titleEdited) it.title else idea.title,
                 savedIdeaIds = if (ideaId in it.savedIdeaIds) it.savedIdeaIds else it.savedIdeaIds + ideaId,
             )
         }
-        if (askQuestions) {
-            val first = ChatMessage(ChatMessage.USER, Protocol.designStartMessage(p, idea, settings.settings.value.profile, lang))
-            designCall(id, emptyList(), first) { it }
-        } else {
-            generateDocument(id)
+        if (askQuestions) designStart(id) else generateDocument(id)
+    }
+
+    /** 설계 질문의 첫 요청. 중지·실패로 질문 없이 멈춘 설계를 다시 시작할 때도 쓴다. */
+    fun designStart(id: String) {
+        val p = store.get(id) ?: return
+        val idea = p.selectedIdea ?: return
+        val first = ChatMessage(ChatMessage.USER, Protocol.designStartMessage(p, idea, settings.settings.value.profile, lang))
+        designCall(id, emptyList(), first) { it }
+    }
+
+    /** 보관해 둔 다른 아이디어의 설계서를 다시 연다. 지금 설계서는 보관한다. */
+    fun openDesign(id: String, ideaId: String) {
+        if (isBusy(id)) return
+        store.update(id) { p ->
+            val target = p.otherDesigns[ideaId] ?: return@update if (p.design?.ideaId == ideaId) p.copy(stage = ProjectStage.DOCUMENT) else p
+            val cur = p.design
+            val stash = (if (cur != null && cur.latest != null) p.otherDesigns + (cur.ideaId to cur) else p.otherDesigns) - ideaId
+            val idea = p.idea(ideaId)
+            p.copy(
+                design = target,
+                otherDesigns = stash,
+                stage = ProjectStage.DOCUMENT,
+                title = if (p.titleEdited || idea == null) p.title else Protocol.documentTitle(target.latest?.markdown.orEmpty())?.take(40) ?: idea.title,
+            )
         }
     }
 
@@ -346,6 +380,7 @@ class ProjectEngine(
         val last = d.turns.lastOrNull() ?: return null
         if (last.answer != null || d.turns.size < 2) return null
         val prev = d.turns[d.turns.size - 2]
+        dismissError(id)
         store.update(id) {
             it.copy(design = d.copy(turns = d.turns.dropLast(2) + prev.copy(answer = null), messages = d.messages.dropLast(2)))
         }
@@ -375,6 +410,7 @@ class ProjectEngine(
             ) { text -> showPartial(id, text) }
             val reply = parse(result.text)
             if (!reply.isQuestion && !reply.isReady) throw AiError.BadResponse
+            currentCoroutineContext().ensureActive()
             store.update(id) { proj ->
                 val d0 = proj.design ?: return@update proj
                 val d1 = onBeforeCommit(d0).let { it.copy(messages = messages + ChatMessage(ChatMessage.ASSISTANT, result.text)) }
@@ -417,6 +453,7 @@ class ProjectEngine(
 
     /** 사용자가 직접 고친 설계서를 새 버전으로 저장한다(비용 없음). */
     fun saveManualEdit(id: String, markdown: String, note: String) {
+        if (isBusy(id)) return
         val md = markdown.trim()
         if (md.isEmpty()) return
         store.update(id) { p ->
@@ -427,6 +464,7 @@ class ProjectEngine(
     }
 
     fun restoreVersion(id: String, versionId: String, note: String) {
+        if (isBusy(id)) return
         store.update(id) { p ->
             val d = p.design ?: return@update p
             val v = d.versions.firstOrNull { it.id == versionId } ?: return@update p
@@ -461,15 +499,20 @@ class ProjectEngine(
                         is StreamEvent.Done -> {
                             val md = sb.toString().trim()
                             if (md.isEmpty()) throw AiError.BadResponse
+                            currentCoroutineContext().ensureActive()
                             saveVersion(id, md, note, complete = !ev.truncated, usage = ev.usage)
                             settings.addUsage(ev.usage)
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                // 사용자가 멈춘 경우: 잘린 원고를 새 버전으로 남기지 않는다.
+                throw e
             } catch (e: Throwable) {
-                // 중간에 끊겨도 받은 부분은 미완성 버전으로 남겨 둔다.
+                // 처음 쓰다가 끊기면 받은 부분을 미완성 버전으로 남긴다.
+                // 수정 중에 끊기면 잘린 원고가 최신본이 되지 않도록 이전 완성본을 그대로 둔다.
                 val partial = sb.toString().trim()
-                if (partial.length > 200) saveVersion(id, partial, note, complete = false, usage = Usage())
+                if (kind == OpKind.WRITING && partial.length > 200) saveVersion(id, partial, note, complete = false, usage = Usage())
                 throw e
             }
         }
@@ -541,7 +584,7 @@ class ProjectEngine(
     }
 
     private fun launchOp(id: String, kind: OpKind, retry: () -> Unit, block: suspend () -> Unit) {
-        if (isBusy(id)) return
+        if (isBusy(id) || jobs[id]?.isActive == true) return
         retries[id] = retry
         // 월 예산을 넘었으면 요청을 보내지 않는다(체험 프로젝트는 비용이 없으므로 예외).
         if (store.get(id)?.isDemo != true && settings.overBudget()) {
@@ -550,23 +593,34 @@ class ProjectEngine(
         }
         _ops.update { it + (id to OpState(kind)) }
         val job = scope.launch(start = CoroutineStart.LAZY) {
+            val me = coroutineContext[Job]
+            // 이 작업이 아직 이 프로젝트의 현재 작업인지. 중지된 뒤 늦게 끝난 작업은 새 작업의 상태를 건드리면 안 된다.
+            fun mine() = jobs[id] === me
             var success = false
             try {
                 block()
                 success = true
             } catch (e: CancellationException) {
-                _ops.update { it - id }
+                if (mine()) {
+                    _ops.update { it - id }
+                    jobs.remove(id)
+                }
                 throw e
             } catch (e: AiError) {
-                _ops.update { it + (id to OpState(kind, running = false, error = e)) }
-                _finished.tryEmit(OpFinished(id, kind, e))
+                if (mine()) {
+                    _ops.update { it + (id to OpState(kind, running = false, error = e)) }
+                    _finished.tryEmit(OpFinished(id, kind, e))
+                }
             } catch (e: Throwable) {
-                val err = AiError.Other(e.message ?: e.javaClass.simpleName)
-                _ops.update { it + (id to OpState(kind, running = false, error = err)) }
-                _finished.tryEmit(OpFinished(id, kind, err))
+                if (mine()) {
+                    val err = AiError.Other(e.message ?: e.javaClass.simpleName)
+                    _ops.update { it + (id to OpState(kind, running = false, error = err)) }
+                    _finished.tryEmit(OpFinished(id, kind, err))
+                }
             }
-            if (success) _finished.tryEmit(OpFinished(id, kind, null))
+            if (!mine()) return@launch
             if (success) {
+                _finished.tryEmit(OpFinished(id, kind, null))
                 _ops.update { it - id }
                 retries.remove(id)
             }

@@ -50,13 +50,14 @@ class GitHubClient(
         call(token, "GET", "/user").jsonObject["login"]?.jsonPrimitive?.content ?: throw GitHubError.BadToken
 
     suspend fun repos(token: String): List<GitHubRepo> =
-        call(token, "GET", "/user/repos?sort=updated&per_page=50&affiliation=owner,collaborator").jsonArray.map { r ->
+        call(token, "GET", "/user/repos?sort=updated&per_page=50&affiliation=owner,collaborator").jsonArray.mapNotNull { r ->
             val o = r.jsonObject
+            val name = o["full_name"]?.jsonPrimitive?.content ?: return@mapNotNull null
             GitHubRepo(
-                fullName = o["full_name"]!!.jsonPrimitive.content,
+                fullName = name,
                 private = o["private"]?.jsonPrimitive?.boolean ?: false,
                 hasIssues = o["has_issues"]?.jsonPrimitive?.booleanOrNull ?: true,
-                url = o["html_url"]!!.jsonPrimitive.content,
+                url = o["html_url"]?.jsonPrimitive?.content ?: "https://github.com/$name",
             )
         }
 
@@ -69,7 +70,7 @@ class GitHubClient(
             put("auto_init", false)
             put("has_issues", true)
         }).jsonObject
-        val full = repo["full_name"]!!.jsonPrimitive.content
+        val full = repo["full_name"]?.jsonPrimitive?.content ?: throw GitHubError.Other("no full_name")
         files.forEach { f ->
             val encoded = java.util.Base64.getEncoder().encodeToString(f.content.toByteArray(Charsets.UTF_8))
             call(token, "PUT", "/repos/$full/contents/${f.path}", buildJsonObject {
@@ -77,7 +78,7 @@ class GitHubClient(
                 put("content", encoded)
             })
         }
-        return repo["html_url"]!!.jsonPrimitive.content
+        return repo["html_url"]?.jsonPrimitive?.content ?: "https://github.com/$full"
     }
 
     /** 이슈를 만들고 이슈 주소를 돌려준다. */
@@ -85,7 +86,7 @@ class GitHubClient(
         call(token, "POST", "/repos/$fullName/issues", buildJsonObject {
             put("title", title.take(250))
             put("body", body.take(MAX_ISSUE_BODY))
-        }).jsonObject["html_url"]!!.jsonPrimitive.content
+        }).jsonObject["html_url"]?.jsonPrimitive?.content ?: "https://github.com/$fullName/issues"
 
     private suspend fun call(token: String, method: String, path: String, body: JsonObject? = null): JsonElement = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(baseUrl + path)
@@ -98,7 +99,7 @@ class GitHubClient(
         val res = try { http.newCall(req).execute() } catch (e: IOException) { throw GitHubError.Offline }
         res.use { r ->
             val text = r.body?.string().orEmpty()
-            if (r.isSuccessful) return@withContext if (text.isBlank()) JsonObject(emptyMap()) else json.parseToJsonElement(text)
+            if (r.isSuccessful) return@withContext if (text.isBlank()) JsonObject(emptyMap()) else runCatching { json.parseToJsonElement(text) }.getOrElse { throw GitHubError.Other("bad response") }
             val message = runCatching { json.parseToJsonElement(text).jsonObject["message"]?.jsonPrimitive?.content }.getOrNull().orEmpty()
             val errors = runCatching { json.parseToJsonElement(text).jsonObject["errors"]?.jsonArray }.getOrNull() ?: JsonArray(emptyList())
             throw when {

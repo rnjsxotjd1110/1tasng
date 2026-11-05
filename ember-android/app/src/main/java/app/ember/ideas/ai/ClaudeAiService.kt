@@ -109,7 +109,8 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
         return ContentBlockParam.ofImage(Base64ImageSource.builder().mediaType(Base64ImageSource.MediaType.IMAGE_JPEG).data(data).build())
     }
 
-    override suspend fun turn(model: ClaudeModel, request: TurnRequest): TurnResult = withContext(Dispatchers.IO) {
+    // 블로킹 HTTP 호출이라 runInterruptible 로 감싼다: '중지'를 누르면 스레드를 깨워 요청을 바로 끊는다.
+    override suspend fun turn(model: ClaudeModel, request: TurnRequest): TurnResult = kotlinx.coroutines.runInterruptible(Dispatchers.IO) {
         val format = JsonOutputFormat.builder()
             .schema(JsonOutputFormat.Schema.builder().apply {
                 request.schema.forEach { (k, v) -> putAdditionalProperty(k, JsonValue.from(v.toPlain())) }

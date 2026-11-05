@@ -136,10 +136,15 @@ fun GitHubSheet(project: Project, onDismiss: () -> Unit) {
     LaunchedEffect(settings.hasGithub, tab) {
         if (settings.hasGithub && tab == 1 && repos == null) {
             try {
-                repos = GitHubClient().repos(container.settings.githubToken()!!).filter { it.hasIssues }
+                val token = container.settings.githubToken() ?: throw GitHubError.BadToken
+                repos = GitHubClient().repos(token).filter { it.hasIssues }
                 chosen = repos?.firstOrNull()?.fullName
             } catch (e: GitHubError) {
                 error = s.githubError(e)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = s.githubError(GitHubError.Other(e.message ?: e.javaClass.simpleName))
             }
         }
     }
@@ -149,10 +154,16 @@ fun GitHubSheet(project: Project, onDismiss: () -> Unit) {
         error = null
         scope.launch {
             try {
-                doneUrl = block(container.settings.githubToken()!!)
+                val token = container.settings.githubToken() ?: throw GitHubError.BadToken
+                doneUrl = block(token)
             } catch (e: GitHubError) {
                 error = s.githubError(e)
                 if (e is GitHubError.BadToken) container.settings.setGithub(null, "")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 예상하지 못한 응답(형식 오류 등)도 앱을 멈추지 않고 안내한다.
+                error = s.githubError(GitHubError.Other(e.message ?: e.javaClass.simpleName))
             } finally {
                 busy = false
             }

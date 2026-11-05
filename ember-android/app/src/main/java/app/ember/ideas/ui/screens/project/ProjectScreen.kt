@@ -1,5 +1,8 @@
 package app.ember.ideas.ui.screens.project
 
+import androidx.compose.foundation.layout.Arrangement
+import app.ember.ideas.ui.components.ErrorPanel
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Flag
 import android.widget.Toast
@@ -121,10 +124,22 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
     }
     val error = op?.error
     val korean = s.isKorean
+
+    /** 아이디어로 설계하기. 이미 설계서가 있으면 그 설계서를 열고, 작업 중이면 아무것도 하지 않는다. */
+    fun designIdea(ideaId: String) {
+        when {
+            busy -> Unit
+            project.designFor(ideaId) != null -> { sheet = null; viewStage = null; engine.openDesign(project.id, ideaId) }
+            !settings.ready && !project.isDemo -> { sheet = null; onFixKey() }
+            else -> sheet = Sheet.DesignSetup(ideaId)
+        }
+    }
     // 사용자가 문서 화면에서 아이디어 목록으로 잠시 돌아가 보는 경우를 위한 보기 단계.
     val stage = when {
         op?.running == true && op.kind == OpKind.IDEAS && project.stage == ProjectStage.INTERVIEW && project.ideaBatches.isEmpty() -> ProjectStage.INTERVIEW
         op?.running == true && (op.kind == OpKind.WRITING || op.kind == OpKind.REVISING) -> ProjectStage.DOCUMENT
+        // 아이디어·문서 화면에서 '질문 더 받기'를 누르면 바로 질문 화면에서 기다리게 한다.
+        op?.running == true && op.kind == OpKind.ASKING -> ProjectStage.INTERVIEW
         else -> viewStage ?: project.stage
     }
 
@@ -257,7 +272,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         error = error,
                         onOpenIdea = { sheet = Sheet.IdeaDetail(it.id) },
                         onCompare = { sheet = Sheet.Compare },
-                        onDesignIdea = { if (!settings.ready && !project.isDemo) onFixKey() else sheet = Sheet.DesignSetup(it.id) },
+                        onDesignIdea = { designIdea(it.id) },
                         onToggleSave = { engine.toggleSaved(project.id, it.id) },
                         onMoreIdeas = { engine.moreIdeas(project.id) },
                         onMoreQuestions = { viewStage = null; engine.moreQuestions(project.id) },
@@ -266,7 +281,12 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                         onFixKey = onFixKey,
                         onDismissError = { engine.dismissError(project.id) },
                     )
-                    ProjectStage.DESIGN_INTERVIEW -> {
+                    ProjectStage.DESIGN_INTERVIEW -> if (project.design?.turns.isNullOrEmpty() && !busy && error == null) {
+                        // 첫 설계 질문을 기다리다 중지했거나 앱이 꺼진 경우
+                        EmptyState(Icons.Rounded.History, s.resumeTitle, s.designResumeBody) {
+                            PrimaryButton(s.resume, { engine.designStart(project.id) })
+                        }
+                    } else {
                         val d = project.design
                         QuestionFlow(
                             turns = d?.turns.orEmpty(),
@@ -289,7 +309,18 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             onLeave = { engine.dismissError(project.id); onBack() },
                         )
                     }
-                    ProjectStage.DOCUMENT -> DocumentContent(
+                    ProjectStage.DOCUMENT -> if (project.design?.latest == null && !busy) {
+                        // 설계서를 쓰기 시작했지만 한 버전도 남지 않은 채 멈춘 경우
+                        if (error != null) {
+                            Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
+                                ErrorPanel(error, { engine.retry(project.id) }, onFixKey, onDismiss = { engine.dismissError(project.id) })
+                            }
+                        } else {
+                            EmptyState(Icons.Rounded.Description, s.docResumeTitle, s.docResumeBody) {
+                                PrimaryButton(s.resume, { engine.generateDocument(project.id) })
+                            }
+                        }
+                    } else DocumentContent(
                         project = project,
                         busy = busy && (op?.kind == OpKind.WRITING || op?.kind == OpKind.REVISING),
                         revising = op?.kind == OpKind.REVISING,
@@ -324,7 +355,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                 onDismiss = { sheet = null },
                 onToggleSave = { engine.toggleSaved(project.id, idea.id) },
                 onDesign = {
-                    if (!settings.ready && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(idea.id)
+                    designIdea(idea.id)
                 },
                 onVary = { sheet = Sheet.Vary(idea.id) },
                 onCombine = { sheet = Sheet.Combine(idea.id) },
@@ -334,6 +365,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                     Toast.makeText(ctx, s.copied, Toast.LENGTH_SHORT).show()
                 },
                 onReport = { sheet = Sheet.Report(app.ember.ideas.report.ReportSender.forIdea(idea)) },
+                hasDesign = project.designFor(idea.id) != null,
             )
         } ?: run { sheet = null }
         is Sheet.DesignSetup -> project.idea(sh.ideaId)?.let { idea ->
@@ -384,8 +416,8 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
             }) else null,
             onGitHub = if (project.design?.latest != null) ({ sheet = Sheet.GitHub }) else null,
         )
-        Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }, { sheet = Sheet.IdeaDetail(it.id) }) {
-            if (!settings.ready && !project.isDemo) { sheet = null; onFixKey() } else sheet = Sheet.DesignSetup(it.id)
+        Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }, { sheet = Sheet.IdeaDetail(it.id) }, busy = busy, hasDesign = { project.designFor(it) != null }) {
+            designIdea(it.id)
         }
         is Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }, sh.initial) { text ->
             sheet = null

@@ -34,7 +34,6 @@ class CreditAccount(private val settings: SettingsStore, private val http: OkHtt
         val token = body["token"]?.jsonPrimitive?.content ?: throw AiError.BadResponse
         val credits = body["credits"]?.jsonPrimitive?.int ?: 0
         settings.setCreditAccount(token, credits)
-        settings.setPreferCredits(true)
         return credits
     }
 

@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -105,6 +106,8 @@ fun HomeScreen(
     onOpenLibrary: () -> Unit,
     onOpenMold: (String?) -> Unit = {},
     onManageMolds: () -> Unit = {},
+    /** 화로 위 목록에서 여러 프로젝트를 한 번에 지웠을 때(되돌리기 알림용). */
+    onDeletedMany: (List<Project>) -> Unit = {},
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -127,6 +130,14 @@ fun HomeScreen(
     var memoSheet by remember { mutableStateOf(false) }
     var pickMemo by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // 화로 위 목록에서 꾹 눌러 고른 프로젝트 id. 하나라도 있으면 고르기 상태.
+    var picked by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val selecting = picked.isNotEmpty()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    fun togglePick(id: String) { picked = if (id in picked) picked - id else picked + id }
+    androidx.activity.compose.BackHandler(selecting) { picked = emptyList() }
+    LaunchedEffect(projects) { picked = picked.filter { id -> projects.any { it.id == id } } }
     val mold = molds.firstOrNull { it.id == moldId }
 
     fun addImage(uri: android.net.Uri) {
@@ -192,7 +203,8 @@ fun HomeScreen(
         onOpenProject(p.id)
     }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    Box(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) 96.dp else 32.dp)) {
         item {
             Row(
                 Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 14.dp),
@@ -344,17 +356,35 @@ fun HomeScreen(
         // ------------------------------------------------ 화로 위에 있는 것
         if (onFire.isNotEmpty()) {
             item {
-                Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(s.onTheFire, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
-                    Text(
-                        s.countN(projects.count { !it.isSample }), style = MaterialTheme.typography.labelMedium, color = c.textMuted,
-                        modifier = Modifier.clip(EmberShape.chip).clickable(role = Role.Button, onClick = onOpenLibrary).padding(horizontal = 6.dp, vertical = 8.dp),
-                    )
+                if (selecting) {
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 32.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.selectedN(picked.size), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
+                        GhostButton(s.selectAll, { picked = onFire.map { it.id } }, color = c.textMuted)
+                        GhostButton(s.cancel, { picked = emptyList() }, color = c.textMuted)
+                    }
+                } else {
+                    Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.onTheFire, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
+                        Text(
+                            s.countN(projects.count { !it.isSample }), style = MaterialTheme.typography.labelMedium, color = c.textMuted,
+                            modifier = Modifier.clip(EmberShape.chip).clickable(role = Role.Button, onClick = onOpenLibrary).padding(horizontal = 6.dp, vertical = 8.dp),
+                        )
+                    }
+                    if (onFire.size >= 2) {
+                        Text(s.longPressProjectsHint, style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(start = 20.dp))
+                    }
                 }
             }
             items(onFire, key = { "fire_" + it.id }) { p ->
                 val op = ops[p.id]
-                FireRow(p, busy = op?.running == true, opKind = op?.kind) { onOpenProject(p.id) }
+                FireRow(
+                    p, busy = op?.running == true, opKind = op?.kind,
+                    selecting = selecting, selected = p.id in picked,
+                    onLongClick = {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        togglePick(p.id)
+                    },
+                ) { if (selecting) togglePick(p.id) else onOpenProject(p.id) }
             }
         }
 
@@ -377,6 +407,25 @@ fun HomeScreen(
         }
     }
 
+    if (selecting) {
+        Row(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(c.bg).padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SecondaryButton(s.cancel, { picked = emptyList() }, Modifier.weight(1f))
+            app.ember.ideas.ui.screens.project.DangerButton(s.delete + " " + picked.size, { confirmDelete = true }, Modifier.weight(1f))
+        }
+    }
+    }
+
+    if (confirmDelete) {
+        app.ember.ideas.ui.screens.project.EmberDialog(s.deleteProjectsTitle(picked.size), s.deleteProjectsBody, s.delete, {
+            confirmDelete = false
+            val gone = picked.mapNotNull { container.engine.delete(it) }
+            picked = emptyList()
+            if (gone.isNotEmpty()) onDeletedMany(gone)
+        }, { confirmDelete = false }, danger = true)
+    }
     if (memoSheet) QuickMemoSheet { memoSheet = false }
     if (pickMemo) MemoPickerSheet(memos, onDismiss = { pickMemo = false }) { m ->
         pickMemo = false
@@ -513,12 +562,26 @@ fun DepthPicker(depth: DepthMode, onPick: (DepthMode) -> Unit) {
 }
 
 @Composable
-private fun FireRow(p: Project, busy: Boolean, opKind: app.ember.ideas.data.OpKind?, onClick: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun FireRow(
+    p: Project, busy: Boolean, opKind: app.ember.ideas.data.OpKind?,
+    selecting: Boolean = false, selected: Boolean = false, onLongClick: () -> Unit = {},
+    onClick: () -> Unit,
+) {
     val s = LocalStrings.current
     val c = Ember.colors
     val heat = Heat.of(p, if (busy) opKind else null)
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp)) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(if (selected) c.emberSoft else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 20.dp),
+    ) {
         Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selecting) {
+                app.ember.ideas.ui.components.SelectMark(selected, multi = true)
+                Spacer(Modifier.width(14.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text(p.title, style = MaterialTheme.typography.titleMedium, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))

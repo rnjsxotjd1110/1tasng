@@ -250,6 +250,12 @@ fun MainTabs(
                         0 -> HomeScreen(
                             onOpenProject, onNeedKey = onOpenKey, onOpenProfile = onOpenProfile, onOpenLibrary = { tab = 2 },
                             onOpenMold = onOpenMold, onManageMolds = { oreTab = 2; tab = 1 },
+                            onDeletedMany = { list ->
+                                scope.launch {
+                                    val r = snackbar.showSnackbar(s.projectsDeleted(list.size), actionLabel = s.undo, duration = SnackbarDuration.Long)
+                                    if (r == SnackbarResult.ActionPerformed) list.forEach { ctx.container.engine.restore(it) }
+                                }
+                            },
                         )
                         1 -> app.ember.ideas.ui.screens.OreBoxScreen(
                             onOpenProject = onOpenProject,

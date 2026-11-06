@@ -609,6 +609,25 @@ class ScreenshotTest {
         shot("49_library_deleted_undo")
     }
 
+    @Test fun s50_home_select() {
+        withKey()
+        c.store.upsert(interviewProject())
+        c.store.upsert(ideasProject())
+        setContent(auto = true) { MainTabs({}, {}, {}, {}) }
+        val list = rule.onAllNodes(androidx.compose.ui.test.hasScrollToNodeAction()).onFirst()
+        list.performScrollToNode(hasPlainText("비 오는 날 아이디어"))
+        rule.waitForIdle()
+        rule.onAllNodes(hasPlainText("출퇴근길 게임"), useUnmergedTree = true).onFirst().performTouchInput { longClick() }
+        rule.waitForIdle()
+        click("비 오는 날 아이디어")
+        shot("50_home_select")
+        click("삭제 2")
+        rule.onAllNodes(hasPlainText("삭제"), useUnmergedTree = true).onLast().performClick()
+        rule.waitForIdle()
+        rule.onAllNodes(hasPlainText("프로젝트 2개를 지웠어요"), useUnmergedTree = true).onFirst().assertExists()
+        assertEquals(0, c.store.projects.value.count { !it.isSample })
+    }
+
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))
     @Suppress("unused") private fun scroll() = rule.onAllNodesWithText("").onFirst().performScrollToNode(hasText(""))
 

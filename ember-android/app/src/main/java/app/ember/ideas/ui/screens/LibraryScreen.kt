@@ -1,5 +1,8 @@
 package app.ember.ideas.ui.screens
 
+import app.ember.ideas.ui.components.topFade
+import app.ember.ideas.ui.components.GhostButton
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,6 +75,8 @@ fun LibraryScreen(
     onOpenProject: (String) -> Unit,
     onStartNew: () -> Unit,
     onDeleted: (Project) -> Unit,
+    /** 여러 프로젝트를 한 번에 지웠을 때(되돌리기 알림용). */
+    onDeletedMany: (List<Project>) -> Unit = { list -> list.forEach(onDeleted) },
 ) {
     val s = LocalStrings.current
     val c = Ember.colors
@@ -83,6 +88,21 @@ fun LibraryScreen(
     var tab by rememberSaveable { mutableStateOf(0) }
     var renameTarget by remember { mutableStateOf<Project?>(null) }
     var deleteTarget by remember { mutableStateOf<Project?>(null) }
+    // 꾹 눌러 고른 프로젝트 id. 하나라도 있으면 고르기 상태.
+    var picked by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var confirmMany by remember { mutableStateOf(false) }
+    val selecting = picked.isNotEmpty()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    fun togglePick(id: String) { picked = if (id in picked) picked - id else picked + id }
+    androidx.activity.compose.BackHandler(selecting) { picked = emptyList() }
+    // 지워지거나 다른 탭으로 가면 고른 것을 정리한다.
+    androidx.compose.runtime.LaunchedEffect(tab) { picked = emptyList() }
+    androidx.compose.runtime.LaunchedEffect(projects) {
+        picked = picked.filter { k ->
+            if (tab == 0) projects.any { it.id == k }
+            else k.contains('|') && projects.any { p -> p.id == k.substringBefore('|') && p.allIdeas.any { it.id == k.substringAfter('|') } }
+        }
+    }
 
     val q = query.trim().lowercase()
     val filtered = projects.sortedByDescending { it.favorite }.filter { p ->
@@ -100,7 +120,8 @@ fun LibraryScreen(
     val savedIdeas = projects.flatMap { p -> p.allIdeas.filter { it.id in p.savedIdeaIds }.map { p to it } }
         .filter { (_, i) -> q.isEmpty() || i.title.lowercase().contains(q) || i.logline.lowercase().contains(q) }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    Column(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 32.dp)) {
         item {
             Column(Modifier.statusBarsPadding().padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(20.dp))
@@ -125,9 +146,20 @@ fun LibraryScreen(
         }
         if (tab == 0) {
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(LibraryFilter.entries.filter { it != LibraryFilter.FAVORITE }) { f ->
-                        EmberChip(s.filterLabel(f), filter == f, { filter = f })
+                if (selecting) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.selectedN(picked.size), style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+                        GhostButton(s.selectAll, { picked = filtered.map { it.id } }, color = c.textMuted)
+                        GhostButton(s.cancel, { picked = emptyList() }, color = c.textMuted)
+                    }
+                } else {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(LibraryFilter.entries.filter { it != LibraryFilter.FAVORITE }) { f ->
+                            EmberChip(s.filterLabel(f), filter == f, { filter = f })
+                        }
+                    }
+                    if (filtered.size >= 2) {
+                        Text(s.longPressProjectsHint, style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(start = 20.dp, bottom = 4.dp))
                     }
                 }
             }
@@ -146,7 +178,13 @@ fun LibraryScreen(
                 ProjectRow(
                     p,
                     busy = ops[p.id]?.running == true,
-                    onClick = { onOpenProject(p.id) },
+                    selecting = selecting,
+                    selected = p.id in picked,
+                    onLongClick = {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        togglePick(p.id)
+                    },
+                    onClick = { if (selecting) togglePick(p.id) else onOpenProject(p.id) },
                     onRename = { renameTarget = p },
                     onFavorite = { container.engine.setFavorite(p.id, !p.favorite) },
                     onDelete = { deleteTarget = p },
@@ -156,21 +194,76 @@ fun LibraryScreen(
             if (savedIdeas.isEmpty()) {
                 item { EmptyState(Icons.Rounded.Favorite, s.noSavedTitle, s.noSavedBody, Modifier.fillMaxWidth()) }
             }
+            item {
+                if (selecting) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.selectedN(picked.size), style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+                        GhostButton(s.selectAll, { picked = savedIdeas.map { (p, i) -> p.id + "|" + i.id } }, color = c.textMuted)
+                        GhostButton(s.cancel, { picked = emptyList() }, color = c.textMuted)
+                    }
+                } else if (savedIdeas.size >= 2) {
+                    Text(s.longPressHint, style = MaterialTheme.typography.labelSmall, color = c.textFaint, modifier = Modifier.padding(start = 20.dp, top = 10.dp))
+                }
+            }
             items(savedIdeas, key = { (p, i) -> p.id + i.id }) { (p, idea) ->
+                val key = p.id + "|" + idea.id
                 Box(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
                     IdeaCard(
                         idea = idea,
                         saved = true,
                         chosen = p.design?.ideaId == idea.id,
-                        onClick = { onOpenProject(p.id) },
+                        onClick = { if (selecting) togglePick(key) else onOpenProject(p.id) },
                         onToggleSave = { container.engine.toggleSaved(p.id, idea.id) },
                         projectTitle = p.title,
+                        selectionMode = selecting,
+                        selected = key in picked,
+                        onLongClick = {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            togglePick(key)
+                        },
                     )
                 }
             }
         }
     }
 
+    if (selecting) {
+        Row(
+            Modifier.fillMaxWidth().topFade(c.bg).padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            app.ember.ideas.ui.components.SecondaryButton(s.cancel, { picked = emptyList() }, Modifier.weight(1f))
+            app.ember.ideas.ui.screens.project.DangerButton(s.delete + " " + picked.size, { confirmMany = true }, Modifier.weight(1f))
+        }
+    }
+    }
+
+    if (confirmMany && tab == 0) {
+        EmberDialog(s.deleteProjectsTitle(picked.size), s.deleteProjectsBody, s.delete, {
+            confirmMany = false
+            val gone = picked.mapNotNull { container.engine.delete(it) }
+            picked = emptyList()
+            if (gone.isNotEmpty()) onDeletedMany(gone)
+        }, { confirmMany = false }, danger = true)
+    }
+    if (confirmMany && tab == 1) {
+        val ctx = LocalContext.current
+        val byProject = picked.groupBy({ it.substringBefore('|') }, { it.substringAfter('|') })
+        val withDesign = byProject.entries.sumOf { (pid, ids) -> val p = projects.firstOrNull { it.id == pid }; ids.count { p?.designFor(it) != null } }
+        EmberDialog(
+            s.deleteIdeasTitle(picked.size),
+            s.deleteIdeasBody + if (withDesign > 0) "\n" + s.deleteIdeasDesignNote(withDesign) else "",
+            s.delete,
+            {
+                confirmMany = false
+                val n = byProject.entries.sumOf { (pid, ids) -> container.engine.deleteIdeas(pid, ids.toSet()) }
+                android.widget.Toast.makeText(ctx, if (n > 0) s.ideasDeleted(n) else s.busyCantDelete, android.widget.Toast.LENGTH_SHORT).show()
+                picked = emptyList()
+            },
+            { confirmMany = false },
+            danger = true,
+        )
+    }
     renameTarget?.let { p ->
         RenameDialog(p.title, { renameTarget = null }) { container.engine.rename(p.id, it); renameTarget = null }
     }
@@ -184,7 +277,10 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename: () -> Unit, onFavorite: () -> Unit, onDelete: () -> Unit) {
+private fun ProjectRow(
+    p: Project, busy: Boolean, onClick: () -> Unit, onRename: () -> Unit, onFavorite: () -> Unit, onDelete: () -> Unit,
+    selecting: Boolean = false, selected: Boolean = false, onLongClick: () -> Unit = {},
+) {
     val s = LocalStrings.current
     val c = Ember.colors
     var menu by remember { mutableStateOf(false) }
@@ -193,11 +289,16 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
     Row(
         Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = { menu = true })
+            .background(if (selected) c.emberSoft else androidx.compose.ui.graphics.Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        KindBadge(p.kind, 36)
+        if (selecting) {
+            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { app.ember.ideas.ui.components.SelectMark(selected, multi = true) }
+        } else {
+            KindBadge(p.kind, 36)
+        }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -220,7 +321,7 @@ private fun ProjectRow(p: Project, busy: Boolean, onClick: () -> Unit, onRename:
                 Text(s.relativeTime(p.updatedAt), style = MaterialTheme.typography.labelSmall, color = c.textFaint, maxLines = 1)
             }
         }
-        Box {
+        if (!selecting) Box {
             IconCircleButton(Icons.Rounded.MoreVert, s.moreActions, { menu = true }, filled = false, tint = c.textMuted)
             DropdownMenu(menu, { menu = false }, containerColor = c.surface2, offset = androidx.compose.ui.unit.DpOffset((-12).dp, 0.dp), shadowElevation = 8.dp, tonalElevation = 0.dp) {
                 DropdownMenuItem({ Text(if (p.favorite) s.unpin else s.pin, color = c.text) }, { menu = false; onFavorite() }, leadingIcon = { Icon(Icons.Rounded.PushPin, null, tint = c.textMuted) })

@@ -263,7 +263,12 @@ fun MainTabs(
                             },
                             initialTab = oreTab,
                         )
-                        2 -> LibraryScreen(onOpenProject, onStartNew = { tab = 0 }, onDeleted = ::onDeleted)
+                        2 -> LibraryScreen(onOpenProject, onStartNew = { tab = 0 }, onDeleted = ::onDeleted, onDeletedMany = { list ->
+                            scope.launch {
+                                val r = snackbar.showSnackbar(s.projectsDeleted(list.size), actionLabel = s.undo, duration = SnackbarDuration.Long)
+                                if (r == SnackbarResult.ActionPerformed) list.forEach { ctx.container.engine.restore(it) }
+                            }
+                        })
                         else -> SettingsScreen(onOpenKey, onOpenProfile, onOpenAbout)
                     }
                 }

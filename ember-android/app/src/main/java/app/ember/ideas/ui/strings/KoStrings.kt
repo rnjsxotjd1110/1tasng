@@ -317,9 +317,9 @@ object KoStrings : Strings() {
     override fun filterLabel(f: LibraryFilter) = when (f) {
         LibraryFilter.ALL -> "전체"
         LibraryFilter.FAVORITE -> "고정됨"
-        LibraryFilter.EXPLORING -> "탐색 중"
-        LibraryFilter.IDEAS -> "아이디어"
-        LibraryFilter.DOCS -> "설계서"
+        LibraryFilter.EXPLORING -> "가열 중"
+        LibraryFilter.IDEAS -> "원석 고르기"
+        LibraryFilter.DOCS -> "도면"
     }
     override val libraryEmptyTitle = "아직 프로젝트가 없어요"
     override val libraryEmptyBody = "홈에서 분야를 고르고 첫 아이디어를 찾아보세요."
@@ -758,6 +758,11 @@ object KoStrings : Strings() {
     override val longPressHint = "꾹 누르면 여러 개를 골라 지울 수 있어요"
     override val noIdeasLeft = "남은 아이디어가 없어요. 아래에서 더 두드리거나 다른 원석을 캐 보세요."
     override val busyCantDelete = "작업이 끝난 뒤에 지울 수 있어요."
+
+    override fun deleteProjectsTitle(n: Int) = "프로젝트 ${n}개를 지울까요?"
+    override val deleteProjectsBody = "아이디어와 도면이 모두 지워져요. 지운 직후에는 아래 알림에서 되돌릴 수 있어요."
+    override fun projectsDeleted(n: Int) = "프로젝트 ${n}개를 지웠어요"
+    override val longPressProjectsHint = "꾹 누르면 여러 개를 골라 지울 수 있어요"
 
     override val tabHome = "화로"
     override val tabLibrary = "도면함"

@@ -509,6 +509,11 @@ abstract class Strings {
     abstract val noIdeasLeft: String
     abstract val busyCantDelete: String
 
+    abstract fun deleteProjectsTitle(n: Int): String
+    abstract val deleteProjectsBody: String
+    abstract fun projectsDeleted(n: Int): String
+    abstract val longPressProjectsHint: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

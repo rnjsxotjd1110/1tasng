@@ -315,9 +315,9 @@ object EnStrings : Strings() {
     override fun filterLabel(f: LibraryFilter) = when (f) {
         LibraryFilter.ALL -> "All"
         LibraryFilter.FAVORITE -> "Pinned"
-        LibraryFilter.EXPLORING -> "Exploring"
-        LibraryFilter.IDEAS -> "Ideas"
-        LibraryFilter.DOCS -> "Design docs"
+        LibraryFilter.EXPLORING -> "Heating"
+        LibraryFilter.IDEAS -> "Picking ores"
+        LibraryFilter.DOCS -> "Blueprints"
     }
     override val libraryEmptyTitle = "No projects yet"
     override val libraryEmptyBody = "Pick a category on Home and find your first idea."
@@ -749,6 +749,11 @@ object EnStrings : Strings() {
     override val longPressHint = "Long-press to select several and delete"
     override val noIdeasLeft = "No ideas left. Strike more or mine new ores below."
     override val busyCantDelete = "You can delete once the current task finishes."
+
+    override fun deleteProjectsTitle(n: Int) = if (n == 1) "Delete 1 project?" else "Delete $n projects?"
+    override val deleteProjectsBody = "Their ideas and blueprints go too. You can undo right after from the notice at the bottom."
+    override fun projectsDeleted(n: Int) = if (n == 1) "Deleted 1 project" else "Deleted $n projects"
+    override val longPressProjectsHint = "Long-press to select several and delete"
 
     override val tabHome = "Forge"
     override val tabLibrary = "Blueprints"

@@ -1,5 +1,7 @@
 package app.ember.ideas.shots
 
+import org.junit.Assert.assertEquals
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performTouchInput
 import app.ember.ideas.data.Memo
@@ -586,6 +588,25 @@ class ScreenshotTest {
         shot("46_ideas_select")
         click("삭제 2")
         shot("47_ideas_delete_confirm")
+    }
+
+    @Test fun s48_library_select() {
+        withKey()
+        c.store.upsert(SampleProject.korean())
+        c.store.upsert(interviewProject())
+        c.store.upsert(ideasProject())
+        setContent(auto = true) { MainTabs({}, {}, {}, {}, initialTab = 2) }
+        rule.onAllNodes(hasPlainText("출퇴근길 게임"), useUnmergedTree = true).onFirst().performTouchInput { longClick() }
+        rule.waitForIdle()
+        click("비 오는 날 아이디어")
+        shot("48_library_select")
+        click("삭제 2")
+        // 확인 창의 '삭제'(창이 목록 위에 뜨므로 마지막 노드)를 누른다.
+        rule.onAllNodes(hasPlainText("삭제"), useUnmergedTree = true).onLast().performClick()
+        rule.waitForIdle()
+        rule.onAllNodes(hasPlainText("프로젝트 2개를 지웠어요"), useUnmergedTree = true).onFirst().assertExists()
+        assertEquals(1, c.store.projects.value.size)
+        shot("49_library_deleted_undo")
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

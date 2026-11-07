@@ -4,6 +4,7 @@ import { clearGoogleTokenCache, PLAY_INTEGRITY_SCOPE } from "../src/play/google-
 import { checkIntegrityPayload, NONCE_TTL_SECONDS, normalizeNonce } from "../src/play/integrity";
 import { call, errorBody, makeEnv, type TestEnv } from "./helpers/env";
 import { DECODE_URL, installFakeGoogle, PACKAGE, passingPayload, type FakeGoogle } from "./helpers/google";
+import { idTokenFor } from "./helpers/google-id";
 
 beforeEach(() => clearGoogleTokenCache());
 afterEach(() => vi.unstubAllGlobals());
@@ -27,10 +28,13 @@ interface RegisterBody {
   integrity?: string;
 }
 
+/** 가입. idToken 을 따로 주지 않으면 installId 마다 정해진 Google 계정(sub-of-<installId>)으로 로그인한다. */
 async function reg(env: TestEnv, body: Record<string, unknown>): Promise<{ status: number; body: RegisterBody & { error?: { type: string } } }> {
+  const json = { ...body };
+  if (!("idToken" in json) && typeof json["installId"] === "string") json["idToken"] = await idTokenFor(`sub-of-${json["installId"]}`);
   const { res } = await call(env, "/ember/register", {
     method: "POST",
-    json: body,
+    json,
     headers: { "cf-connecting-ip": nextIp() },
   });
   return { status: res.status, body: (await res.json()) as RegisterBody & { error?: { type: string } } };

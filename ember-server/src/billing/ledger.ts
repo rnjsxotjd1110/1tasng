@@ -30,7 +30,8 @@ export async function recordUsage(db: D1Database, r: UsageRecord): Promise<numbe
     .prepare(
       `INSERT INTO usage_log (account_id, model, status, streamed, input_tokens, output_tokens,
          cache_read_tokens, cache_write_tokens, web_search_requests, credits, estimated, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM accounts WHERE id = ?)`,
     )
     .bind(
       r.accountId,
@@ -45,6 +46,8 @@ export async function recordUsage(db: D1Database, r: UsageRecord): Promise<numbe
       r.credits,
       r.estimated ? 1 : 0,
       r.now,
+      // 요청 중에 계정이 삭제(DELETE /ember/account)됐으면 기록을 남기지 않는다.
+      r.accountId,
     );
   const refund = Math.max(0, r.reserved - r.credits);
   const extra = Math.max(0, r.credits - r.reserved);

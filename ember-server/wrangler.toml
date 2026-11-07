@@ -15,8 +15,10 @@ database_name = "ember"
 database_id = "00000000-0000-0000-0000-000000000000"
 
 # 공개 설정값(비밀 아님). 비워 두면 코드의 기본값을 쓴다.
-# 비밀값(ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, ADMIN_KEY)은 절대 여기에 쓰지 말고
+# 비밀값(ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, ADMIN_KEY, SUB_HASH_SECRET)은 절대 여기에 쓰지 말고
 # `npx wrangler secret put 이름` 으로 넣는다.
+# SUB_HASH_SECRET: Google 계정당 무료 크레딧 1회 기록(sub 의 HMAC)용 긴 무작위 문자열. 한 번 정하면 바꾸지 않는다
+#   (바꾸면 이미 무료 크레딧을 받은 Google 계정이 탈퇴 후 다시 받을 수 있다).
 [vars]
 # 안드로이드 앱 패키지 이름(구글 플레이 영수증 검증용)
 PACKAGE_NAME = "app.ember.ideas"
@@ -54,3 +56,13 @@ ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 # 주의: 배포 전에 Play Integrity 를 설정해야 한다(README 4-5): GOOGLE_SERVICE_ACCOUNT_JSON + Play Integrity API 사용 설정 +
 #   Play Console 에서 클라우드 프로젝트 연결. 서비스 계정이 없으면 가입은 되지만 새 계정의 무료 크레딧은 0 이다.
 INTEGRITY_MODE = "grant"
+
+# ── Google 로그인(Sign in with Google, 크레딧 모드 필수) ──
+# Google Cloud 콘솔의 OAuth "웹 애플리케이션" 클라이언트 ID(앱이 Credential Manager 의 serverClientId 로 쓰는 값).
+# 여러 개면 쉼표로 구분. 비어 있으면 Google 로그인이 500(설정 안 됨)이므로 배포 전에 꼭 채운다(README 4-6).
+GOOGLE_OAUTH_CLIENT_IDS = ""
+# "false" 로 두면 idToken 없는 예전 방식 가입(installId 만)도 받는다. 기본(그 밖의 값)은 Google 로그인 필수.
+REQUIRE_GOOGLE_SIGNIN = "true"
+# Google 에 연결하지 않은 예전 계정을 이 날짜(ISO, 날짜만 쓰면 그날 00:00 UTC)부터 막는다(403 google_required).
+# 비워 두면 계속 쓸 수 있다. 막힌 뒤에도 POST /ember/link-google(연결)과 DELETE /ember/account(탈퇴)는 된다.
+LEGACY_UNLINKED_UNTIL = ""

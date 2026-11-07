@@ -1,4 +1,9 @@
 // POST /ember/purchase: Play 영수증 확인 후 크레딧 지급. 같은 purchaseToken 은 한 번만 지급한다.
+//
+// 순서: 확인(GET) → 지급 대기 기록(credited = 0, 이 계정) → 소비(consume) → 지급(credited = 1).
+// 소비 뒤 지급이 실패해도 대기 기록이 남으므로, 같은 계정이 같은 purchaseToken 을 다시 보내면
+// (Google 은 이미 소비됨으로 알려 줌) 지급된다(지급 복구). 지급은 credited 0 → 1 전환으로 한 번만 일어난다.
+import { HASHED_PURCHASE_PREFIX, hashedPurchaseToken } from "./account-delete";
 import { authenticate } from "./auth";
 import type { Config, Env } from "./env";
 import { ApiError, jsonResponse, readJsonObject } from "./http";
@@ -29,17 +34,21 @@ export async function handlePurchase(req: Request, env: Env, cfg: Config): Promi
   if (
     typeof purchaseToken !== "string" ||
     purchaseToken.length === 0 ||
-    purchaseToken.length > MAX_PURCHASE_TOKEN_LENGTH
+    purchaseToken.length > MAX_PURCHASE_TOKEN_LENGTH ||
+    purchaseToken.startsWith(HASHED_PURCHASE_PREFIX)
   ) {
     throw new ApiError(400, "invalid_request_error", "purchaseToken is required");
   }
 
-  // 이미 처리된 영수증이면 Google 을 부르지 않고 현재 잔액만 돌려준다(재시도 안전).
-  const existing = await env.DB.prepare("SELECT credited FROM purchases WHERE purchase_token = ?")
-    .bind(purchaseToken)
-    .first<{ credited: number }>();
-  if (existing?.credited) {
+  // 이미 처리된 영수증(지급 완료, 다른 계정의 것, 탈퇴한 계정의 것 = 해시로 저장)이면 Google 을 부르지 않고
+  // 현재 잔액만 돌려준다(재시도 안전). 이 계정의 지급 대기 기록이면 아래에서 다시 확인해 지급한다(지급 복구).
+  const hashed = await hashedPurchaseToken(purchaseToken);
+  const existing = await findPurchase(env.DB, purchaseToken, hashed);
+  if (existing && !isOwnPending(existing, purchaseToken, account.id)) {
     return jsonResponse({ credits: await currentCredits(env.DB, account.id), granted: 0 } satisfies PurchaseResult);
+  }
+  if (existing && existing.product_id !== productId) {
+    throw new ApiError(400, "invalid_request_error", "productId does not match the purchase");
   }
 
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
@@ -68,6 +77,16 @@ export async function handlePurchase(req: Request, env: Env, cfg: Config): Promi
   const isTest = p.purchaseType === PURCHASE_TYPE_TEST;
   const rejectTest = isTest && !cfg.allowTestPurchases;
   const credits = rejectTest ? 0 : (cfg.products[productId] ?? 0) * p.quantity;
+  const now = nowSeconds();
+
+  // 소비(되돌릴 수 없음) 전에 이 계정의 지급 대기 기록을 남긴다. 다른 계정이 먼저 기록했거나 탈퇴 계정의 영수증이면 지급하지 않는다.
+  if (!existing) {
+    await recordPendingPurchase(env.DB, account.id, productId, purchaseToken, hashed, credits, p, now);
+    const row = await findPurchase(env.DB, purchaseToken, hashed);
+    if (!row || !isOwnPending(row, purchaseToken, account.id)) {
+      return jsonResponse({ credits: await currentCredits(env.DB, account.id), granted: 0 } satisfies PurchaseResult);
+    }
+  }
 
   // 지급 전에 서버에서 소비(consume)한다. 소비하지 못하면 지급하지 않는다(앱이 다시 보내면 된다).
   // 이미 소비된 구매(consumptionState 1, 또는 Google 의 '이미 소비됨' 응답)는 그대로 진행한다.
@@ -82,7 +101,6 @@ export async function handlePurchase(req: Request, env: Env, cfg: Config): Promi
     if (consumed.kind !== "ok") throw new ApiError(502, "api_error", "could not finalize the purchase, please retry");
   }
 
-  const now = nowSeconds();
   let result: PurchaseResult;
   try {
     result = await grantPurchase(env.DB, account.id, productId, purchaseToken, credits, p, now);
@@ -107,13 +125,56 @@ export async function handlePurchase(req: Request, env: Env, cfg: Config): Promi
   return jsonResponse(result);
 }
 
+interface PurchaseRow {
+  purchase_token: string;
+  account_id: number;
+  product_id: string;
+  credited: number;
+}
+
+async function findPurchase(db: D1Database, purchaseToken: string, hashed: string): Promise<PurchaseRow | null> {
+  return db
+    .prepare("SELECT purchase_token, account_id, product_id, credited FROM purchases WHERE purchase_token IN (?, ?)")
+    .bind(purchaseToken, hashed)
+    .first<PurchaseRow>();
+}
+
+/** 이 계정의 아직 지급하지 않은 기록이면 true(지급을 이어서 할 수 있음). */
+function isOwnPending(row: PurchaseRow, purchaseToken: string, accountId: number): boolean {
+  return row.purchase_token === purchaseToken && row.account_id === accountId && row.credited === 0;
+}
+
+/** 지급 대기 기록(credited = 0). 같은 영수증의 기록(원문 또는 탈퇴 계정의 해시)이 이미 있으면 아무것도 하지 않는다. */
+export async function recordPendingPurchase(
+  db: D1Database,
+  accountId: number,
+  productId: string,
+  purchaseToken: string,
+  hashed: string,
+  credits: number,
+  p: Pick<ProductPurchase, "orderId" | "quantity" | "purchaseType">,
+  now: number,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO purchases (purchase_token, account_id, product_id, order_id, quantity, credits,
+         purchase_type, credited, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, 0, ?
+       WHERE NOT EXISTS (SELECT 1 FROM purchases WHERE purchase_token = ?)
+       ON CONFLICT (purchase_token) DO NOTHING`,
+    )
+    .bind(purchaseToken, accountId, productId, p.orderId ?? null, p.quantity, credits, p.purchaseType ?? null, now, hashed)
+    .run();
+}
+
 async function currentCredits(db: D1Database, accountId: number): Promise<number> {
   const row = await db.prepare("SELECT credits FROM accounts WHERE id = ?").bind(accountId).first<{ credits: number }>();
   return row?.credits ?? 0;
 }
 
 /**
- * 한 트랜잭션(batch)에서: 영수증 기록(중복이면 무시) → 아직 지급 전이면 크레딧 지급 → 지급 표시 → 잔액 조회.
+ * 한 트랜잭션(batch)에서: 영수증 기록(대기 기록이 이미 있거나 중복이면 무시) → 이 계정의 지급 전 기록이면 크레딧 지급
+ * → 지급 표시 → 잔액 조회.
  * purchase_token UNIQUE 와 credited 플래그 덕분에 동시에 두 번 와도 한 번만 지급된다.
  */
 export async function grantPurchase(
@@ -142,8 +203,8 @@ export async function grantPurchase(
       )
       .bind(credits, now, accountId, purchaseToken, accountId),
     db
-      .prepare("UPDATE purchases SET credited = 1 WHERE purchase_token = ? AND account_id = ? AND credited = 0")
-      .bind(purchaseToken, accountId),
+      .prepare("UPDATE purchases SET credited = 1, credits = ? WHERE purchase_token = ? AND account_id = ? AND credited = 0")
+      .bind(credits, purchaseToken, accountId),
     db.prepare("SELECT credits FROM accounts WHERE id = ?").bind(accountId),
   ]);
   const granted = (results[1]?.meta.changes ?? 0) > 0 ? credits : 0;

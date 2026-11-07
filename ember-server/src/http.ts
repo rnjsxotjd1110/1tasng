@@ -10,7 +10,11 @@ export type ErrorType =
   | "api_error"
   | "overloaded_error"
   | "insufficient_credits"
-  | "integrity_failed";
+  | "integrity_failed"
+  | "google_required"
+  | "invalid_google_token"
+  | "google_in_use"
+  | "already_linked";
 
 export class ApiError extends Error {
   constructor(

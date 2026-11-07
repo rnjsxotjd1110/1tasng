@@ -2,6 +2,7 @@
 import worker from "../../src/index";
 import type { Env } from "../../src/env";
 import { FakeD1 } from "./d1";
+import { idTokenFor, TEST_CLIENT_ID } from "./google-id";
 
 export interface TestCtx extends ExecutionContext {
   /** waitUntil 로 넘어온 작업이 모두 끝날 때까지 기다린다. */
@@ -35,6 +36,9 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
     ADMIN_KEY: "test-admin-key",
     // 테스트는 무료 크레딧 100 을 기준으로 계산한다(운영 기본값은 40).
     FREE_CREDITS: "100",
+    // Google 로그인(REQUIRE_GOOGLE_SIGNIN 은 기본값 = 필수)
+    GOOGLE_OAUTH_CLIENT_IDS: `other-client.apps.googleusercontent.com, ${TEST_CLIENT_ID}`,
+    SUB_HASH_SECRET: "test-sub-hash-secret",
     ...overrides,
   };
 }
@@ -60,16 +64,25 @@ export async function call(
 }
 
 let ipCounter = 0;
-/** 계정을 하나 만들고 토큰을 돌려준다(매번 다른 IP 로 가입 제한을 피한다). */
-export async function register(env: Env, installId = crypto.randomUUID()): Promise<{ token: string; credits: number }> {
+/**
+ * Google 로그인으로 계정을 하나 만들고 토큰을 돌려준다(매번 다른 IP 로 가입 제한을 피한다).
+ * sub 를 주지 않으면 새 Google 계정(무작위 sub). sub 가 null 이면 idToken 없이 예전 방식으로 가입한다.
+ */
+export async function register(
+  env: Env,
+  installId: string = crypto.randomUUID(),
+  sub: string | null = `sub-${crypto.randomUUID()}`,
+): Promise<{ token: string; credits: number; freeGranted: boolean; restored: boolean }> {
   ipCounter++;
+  const json: Record<string, unknown> = { installId };
+  if (sub !== null) json["idToken"] = await idTokenFor(sub);
   const { res } = await call(env, "/ember/register", {
     method: "POST",
-    json: { installId },
-    headers: { "cf-connecting-ip": `10.0.0.${ipCounter}` },
+    json,
+    headers: { "cf-connecting-ip": `10.${(ipCounter >> 8) & 255}.0.${ipCounter & 255}` },
   });
   if (res.status !== 200) throw new Error(`register failed: ${res.status} ${await res.text()}`);
-  return (await res.json()) as { token: string; credits: number };
+  return (await res.json()) as { token: string; credits: number; freeGranted: boolean; restored: boolean };
 }
 
 export async function setCredits(env: TestEnv, token: string, credits: number): Promise<void> {

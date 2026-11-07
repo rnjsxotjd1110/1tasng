@@ -32,11 +32,29 @@ export async function sha256Bytes(s: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
 }
 
-export async function sha256Hex(s: string): Promise<string> {
-  const bytes = await sha256Bytes(s);
+export function toHex(bytes: Uint8Array): string {
   let hex = "";
   for (const b of bytes) hex += b.toString(16).padStart(2, "0");
   return hex;
+}
+
+export async function sha256Hex(s: string): Promise<string> {
+  return toHex(await sha256Bytes(s));
+}
+
+/** HMAC-SHA256(key, message) 의 hex. */
+export async function hmacSha256Hex(key: string, message: string): Promise<string> {
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(key), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+  return toHex(new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(message))));
+}
+
+/** base64url(패딩 유무 무관)을 바이트로. 형식이 틀리면 예외. */
+export function base64UrlDecode(s: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]*={0,2}$/.test(s)) throw new Error("invalid base64url");
+  const b64 = s.replace(/=+$/, "").replace(/-/g, "+").replace(/_/g, "/");
+  return base64Decode(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
 }
 
 /** 길이와 무관하게 일정 시간 비교: 양쪽을 SHA-256 으로 고정 길이로 만든 뒤 XOR 누적. */

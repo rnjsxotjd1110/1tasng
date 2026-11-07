@@ -105,10 +105,13 @@ describe("관리자", () => {
     const { res } = await call(env, "/ember/admin/stats", { headers: { "x-admin-key": "test-admin-key" } });
     expect(await res.json()).toEqual({
       accounts: 2,
+      googleLinkedAccounts: 2,
+      deletedAccounts: { total: 0, last30d: 0 },
       creditsGranted: { free: 200, purchased: 1000, total: 1200 },
       creditsSpent: 10,
       creditsOutstanding: 200,
       purchases: 2,
+      pendingPurchases: 0,
       voided: { purchases: 1, creditsClawedBack: 500 },
       billingDisabledAccounts: 1,
       inflightRequests: 1,
@@ -227,24 +230,34 @@ describe("마이그레이션", () => {
     };
   };
 
-  async function load(): Promise<{ FakeD1: typeof import("./helpers/d1").FakeD1; m2: string; m3: string }> {
+  async function load(): Promise<{ FakeD1: typeof import("./helpers/d1").FakeD1; m2: string; m3: string; m4: string }> {
     const { readFileSync } = await import("node:fs");
     const { FakeD1 } = await import("./helpers/d1");
     const m2 = readFileSync(new URL("../migrations/0002_voided_integrity.sql", import.meta.url), "utf8");
     const m3 = readFileSync(new URL("../migrations/0003_billing_guards.sql", import.meta.url), "utf8");
-    return { FakeD1, m2, m3 };
+    const m4 = readFileSync(new URL("../migrations/0004_google_signin.sql", import.meta.url), "utf8");
+    return { FakeD1, m2, m3, m4 };
+  }
+
+  /** 0004 이전 스키마(= 0003 까지 적용한 DB) 흉내 */
+  function before0004(db: Db): void {
+    db.sqlite.exec(
+      `DROP INDEX idx_accounts_google_sub; ALTER TABLE accounts DROP COLUMN google_sub;
+       DROP TABLE free_credit_grants; DROP TABLE account_deletions;`,
+    );
   }
 
   /** 0003 이전 스키마(= 0002 까지 적용한 DB) 흉내 */
   function before0003(db: Db): void {
+    before0004(db);
     db.sqlite.exec(
       `ALTER TABLE purchases DROP COLUMN voided_quantity;
        DROP TABLE voided_events; DROP INDEX idx_inflight_account; DROP TABLE inflight;`,
     );
   }
 
-  it("예전 스키마에 0002 → 0003 을 적용하면 schema.sql 과 같은 구조가 된다", async () => {
-    const { FakeD1, m2, m3 } = await load();
+  it("예전 스키마에 0002 → 0003 → 0004 를 적용하면 schema.sql 과 같은 구조가 된다", async () => {
+    const { FakeD1, m2, m3, m4 } = await load();
     const fresh = new FakeD1();
     const old = new FakeD1();
     before0003(old);
@@ -259,8 +272,32 @@ describe("마이그레이션", () => {
     old.sqlite.exec(m2);
     expect(old.rows("SELECT voided, voided_at FROM purchases")).toEqual([{ voided: 0, voided_at: null }]);
     old.sqlite.exec(m3);
+    expect(old.rows("PRAGMA table_info(accounts)").map((c) => (c as { name: string }).name)).not.toContain("google_sub");
+    old.sqlite.exec(m4);
     expect(describeDb(old)).toEqual(describeDb(fresh));
     expect(old.rows("SELECT voided_quantity FROM purchases")).toEqual([{ voided_quantity: 0 }]);
+    expect(old.rows("SELECT install_id, google_sub FROM accounts")).toEqual([{ install_id: "i", google_sub: null }]);
+  });
+
+  it("0004: 0003 까지 적용된 DB 의 기존 계정은 연결 안 된 계정으로 남고, Google 로그인으로 연결된다", async () => {
+    const { FakeD1, m4 } = await load();
+    const db = new FakeD1();
+    before0004(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.sqlite.exec(
+      `INSERT INTO accounts (install_id, token_hash, credits, free_credits, created_at, updated_at)
+       VALUES ('legacy-install-m4', 'h', 55, 40, ${now}, ${now})`,
+    );
+    db.sqlite.exec(m4);
+    const env = { ...makeEnv(), DB: db as unknown as D1Database, db };
+    const r = await register(env, "legacy-install-m4", "google-sub-m4");
+    expect(r).toMatchObject({ credits: 55, freeGranted: false, restored: true });
+    expect(db.rows("SELECT google_sub FROM accounts")).toEqual([{ google_sub: "google-sub-m4" }]);
+    expect(db.rows("SELECT COUNT(*) AS n FROM free_credit_grants")).toEqual([{ n: 1 }]);
+    // 두 계정이 같은 sub 를 가질 수 없다(UNIQUE 인덱스)
+    expect(() =>
+      db.sqlite.exec(`INSERT INTO accounts (install_id, token_hash, google_sub, created_at, updated_at) VALUES ('x-install-01', 'h2', 'google-sub-m4', 0, 0)`),
+    ).toThrow(/UNIQUE/);
   });
 
   it("0003: 이미 회수한 구매는 전체 수량 환불 + legacy 이벤트로 옮긴다", async () => {

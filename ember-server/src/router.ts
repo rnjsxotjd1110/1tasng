@@ -1,5 +1,7 @@
 // 경로 → 핸들러. 목록에 없는 것은 모두 404.
 import { handleBalance, handleRegister } from "./account";
+import { handleDeleteAccount } from "./account-delete";
+import { handleLinkGoogle } from "./account-link";
 import { handleAdminReports, handleAdminStats } from "./admin";
 import { loadConfig, type Env } from "./env";
 import { ApiError, apiErrorResponse, errorResponse } from "./http";
@@ -25,7 +27,11 @@ export async function route(req: Request, env: Env, ctx: ExecutionContext): Prom
           return await handlePurchase(req, env, cfg);
         case "/ember/report":
           return await handleReport(req, env, cfg);
+        case "/ember/link-google":
+          return await handleLinkGoogle(req, env, cfg);
       }
+    } else if (method === "DELETE") {
+      if (pathname === "/ember/account") return await handleDeleteAccount(req, env);
     } else if (method === "GET") {
       switch (pathname) {
         case "/ember/balance":

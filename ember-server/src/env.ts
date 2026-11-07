@@ -6,6 +6,8 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;
   ADMIN_KEY?: string;
+  /** Google sub 의 HMAC-SHA256 키(무료 크레딧 1회 지급 기록용). 비밀값. */
+  SUB_HASH_SECRET?: string;
   // 공개 설정값(wrangler.toml [vars])
   PACKAGE_NAME?: string;
   FREE_CREDITS?: string;
@@ -25,6 +27,9 @@ export interface Env {
   INFLIGHT_STALE_SECONDS?: string;
   ALLOW_TEST_PURCHASES?: string;
   REPORTS_DAILY_CAP?: string;
+  GOOGLE_OAUTH_CLIENT_IDS?: string;
+  REQUIRE_GOOGLE_SIGNIN?: string;
+  LEGACY_UNLINKED_UNTIL?: string;
 }
 
 export interface Config {
@@ -52,6 +57,12 @@ export interface Config {
   allowTestPurchases: boolean;
   /** 하루(UTC) 전체 신고 수 상한 */
   reportsDailyCap: number;
+  /** Google ID 토큰의 aud 로 허용할 OAuth 클라이언트 ID(웹 클라이언트). 비면 Google 로그인을 쓸 수 없다. */
+  googleClientIds: readonly string[];
+  /** true(기본)면 가입(POST /ember/register)에 idToken 이 꼭 필요하다. */
+  requireGoogleSignin: boolean;
+  /** 이 시각(유닉스 초) 이후로 Google 에 연결하지 않은 예전 계정은 403 google_required. null 이면 계속 쓸 수 있다. */
+  legacyUnlinkedUntil: number | null;
 }
 
 /**
@@ -126,6 +137,34 @@ export function parseIntegrityMode(raw: string | undefined): IntegrityMode {
   return DEFAULTS.integrityMode;
 }
 
+/** 쉼표로 구분한 OAuth 클라이언트 ID 목록 */
+export function parseClientIds(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+}
+
+/** REQUIRE_GOOGLE_SIGNIN: "false"(대소문자·공백 무시)일 때만 끈다. 비었거나 다른 값이면 켠다. */
+export function parseRequireGoogleSignin(raw: string | undefined): boolean {
+  return raw?.trim().toLowerCase() !== "false";
+}
+
+/**
+ * LEGACY_UNLINKED_UNTIL(ISO 날짜·시각)을 유닉스 초로. 비었으면 null(제한 없음).
+ * 날짜만 쓰면 그날 00:00 UTC. 형식이 틀리면 오류를 남기고 null(예전 계정을 막지 않는다).
+ */
+export function parseLegacyUnlinkedUntil(raw: string | undefined): number | null {
+  const v = raw?.trim() ?? "";
+  if (v === "") return null;
+  const ms = Date.parse(v);
+  if (!/^\d{4}-\d{2}-\d{2}/.test(v) || !Number.isFinite(ms)) {
+    console.error(`LEGACY_UNLINKED_UNTIL 값이 잘못됨(${raw}), 무시함`);
+    return null;
+  }
+  return Math.floor(ms / 1000);
+}
+
 export function loadConfig(env: Env): Config {
   return {
     packageName: env.PACKAGE_NAME?.trim() || DEFAULTS.packageName,
@@ -146,5 +185,8 @@ export function loadConfig(env: Env): Config {
     inflightStaleSeconds: num(env.INFLIGHT_STALE_SECONDS, DEFAULTS.inflightStaleSeconds, 60, true),
     allowTestPurchases: env.ALLOW_TEST_PURCHASES?.trim().toLowerCase() === "true",
     reportsDailyCap: num(env.REPORTS_DAILY_CAP, DEFAULTS.reportsDailyCap, 1, true),
+    googleClientIds: parseClientIds(env.GOOGLE_OAUTH_CLIENT_IDS),
+    requireGoogleSignin: parseRequireGoogleSignin(env.REQUIRE_GOOGLE_SIGNIN),
+    legacyUnlinkedUntil: parseLegacyUnlinkedUntil(env.LEGACY_UNLINKED_UNTIL),
   };
 }

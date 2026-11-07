@@ -240,14 +240,14 @@ describe("구매: 서버 소비(consume)·테스트 구매", () => {
     expect(urls.indexOf(PLAY_PREFIX + "ember_credits_500/tokens/tok-cons")).toBeLessThan(urls.indexOf(PLAY_PREFIX + "ember_credits_500/tokens/tok-cons:consume"));
   });
 
-  it("consume 이 실패하면 502 이고 지급·기록하지 않는다. 다시 보내면 지급된다", async () => {
+  it("consume 이 실패하면 502 이고 지급하지 않는다(지급 대기 기록만 남음). 다시 보내면 지급된다", async () => {
     const g = await fakeGoogle();
     const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
     const { token } = await register(env);
     g.consumeFailStatus = 503;
     const res = await buy(env, token, "ember_credits_500", "tok-cf");
     expect(res.status).toBe(502);
-    expect(env.db.rows("SELECT * FROM purchases")).toHaveLength(0);
+    expect(env.db.rows("SELECT purchase_token, credited FROM purchases")).toEqual([{ purchase_token: "tok-cf", credited: 0 }]);
     expect(env.db.rows<{ credits: number }>("SELECT credits FROM accounts")[0]!.credits).toBe(100);
     g.consumeFailStatus = 0;
     expect(await (await buy(env, token, "ember_credits_500", "tok-cf")).json()).toEqual({ credits: 600, granted: 500 });
@@ -311,6 +311,82 @@ describe("구매: 서버 소비(consume)·테스트 구매", () => {
     expect(await paid()).toBe(true);
     env.db.sqlite.exec("UPDATE purchases SET voided = 1 WHERE purchase_token = 'tok-p1'");
     expect(await paid()).toBe(false);
+  });
+});
+
+describe("구매: 지급 복구·탈퇴 계정 영수증", () => {
+  /** env.DB.batch 를 times 번 실패하게 한다(지급 batch 실패 흉내). */
+  function failBatches(env: TestEnv, times: number): void {
+    const db = env.db as unknown as { batch: (...a: unknown[]) => Promise<unknown> };
+    const orig = db.batch.bind(env.db);
+    let left = times;
+    db.batch = async (...a: unknown[]) => {
+      if (left > 0) {
+        left--;
+        throw new Error("D1_ERROR: simulated outage");
+      }
+      return orig(...a);
+    };
+  }
+
+  it("소비 후 지급이 실패한 구매는 같은 계정이 다시 보내면 지급된다(Google 은 '이미 소비됨'). 두 번 지급하지 않는다", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    failBatches(env, 2); // 지급 + 재시도 모두 실패
+    const res = await buy(env, token, "ember_credits_500", "tok-rec");
+    expect(res.status).toBe(500);
+    expect(g.consumed.has("tok-rec")).toBe(true); // 소비는 끝남
+    expect(env.db.rows("SELECT account_id, credits, credited FROM purchases")).toEqual([{ account_id: 1, credits: 500, credited: 0 }]);
+    expect(env.db.rows("SELECT credits FROM accounts")).toEqual([{ credits: 100 }]);
+
+    // 다시 보내면: Google 이 consumptionState 1 → consume 은 부르지 않고 지급
+    const consumesBefore = g.consumeRequests.length;
+    expect(await (await buy(env, token, "ember_credits_500", "tok-rec")).json()).toEqual({ credits: 600, granted: 500 });
+    expect(g.consumeRequests).toHaveLength(consumesBefore);
+    expect(env.db.rows("SELECT credited FROM purchases")).toEqual([{ credited: 1 }]);
+    // 또 보내면 0(Google 도 부르지 않음)
+    const verifies = g.verifyRequests.length;
+    expect(await (await buy(env, token, "ember_credits_500", "tok-rec")).json()).toEqual({ credits: 600, granted: 0 });
+    expect(g.verifyRequests).toHaveLength(verifies);
+    // 동시에 여러 번 와도 한 번만
+    failBatches(env, 2);
+    await buy(env, token, "ember_credits_500", "tok-rec2");
+    const results = await Promise.all([1, 2, 3].map(() => buy(env, token, "ember_credits_500", "tok-rec2")));
+    const bodies = (await Promise.all(results.map((r) => r.json()))) as { granted: number }[];
+    expect(bodies.map((b) => b.granted).sort()).toEqual([0, 0, 500]);
+    expect(env.db.rows("SELECT credits FROM accounts")).toEqual([{ credits: 1100 }]);
+  });
+
+  it("다른 계정의 지급 대기 영수증은 지급하지 않는다. 다른 상품 ID 로 보내면 400", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const a = await register(env);
+    const b = await register(env);
+    g.consumeFailStatus = 503;
+    expect((await buy(env, a.token, "ember_credits_500", "tok-pend")).status).toBe(502);
+    g.consumeFailStatus = 0;
+    expect(await (await buy(env, b.token, "ember_credits_500", "tok-pend")).json()).toEqual({ credits: 100, granted: 0 });
+    expect((await buy(env, a.token, "ember_credits_1500", "tok-pend")).status).toBe(400);
+    expect(await (await buy(env, a.token, "ember_credits_500", "tok-pend")).json()).toEqual({ credits: 600, granted: 500 });
+    expect(env.db.rows("SELECT account_id, credited FROM purchases")).toEqual([{ account_id: 1, credited: 1 }]);
+  });
+
+  it("탈퇴한 계정의 영수증(해시로 보관)을 새 계정이 보내도 지급하지 않고 Google 도 부르지 않는다", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const first = await register(env, "install-del-buyer-1", "google-sub-buyer");
+    expect(await (await buy(env, first.token, "ember_credits_500", "tok-del")).json()).toEqual({ credits: 600, granted: 500 });
+    const del = await call(env, "/ember/account", { method: "DELETE", headers: { "x-api-key": first.token } });
+    expect(del.res.status).toBe(200);
+
+    const again = await register(env, "install-del-buyer-1", "google-sub-buyer");
+    expect(again).toMatchObject({ credits: 0, freeGranted: false });
+    const verifies = g.verifyRequests.length;
+    expect(await (await buy(env, again.token, "ember_credits_500", "tok-del")).json()).toEqual({ credits: 0, granted: 0 });
+    expect(g.verifyRequests).toHaveLength(verifies);
+    // 'sha256:' 로 시작하는 토큰은 받지 않는다
+    expect((await buy(env, again.token, "ember_credits_500", "sha256:abc")).status).toBe(400);
   });
 });
 

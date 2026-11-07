@@ -2,7 +2,10 @@
 --   npx wrangler d1 execute ember --remote --file=./schema.sql
 -- 모든 시각은 유닉스 초(INTEGER). 크레딧은 정수(1 크레딧 = 마크업 포함 $0.01).
 
--- 계정: 설치 ID 하나당 하나. 토큰은 SHA-256 해시(hex)만 저장한다.
+-- 계정: Google 계정(sub) 하나당 하나(예전 앱이 만든 계정은 설치 ID 하나당 하나, google_sub = NULL).
+-- 토큰은 SHA-256 해시(hex)만 저장한다. 이메일·이름은 저장하지 않는다.
+-- install_id 의 특수 값: 'expired-<id>'(보관 기간 만료), 'detached:<id>'(다른 Google 계정이 이 설치를 가져감),
+--   'deleted:tombstone'(탈퇴한 계정들의 구매 기록이 옮겨 가는 공용 묘비 계정, 로그인 불가).
 CREATE TABLE IF NOT EXISTS accounts (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   install_id    TEXT    NOT NULL UNIQUE,
@@ -11,10 +14,27 @@ CREATE TABLE IF NOT EXISTS accounts (
   free_credits  INTEGER NOT NULL DEFAULT 0,   -- 가입 때 받은 무료 크레딧(통계용)
   disabled      INTEGER NOT NULL DEFAULT 0,   -- 0 정상, 1 차단(운영자가 SQL 로 설정), 2 정산 실패로 자동 차단(로그 확인·정산 후 0 으로)
   created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
+  updated_at    INTEGER NOT NULL,
+  google_sub    TEXT                          -- Google ID 토큰의 sub(계정 고유 ID). NULL = 연결 안 된 예전 계정
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_google_sub ON accounts(google_sub);
+
+-- 무료 크레딧을 받은 Google 계정: HMAC-SHA256(sub, SUB_HASH_SECRET) 만 저장한다(원래 sub 는 알 수 없음).
+-- 계정을 지워도 남아서, 같은 Google 계정으로 다시 가입하면 무료 크레딧은 0 이다(남용 방지).
+CREATE TABLE IF NOT EXISTS free_credit_grants (
+  sub_hash    TEXT    PRIMARY KEY,
+  created_at  INTEGER NOT NULL
+);
+
+-- 탈퇴(DELETE /ember/account) 시각만 남긴다(통계용, 식별 정보 없음).
+CREATE TABLE IF NOT EXISTS account_deletions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  deleted_at  INTEGER NOT NULL
 );
 
 -- 구글 플레이 구매: purchase_token 이 UNIQUE 라서 같은 영수증은 두 번 지급되지 않는다.
+-- credited = 0 은 지급 대기(소비 전에 기록, 소비 후 지급이 실패하면 같은 계정이 다시 보내 지급받는다).
+-- 탈퇴한 계정의 구매는 account_id = 묘비 계정, purchase_token = 'sha256:<원래 토큰의 SHA-256 hex>' 로 바꿔 5년 보관한다.
 CREATE TABLE IF NOT EXISTS purchases (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   purchase_token  TEXT    NOT NULL UNIQUE,
@@ -97,7 +117,7 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at   INTEGER NOT NULL
 );
 
--- 고정 창(fixed window) 요청 제한 카운터. key 예: 'reg:1.2.3.4', 'reg:2001:db8:0:1::/64', 'msg:42'
+-- 고정 창(fixed window) 요청 제한 카운터. key 예: 'reg:1.2.3.4', 'reg:2001:db8:0:1::/64', 'msg:42', 'link:42'
 -- 하루 합계 카운터도 여기에 둔다: 'free:day'(무료 크레딧 지급 합계), 'rep:day'(신고 수), window_start = UTC 0시.
 CREATE TABLE IF NOT EXISTS rate_limits (
   key           TEXT    NOT NULL,

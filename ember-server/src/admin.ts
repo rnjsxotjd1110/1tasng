@@ -52,14 +52,23 @@ interface StatsRow {
   reports: number;
   billing_disabled: number;
   inflight: number;
+  google_linked: number;
+  deletions: number;
+  deletions_30d: number;
+  pending_purchases: number;
 }
 
 export async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   await requireAdmin(req, env);
-  const since = nowSeconds() - 86400;
+  const now = nowSeconds();
+  const since = now - 86400;
   const row = await env.DB.prepare(
     `SELECT
-       (SELECT COUNT(*) FROM accounts) AS accounts,
+       (SELECT COUNT(*) FROM accounts WHERE install_id <> 'deleted:tombstone') AS accounts,
+       (SELECT COUNT(*) FROM accounts WHERE google_sub IS NOT NULL) AS google_linked,
+       (SELECT COUNT(*) FROM account_deletions) AS deletions,
+       (SELECT COUNT(*) FROM account_deletions WHERE deleted_at >= ?) AS deletions_30d,
+       (SELECT COUNT(*) FROM purchases WHERE credited = 0) AS pending_purchases,
        (SELECT COALESCE(SUM(free_credits), 0) FROM accounts) AS free_granted,
        (SELECT COALESCE(SUM(credits), 0) FROM purchases WHERE credited = 1) AS purchased,
        (SELECT COUNT(*) FROM purchases WHERE credited = 1 AND credits > 0) AS purchases,
@@ -73,15 +82,22 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
        (SELECT COALESCE(SUM(credits), 0) FROM usage_log WHERE created_at >= ?) AS spent_24h,
        (SELECT COUNT(*) FROM reports) AS reports`,
   )
-    .bind(since, since)
+    .bind(now - 30 * 86400, since, since)
     .first<StatsRow>();
   if (!row) throw new ApiError(500, "api_error", "stats query failed");
   return jsonResponse({
+    // 탈퇴한 계정의 구매가 옮겨 간 묘비 계정('deleted:tombstone')은 빼고 센다. 만료(expired-)된 계정은 포함.
     accounts: row.accounts,
+    // Google 계정에 연결된 계정 수(나머지는 예전 앱이 만든 연결 안 된 계정·만료 계정)
+    googleLinkedAccounts: row.google_linked,
+    // 탈퇴(DELETE /ember/account) 수: 전체와 최근 30일
+    deletedAccounts: { total: row.deletions, last30d: row.deletions_30d },
     creditsGranted: { free: row.free_granted, purchased: row.purchased, total: row.free_granted + row.purchased },
     creditsSpent: row.spent,
     creditsOutstanding: row.outstanding,
     purchases: row.purchases,
+    // 지급 대기 구매(credited = 0): 소비 후 지급이 실패했거나 진행 중. 같은 계정이 다시 보내면 지급된다.
+    pendingPurchases: row.pending_purchases,
     // 환불(일부 환불 포함)되어 회수한 구매(creditsGranted.purchased 에는 포함된 채로 남는다)
     voided: { purchases: row.voided, creditsClawedBack: row.clawed_back },
     // 정산 기록 실패로 자동 차단된 계정 수(disabled = 2, 로그 확인 후 수동 정산)

@@ -19,16 +19,20 @@ export const CREDITS_HEADER = "ember-credits-remaining";
 /** 실제로 업스트림에 보낸 모델(무료 계정은 요청과 다를 수 있다). */
 export const MODEL_HEADER = "ember-model";
 
-/** 결제한 적 없는 계정(무료 크레딧만 쓰는 계정)은 이 모델 요청을 오른쪽 모델로 바꿔 보낸다. */
-export const FREE_TIER_MODEL_MAP: Readonly<Partial<Record<AllowedModel, AllowedModel>>> = {
-  "claude-opus-5-5": "claude-sonnet-5-5",
-};
+/** 결제한 적 없는 계정(무료 크레딧만 쓰는 계정)이 보낸 요청은 어떤 모델이든 이 모델로 바꿔 보낸다. */
+export const FREE_TIER_MODEL: AllowedModel = "claude-haiku-5-5";
 
+/**
+ * 무료 계정 요청을 [FREE_TIER_MODEL] 로 바꾼다. Haiku 5.5 는 웹 검색(web_search_20260209)과
+ * 서버측 거절 대체(fallbacks)를 받지 않으므로 둘을 함께 뺀다(남겨 두면 업스트림이 400 을 낸다).
+ */
 export function applyFreeTierModel(v: ValidatedRequest, paid: boolean): ValidatedRequest {
-  if (paid) return v;
-  const to = FREE_TIER_MODEL_MAP[v.model];
-  if (to === undefined) return v;
-  return { ...v, model: to, body: { ...v.body, model: to } };
+  if (paid || v.model === FREE_TIER_MODEL) return v;
+  const body: Record<string, unknown> = { ...v.body, model: FREE_TIER_MODEL };
+  delete body["tools"];
+  delete body["tool_choice"];
+  delete body["fallbacks"];
+  return { ...v, model: FREE_TIER_MODEL, body, webSearchMaxUses: 0, fallbacks: false };
 }
 
 /** 처리 중인 요청 하나의 상태(칸·예약액). */
@@ -59,7 +63,8 @@ export async function handleMessages(
   // 과금도 바뀐 모델(실제로 보낸 모델) 기준이다.
   const validated = applyFreeTierModel(validateMessagesBody(raw, cfg.maxOutputTokens), account.paid);
   const version = validateAnthropicVersion(req.headers.get("anthropic-version"));
-  const beta = filterBetas(req.headers.get("anthropic-beta"));
+  // 허용 베타는 서버측 거절 대체뿐이고 무료 계정은 그 기능을 뺀 Haiku 로 보내므로, 무료 계정에는 베타 헤더를 붙이지 않는다.
+  const beta = account.paid ? filterBetas(req.headers.get("anthropic-beta")) : null;
 
   if (!env.ANTHROPIC_API_KEY) {
     console.error("ANTHROPIC_API_KEY 가 설정되지 않음");

@@ -175,7 +175,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
             var cacheWrite = 0L
             var output = 0L
             var stop: StopReason? = null
-        // 서버가 다른 모델로 답했으면(무료 크레딧의 Sonnet, 대체 모델) 그 모델 단가로 계산한다.
+        // 서버가 다른 모델로 답했으면(무료 크레딧의 Haiku, 대체 모델) 그 모델 단가로 계산한다.
         var answered = model
             var lastEmit = 0L
             mapErrors {
@@ -229,7 +229,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
         var cacheWrite = 0L
         var output = 0L
         var stop: StopReason? = null
-        // 서버가 다른 모델로 답했으면(무료 크레딧의 Sonnet, 대체 모델) 그 모델 단가로 계산한다.
+        // 서버가 다른 모델로 답했으면(무료 크레딧의 Haiku, 대체 모델) 그 모델 단가로 계산한다.
         var answered = model
         mapErrors {
             withFallbackRetry { fb ->

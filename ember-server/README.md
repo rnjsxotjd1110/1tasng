@@ -5,7 +5,7 @@ Ember 안드로이드 앱의 **"API 키 없이 쓰기"(유료 크레딧)** 백�
 - 앱은 Anthropic Java SDK 의 `baseUrl` 을 이 서버 주소로, `apiKey` 를 **기기 토큰**으로 설정합니다.
 - 서버는 Anthropic Messages API 와 똑같이 동작하는 **투명 프록시**입니다. 기기 토큰을 확인한 뒤 서버의 진짜 Anthropic 키로 바꿔서 전달합니다. 보내기 **전에** 최악의 비용을 잔액에서 미리 빼 두고(예약), 응답의 `usage`(토큰 수)로 실제 비용을 계산해 남는 만큼 돌려줍니다(정산).
 - **크레딧 모드는 Google 로그인(Sign in with Google)이 필수**입니다. 앱이 Android Credential Manager 로 받은 Google ID 토큰을 가입 때 보내면, 서버는 그 안의 `sub`(구글 계정 고유 ID)로 계정을 찾습니다. 앱을 다시 깔거나 폰을 바꿔도 같은 Google 계정으로 로그인하면 **같은 계정(잔액·구매)이 돌아옵니다.** 이메일·이름은 저장하지 않습니다.
-- 크레딧은 Google Play 인앱 상품으로 판매하고, 새 계정에는 무료 크레딧(기본 40)을 **Google 계정당 평생 한 번** 줍니다(탈퇴 후 다시 가입해도 다시 받지 못함). **결제한 적 없는 계정은 Opus 요청도 Sonnet 으로 처리**합니다.
+- 크레딧은 Google Play 인앱 상품으로 판매하고, 새 계정에는 무료 크레딧(기본 20)을 **Google 계정당 평생 한 번** 줍니다(탈퇴 후 다시 가입해도 다시 받지 못함). **결제한 적 없는 계정은 모든 요청을 Haiku 로 처리**합니다(웹 검색·거절 대체 없음).
 - **유료 크레딧과 무료 크레딧을 따로 셉니다**(이용약관 5·6·7장). 유료는 구매 한 건마다 "묶음(lot)" 으로 남은 양과 유효기간(구매 + 5년)을 기록하고, **무료 먼저, 그다음 유료를 오래된 구매부터** 씁니다(1장).
 - 청약철회·환불은 운영자가 `GET /ember/admin/refund-quote` 로 금액을 계산하고 `POST /ember/admin/refund` 로 크레딧을 없앤 뒤 **Play Console 에서 돈을 돌려줍니다**(6장 "환불·청약철회 처리").
 - 앱에서 **계정 삭제**(`DELETE /ember/account`)를 할 수 있습니다. 구매 기록만 법정 보관을 위해 계정과 연결을 끊은 채 남깁니다(9장 데이터 목록).
@@ -35,7 +35,7 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
 ## 1. 크레딧 단위
 
 - **1 크레딧 = 마크업을 포함한 $0.01** 입니다.
-- 요청 한 번의 크레딧 = `올림(원가 USD × 100 × MARKUP)` (MARKUP 기본 1.5). 0 보다 큰 비용이면 최소 1 크레딧.
+- 요청 한 번의 크레딧 = `올림(원가 USD × 100 × MARKUP)` (MARKUP 기본 2.5, 아래 예시는 1.5 로 계산). 0 보다 큰 비용이면 최소 1 크레딧.
 - 원가(100만 토큰당 USD):
 
 | 모델 | 입력 | 출력 | 캐시 읽기 | 캐시 쓰기 |
@@ -78,7 +78,7 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
   - **운영자 환불**(`POST /ember/admin/refund`)은 그 묶음의 남은 양을 0 으로 만들고 잔액에서 뺍니다. 그 뒤 Google 이 알려 주는 같은 구매의 환불은 다시 빼지 않습니다.
   - **탈퇴**하면 남은 묶음을 닫습니다(`deleted`, 크레딧 소멸, 약관 12장). **계정 만료**(1년 미사용 + 유료 없음) 때 남은 무료 크레딧도 사라집니다.
   - 기존 잔액(0005 이전)은 마이그레이션이 나눕니다: 유료 = min(잔액, 환불 안 된 지급 구매 크레딧 합계)를 **최신 구매부터** 채우고(오래된 것부터 썼다고 보므로), 나머지는 무료. 환불(일부 포함)된 구매·탈퇴·만료 계정의 구매는 닫힌 묶음(남은 양 0)이 됩니다. 0 이하 잔액이면 유료 0.
-- **무료 계정 모델 제한**: 지급 완료되고 환불되지 않은 구매가 하나도 없는 계정(= 무료 크레딧만 쓰는 계정)이 `claude-opus-5-5` 를 요청하면, 서버가 `model` 을 `claude-sonnet-5-5` 로 바꿔 보내고 **Sonnet 단가로 과금**합니다. Haiku·Sonnet 요청은 그대로입니다. 한 번이라도 구매하면 바로 Opus 를 쓸 수 있고, 그 구매가 환불되면 다시 Sonnet 으로 돌아갑니다. 실제로 보낸 모델은 응답 헤더 `ember-model` 로 알 수 있습니다.
+- **무료 계정 모델 제한**: 지급 완료되고 환불되지 않은 구매가 하나도 없는 계정(= 무료 크레딧만 쓰는 계정)의 요청은 Opus·Sonnet 모두 서버가 `model` 을 `claude-haiku-5-5` 로 바꿔 보내고 **Haiku 단가로 과금**합니다. Haiku 5.5 는 `web_search_20260209` 와 서버측 거절 대체를 받지 않으므로 이때 `tools`·`tool_choice`·`fallbacks` 와 `anthropic-beta` 헤더를 뺍니다. 한 번이라도 구매하면 바로 고른 모델을 쓸 수 있고, 그 구매가 환불되면 다시 Haiku 로 돌아갑니다. 실제로 보낸 모델은 응답 헤더 `ember-model` 로 알 수 있습니다.
 - 서버측 거절 대체(`server-side-fallback`)로 다른 모델이 응답하면, 그 모델의 단가표가 있으면 그 단가로(예: `claude-opus-5` $5/$25), **단가표에 없는 모델이면 아는 단가 중 가장 비싼 값**(입력 $5 / 출력 $25 / 캐시 읽기 $0.5)으로 계산합니다(요청한 모델 단가가 아님).
 
 ---
@@ -172,7 +172,7 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
 **예전 계정(Google 에 연결 안 된 계정)**: `LEGACY_UNLINKED_UNTIL` 을 설정하지 않으면 계속 쓸 수 있습니다. 설정한 시각이 지나면 그 계정의 토큰으로 오는 요청은 **403 `google_required`** 이고, `POST /ember/link-google`(연결)과 `DELETE /ember/account`(탈퇴)만 됩니다.
 
 **공통(무료 크레딧·요청 제한)**
-- **하루 무료 크레딧 상한**(`FREE_CREDITS_DAILY_CAP`, 기본 20,000 = 40 크레딧 × 500 계정): 그날(UTC) 새 계정에 준 무료 크레딧 합계가 상한에 닿으면 이후 새 계정은 0(`freeGranted: false`) 으로 가입됩니다. 대량 가입 공격의 피해 상한입니다.
+- **하루 무료 크레딧 상한**(`FREE_CREDITS_DAILY_CAP`, 기본 2,000 = 20 크레딧 × 100 계정): 그날(UTC) 새 계정에 준 무료 크레딧 합계가 상한에 닿으면 이후 새 계정은 0(`freeGranted: false`) 으로 가입됩니다. 대량 가입 공격의 피해 상한입니다.
 - IP 당 요청 제한(429). IP 는 `CF-Connecting-IP` 기준으로 **IPv4 는 주소 전체, IPv6 는 /64** 단위로 셉니다(한 가입자가 /64 안의 주소를 마음대로 바꿀 수 있으므로).
   - 새 계정(무료 크레딧 대상): 시간당 5회(`REGISTER_LIMIT`).
   - 이미 있는 계정의 재로그인(Google 복원, 예전 계정 연결, 예전 방식의 같은 installId 재등록): 따로 시간당 30회(`REREGISTER_LIMIT`). 모바일 CGNAT 처럼 많은 사용자가 한 IP 를 쓰는 경우에도 재로그인이 막히지 않게 하기 위함입니다.
@@ -258,7 +258,7 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
    - 응답은 `token`, `credits`, `freeGranted`, `restored` 이고, `INTEGRITY_MODE` 가 `off` 가 아니면 `"integrity": "ok" | "failed" | "missing"` 이 추가됩니다.
    - 502 를 받으면 1번(새 nonce)부터 다시 시도합니다. Play Integrity 호출 자체가 기기에서 실패하면 토큰 없이 가입을 보내면 됩니다(`grant` 에서는 무료 크레딧 없이 가입, `require` 에서는 403).
    - `INTEGRITY_MODE=off` 인 동안에는 `integrityToken`·`nonce` 를 보내도 무시하므로, 앱을 먼저 배포하고 나중에 서버 설정만 바꿀 수 있습니다.
-2. **메시지**: `/v1/messages` 응답 헤더 `ember-model` 이 실제로 쓴 모델입니다. 요청한 모델과 다르면(무료 계정의 Opus → Sonnet) "구매하면 Opus 를 쓸 수 있어요" 같은 안내를 보여 줄 수 있습니다.
+2. **메시지**: `/v1/messages` 응답 헤더 `ember-model` 이 실제로 쓴 모델입니다. 요청한 모델과 다르면(무료 계정의 Opus → Haiku) "구매하면 고른 모델로 답해요" 같은 안내를 보여 줄 수 있습니다.
    - 잔액이 적으면 서버가 `max_tokens` 를 줄여 보내므로 `stop_reason: "max_tokens"` 로 끝날 수 있습니다. 이 경우 "크레딧이 부족해 답이 잘렸어요" 로 안내하는 것을 권장합니다.
    - 429 중 메시지에 `concurrent` 가 있으면 같은 계정의 요청 2개가 처리 중인 것입니다. 잠시 뒤(`retry-after`) 다시 보내세요(SDK 의 자동 재시도로 충분).
    - 앱이 보내는 베타·필드는 이 서버의 허용 목록과 맞춰 두어야 합니다. 새 베타·최상위 필드를 쓰려면 서버(`src/proxy/validate.ts`)를 먼저 고쳐 배포하세요.
@@ -352,14 +352,14 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
 2. Play Console → 앱 선택 → **수익 창출(Monetize with Play) → 제품 → 인앱 상품** → **상품 만들기**.
 3. 아래 세 개를 **ID 를 정확히 똑같이** 만듭니다(나중에 바꿀 수 없음).
 
-| 상품 ID | 지급 크레딧 | 비고 |
-|---|---|---|
-| `ember_credits_500` | 500 | 원가 약 $3.33 어치(마크업 1.5 기준). 가격은 그 이상으로 |
-| `ember_credits_1500` | 1650 | 10% 보너스 |
-| `ember_credits_5000` | 5750 | 15% 보너스 |
+| 상품 ID | 지급 크레딧 | 판매가(부가세 포함) | 비고 |
+|---|---|---|---|
+| `ember_credits_500` | 500 | ₩5,900 | API 원가 약 $2(마크업 2.5) |
+| `ember_credits_1500` | 1650 | ₩17,900 | 10% 보너스 |
+| `ember_credits_5000` | 5750 | ₩59,000 | 15% 보너스 |
 
 4. 이름·설명·가격을 넣고 저장한 뒤 **활성화**합니다.
-5. 가격을 정할 때: 1 크레딧 = 고객에게 $0.01 의 사용 가치. 구글 수수료(15~30%)와 세금을 감안해 정합니다.
+5. 가격 근거: 마크업 2.5 에서 1 크레딧 = API 원가 $0.004. 구글 수수료 15%·부가세 10%를 빼면 판매가의 약 21~28%가 남습니다(환율 ₩1,450 가정). 판매가를 바꾸면 `PRODUCT_PRICES_KRW` 도 같이 바꿉니다.
 
 ### 4-2. 서비스 계정 만들기 (Google Cloud)
 1. <https://console.cloud.google.com> → 새 프로젝트 만들기(이름 예: `ember-play`).
@@ -422,11 +422,11 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
 | `REQUIRE_GOOGLE_SIGNIN` | 변수 | 필수(`"false"` 가 아니면 모두 필수) | `"false"` 면 `idToken` 없는 예전 방식 가입도 받음 |
 | `LEGACY_UNLINKED_UNTIL` | 변수 | 비어 있음(제한 없음) | ISO 날짜/시각(예 `2027-07-01`, 날짜만이면 00:00 UTC). 이 시각부터 Google 에 연결 안 된 계정은 403 `google_required`(연결·탈퇴만 허용). 형식이 틀리면 무시(로그) |
 | `PACKAGE_NAME` | 변수 | `app.ember.ideas` | 앱 패키지 이름 |
-| `FREE_CREDITS` | 변수 | `40` | 신규 설치 무료 크레딧(결제 전에는 Opus 요청이 Sonnet 으로 처리됨) |
-| `FREE_CREDITS_DAILY_CAP` | 변수 | `20000` | 하루(UTC) 새 계정 무료 크레딧 합계 상한. 넘으면 새 계정은 0 |
+| `FREE_CREDITS` | 변수 | `20` | Google 계정당 무료 크레딧(결제 전에는 모든 요청을 Haiku 로 처리) |
+| `FREE_CREDITS_DAILY_CAP` | 변수 | `2000` | 하루(UTC) 새 계정 무료 크레딧 합계 상한. 넘으면 새 계정은 0 |
 | `INTEGRITY_MODE` | 변수 | `grant`(wrangler.toml) / 코드 기본 `off` | 가입 시 Play Integrity: `off` / `grant`(통과해야 무료 크레딧) / `require`(통과해야 가입). 모르는 값이면 `off`. 서비스 계정이 없으면 무료 크레딧 0 |
 | `ALLOW_TEST_PURCHASES` | 변수 | `false` | `true` 면 라이선스 테스트 구매에도 크레딧 지급(테스트용 워커에서만) |
-| `MARKUP` | 변수 | `1.5` | 원가 대비 배수(1 이상) |
+| `MARKUP` | 변수 | `2.5` | 원가 대비 배수(1 이상). 앱 `ember.creditMarkup` 과 같게 |
 | `MAX_OUTPUT_TOKENS` | 변수 | `64000` | `max_tokens` 상한 |
 | `MAX_BODY_BYTES` | 변수 | `2097152` | 요청 본문 최대 크기(2 MB) |
 | `PRODUCTS` | 변수 | `{"ember_credits_500":500,"ember_credits_1500":1650,"ember_credits_5000":5750}` | 상품 ID → 크레딧(JSON). 형식이 틀리면 기본값 사용 |
@@ -524,7 +524,7 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
   4. **환불 회수**: Voided Purchases API(`type=0` 일회성 상품, `includeQuantityBasedPartialRefund=true`, 1000개씩 페이지 넘김)로 환불·취소 목록을 받아, 지급한 구매면 환불된 수량만큼 잔액에서 빼고(그 구매의 유료 묶음 먼저, 모자라면 나머지 잔액. **음수 가능 → 402 로 사용 차단**) `purchases.voided = 1, voided_quantity, voided_at = 환불 시각` 으로 표시합니다. 운영자가 이미 `POST /ember/admin/refund` 로 처리한 구매는 크레딧을 다시 빼지 않습니다.
      - **수량 일부 환불**(`voidedQuantity` 가 있음): `credits × voidedQuantity / quantity` 만 회수합니다(누적 기준으로 나눠, 전부 환불되면 정확히 전액). `voidedQuantity` 가 없으면 전체 환불로 보고 아직 회수하지 않은 나머지 수량을 전부 회수합니다.
      - 같은 환불 이벤트(전체 환불 / 일부 환불은 시각·수량)는 `voided_events` 표로 **한 번만** 뺍니다.
-     - 일부 환불만 있어도 그 계정은 결제 계정에서 빠집니다(Opus → Sonnet).
+     - 일부 환불만 있어도 그 계정은 결제 계정에서 빠집니다(고른 모델 → Haiku).
      - 처리 위치는 `meta` 표의 `voided_purchases_end_ms` 에 저장합니다. 첫 실행은 30일 전부터(구글이 허용하는 최대), 이후에는 지난 실행 시각 **1일 전**부터 다시 봅니다(늦게 올라오는 환불 대비). cron 이 30일 넘게 멈췄다면 그 사이 환불 일부는 놓칠 수 있습니다.
      - Google 오류로 중간에 실패하면 처리 위치를 올리지 않으므로 다음 날 다시 봅니다. `npx wrangler tail` 로그에 `환불 회수:` / `환불 목록 N건 확인` 이 남습니다.
 - **환불 현황**:
@@ -582,8 +582,8 @@ npx wrangler d1 execute ember --remote --file=./migrations/0002_voided_integrity
 ## 7. 남용 위험과 한계 (꼭 읽어 주세요)
 
 1. **무료 크레딧 반복 수령**: Google 로그인이 필수(기본)이므로 무료 크레딧은 **Google 계정당 평생 한 번**입니다(재설치·탈퇴 후 재가입도 0). 다만 Google 계정을 여러 개 만들면 계정마다 받을 수 있으므로 아래 장치를 함께 씁니다. (`REQUIRE_GOOGLE_SIGNIN=false` 로 두면 예전처럼 installId 단위입니다: 앱을 지웠다 다시 깔면 installId 가 바뀌어 또 받을 수 있습니다.)
-   - **IP(IPv4 주소 / IPv6 /64)당 시간당 5회 새 가입 제한**으로 속도를 늦추고(모바일 데이터·VPN 으로 우회 가능), 무료 크레딧은 40 으로 작고 Sonnet 으로만 쓰입니다. 재로그인(이미 있는 installId)은 따로 느슨하게 셉니다.
-   - **하루 무료 크레딧 상한**(`FREE_CREDITS_DAILY_CAP`, 기본 20,000 크레딧 ≈ 원가 $133)으로 하루 피해에 상한이 있습니다. 상한에 닿으면 그날 정상 신규 사용자도 무료 크레딧을 못 받으니, `admin/stats` 의 `creditsGranted.free` 를 보며 조정하세요.
+   - **IP(IPv4 주소 / IPv6 /64)당 시간당 5회 새 가입 제한**으로 속도를 늦추고(모바일 데이터·VPN 으로 우회 가능), 무료 크레딧은 20 으로 작고 Haiku 로만 쓰입니다. 재로그인(이미 있는 installId)은 따로 느슨하게 셉니다.
+   - **하루 무료 크레딧 상한**(`FREE_CREDITS_DAILY_CAP`, 기본 2,000 크레딧 ≈ 최대 원가 $8, Haiku 로 보통 쓰면 약 $2)으로 하루 피해에 상한이 있습니다. 상한에 닿으면 그날 정상 신규 사용자도 무료 크레딧을 못 받으니, `admin/stats` 의 `creditsGranted.free` 를 보며 조정하세요.
    - `INTEGRITY_MODE=grant`(기본)/`require` 의 **Play Integrity** 로 진짜 Play 설치 앱 + 정상 기기에서만 무료 크레딧을 줍니다(4-5). 다만 정상 기기에서 앱을 지웠다 다시 까는 반복은 여전히 막지 못합니다(기기 단위로 묶으려면 기기 식별이 필요하지만, 개인정보 문제로 하지 않음). 피해가 커지면 `FREE_CREDITS` 를 줄이거나 0 으로 바꿀 수 있습니다.
 2. **Google 에 연결된 계정은 installId 로 토큰을 받을 수 없습니다**(그 Google 계정의 유효한 ID 토큰이 있어야 함). **연결 안 된 예전 계정은 installId 가 사실상 비밀번호**입니다: installId 를 아는 사람은 재등록으로 새 토큰을 받거나, 자기 Google 계정으로 가입하면서 그 계정을 자기 Google 계정에 연결할 수 있습니다. 앱은 installId 를 외부에 노출하지 마세요. 예전 계정을 없애려면 새 앱 보급 후 `LEGACY_UNLINKED_UNTIL` 을 설정하세요.
    - 같은 기기(installId)에서 Google 계정을 바꿔 로그인하면 새 계정이 생깁니다(무료 크레딧은 그 Google 계정이 처음일 때만). 이전 계정은 그 Google 계정으로 다시 로그인하면 돌아옵니다.
@@ -634,7 +634,7 @@ src/
   proxy/validate.ts   최상위 필드·모델·도구·max_tokens 검증, anthropic-version/beta 허용 목록
   proxy/reserve.ts    최악 비용 예약(max_tokens 줄이기), 계정당 동시 요청 칸(inflight)
   proxy/sse.ts        SSE usage 증분 파서
-  proxy/messages.ts   /v1/messages 프록시(비스트리밍·스트리밍), 무료 계정 Opus→Sonnet, ember-model 헤더
+  proxy/messages.ts   /v1/messages 프록시(비스트리밍·스트리밍), 무료 계정은 Haiku, ember-model 헤더
   billing/usage.ts    usage 정규화
   billing/pricing.ts  단가표·크레딧 계산·예약 계산
   billing/ledger.ts   정산(예약 − 실제 환불, 유료 묶음으로 되돌림) + usage_log, 실패 시 재시도·계정 차단

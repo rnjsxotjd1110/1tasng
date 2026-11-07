@@ -12,7 +12,17 @@ import { emptyUsage } from "../src/billing/usage";
 import { estimateOutputTokens, interruptedCharge } from "../src/billing/interrupted";
 import { estimateInputTokens, IMAGE_TOKEN_ALLOWANCE, worstCase } from "../src/proxy/reserve";
 import { validateMessagesBody } from "../src/proxy/validate";
-import { call, errorBody, makeEnv, markPaid, register, setCredits, type TestEnv } from "./helpers/env";
+import { call, errorBody, makeEnv, markPaid, register as registerFree, setCredits, type TestEnv } from "./helpers/env";
+
+/**
+ * 과금 규칙 테스트는 요청한 모델(Sonnet·Opus) 그대로 업스트림에 가야 하므로 결제 계정으로 만든다.
+ * 무료 계정은 Haiku 로 바뀐다(messages.test.ts "무료 계정" 묶음에서 따로 검사).
+ */
+async function register(env: TestEnv): Promise<Awaited<ReturnType<typeof registerFree>>> {
+  const r = await registerFree(env);
+  await markPaid(env, r.token);
+  return r;
+}
 import { ev, SAMPLE_STREAM } from "./helpers/fixtures";
 
 const BODY = { model: "claude-sonnet-5-5", max_tokens: 4000, messages: [{ role: "user", content: "안녕" }] };

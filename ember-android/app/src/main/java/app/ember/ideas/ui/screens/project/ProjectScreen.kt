@@ -405,7 +405,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
             )
         } ?: run { sheet = null }
         is Sheet.DesignSetup -> project.idea(sh.ideaId)?.let { idea ->
-            DesignSetupSheet(idea, settings.model, { sheet = null }) { depth, ask ->
+            DesignSetupSheet(idea, settings.activeModel, { sheet = null }) { depth, ask ->
                 sheet = null
                 viewStage = null
                 engine.startDesign(project.id, idea.id, depth, ask)
@@ -455,7 +455,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
         Sheet.Compare -> CompareSheet(project.ideaBatches.lastOrNull()?.ideas ?: project.allIdeas, { sheet = null }, { sheet = Sheet.IdeaDetail(it.id) }, busy = busy, hasDesign = { project.designFor(it) != null }) {
             designIdea(it.id)
         }
-        is Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.model, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }, sh.initial) { text ->
+        is Sheet.Revise -> ReviseSheet(app.ember.ideas.ai.CostEstimate.revision(settings.activeModel, project.design?.depth ?: app.ember.ideas.data.DocDepth.STANDARD), { sheet = null }, sh.initial) { text ->
             sheet = null
             if (!settings.ready && !project.isDemo) onFixKey() else engine.reviseDocument(project.id, text)
         }

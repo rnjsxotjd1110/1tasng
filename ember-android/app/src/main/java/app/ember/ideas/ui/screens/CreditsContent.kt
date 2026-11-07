@@ -46,8 +46,12 @@ import app.ember.ideas.ui.text.Text
 import app.ember.ideas.ui.theme.Ember
 import app.ember.ideas.ui.theme.EmberShape
 
-private val discoveryCredits get() = ServerConfig.creditsFor(CostEstimate.discovery(ClaudeModel.OPUS))
-private val docCredits get() = ServerConfig.creditsFor(CostEstimate.design(ClaudeModel.OPUS, DocDepth.STANDARD, true))
+// 결제한 계정은 Opus(기본 모델), 무료 크레딧만 있는 동안은 Haiku 기준으로 안내한다(서버가 그 모델로 답한다).
+private fun discoveryCredits(m: ClaudeModel) = CostEstimate.discoveryCredits(m)
+private fun docCredits(m: ClaudeModel) = CostEstimate.designCredits(m, DocDepth.STANDARD, true)
+
+/** 무료 크레딧으로 탐색 + 표준 설계서를 몇 번씩 할 수 있는지(Haiku 기준). */
+internal fun freeSets(free: Int): Int = free / (discoveryCredits(ClaudeModel.HAIKU) + docCredits(ClaudeModel.HAIKU))
 
 /** 크레딧 탭의 본문: 소개 또는 잔액, 충전 상품, 결제 상태. */
 @Composable
@@ -63,18 +67,19 @@ fun CreditsBody(st: Settings, error: String?, onOpenTerms: () -> Unit = {}) {
     if (!st.creditsReady) {
         Text(s.creditsHeadline, style = MaterialTheme.typography.headlineMedium, color = c.text)
         Spacer(Modifier.height(10.dp))
-        Text(s.creditsBody(ServerConfig.values.freeCredits, ServerConfig.values.freeCredits / discoveryCredits), style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
+        Text(s.creditsBody(ServerConfig.values.freeCredits, freeSets(ServerConfig.values.freeCredits)), style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
         Spacer(Modifier.height(12.dp))
-        Text(s.creditsUnit(discoveryCredits, docCredits), style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+        Text(s.freeTierNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
         Spacer(Modifier.height(8.dp))
-        Text(s.freeSonnetNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+        // 구매한 뒤 기본 모델(Opus)로 쓸 때의 크레딧
+        Text(s.creditsUnit(discoveryCredits(ClaudeModel.OPUS), docCredits(ClaudeModel.OPUS), s.modelShort(ClaudeModel.OPUS)), style = MaterialTheme.typography.bodySmall, color = c.textFaint)
     } else {
         // 잔액은 이 화면의 주인공이라 크게 보여 준다.
         Text(s.creditsBalance, style = MaterialTheme.typography.titleSmall, color = c.textMuted)
         Spacer(Modifier.height(4.dp))
         Text("%,d".format(st.credits.coerceAtLeast(0)), style = MaterialTheme.typography.displayMedium, color = if (st.credits > 0) c.text else c.danger)
         Text(
-            s.creditsWorth(st.credits.coerceAtLeast(0) / discoveryCredits, st.credits.coerceAtLeast(0) / docCredits),
+            s.creditsWorth(st.credits.coerceAtLeast(0) / discoveryCredits(st.activeModel), st.credits.coerceAtLeast(0) / docCredits(st.activeModel)),
             style = MaterialTheme.typography.bodyMedium, color = c.textMuted,
         )
         if (st.paidCredits >= 0 && st.freeCredits >= 0 && st.credits >= 0) {
@@ -85,7 +90,8 @@ fun CreditsBody(st: Settings, error: String?, onOpenTerms: () -> Unit = {}) {
             Text(s.creditsExpiring(st.expiringCredits, date), style = MaterialTheme.typography.bodySmall, color = c.gold, modifier = Modifier.padding(top = 4.dp))
         }
         Spacer(Modifier.height(8.dp))
-        Text(s.creditsUnit(discoveryCredits, docCredits), style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+        Text(s.creditsUnit(discoveryCredits(st.activeModel), docCredits(st.activeModel), s.modelShort(st.activeModel)), style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+        if (st.freeTier) Text(s.freeTierNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 4.dp))
         if (st.hasKey) {
             Spacer(Modifier.height(12.dp))
             ToggleRow(s.creditsPrefer, s.creditsPreferBody, st.preferCredits, { ctx.container.settings.setPreferCredits(it) })
@@ -149,7 +155,8 @@ private fun PackRow(pack: CreditPack, enabled: Boolean, onClick: () -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(s.creditsAmount(pack.credits), style = MaterialTheme.typography.titleSmall, color = c.text)
-            Text(s.creditsWorth(pack.credits / discoveryCredits, pack.credits / docCredits), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            // 산 뒤에는 결제 계정이라 Opus 로 답한다.
+            Text(s.creditsWorth(pack.credits / discoveryCredits(ClaudeModel.OPUS), pack.credits / docCredits(ClaudeModel.OPUS)), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
         }
         Spacer(Modifier.width(12.dp))
         Text(

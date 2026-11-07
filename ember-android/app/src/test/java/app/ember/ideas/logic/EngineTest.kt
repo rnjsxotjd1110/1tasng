@@ -250,6 +250,45 @@ class EngineTest {
         assertEquals(listOf(app.ember.ideas.ai.ClaudeModel.SONNET, app.ember.ideas.ai.ClaudeModel.OPUS), models)
     }
 
+    @Test fun freeCreditsAccountAsksHaikuUntilFirstPurchase() {
+        app.ember.ideas.account.ServerConfig.override = app.ember.ideas.account.ServerConfig.Values(serverUrl = "https://ember.example", reportEmail = "", privacyUrl = "", creditMarkup = 2.5, freeCredits = 20)
+        try {
+            val models = mutableListOf<app.ember.ideas.ai.ClaudeModel>()
+            val spy = object : app.ember.ideas.ai.AiService by ai {
+                override suspend fun turn(model: app.ember.ideas.ai.ClaudeModel, request: app.ember.ideas.ai.TurnRequest): app.ember.ideas.ai.TurnResult {
+                    models += model
+                    return ai.turn(model, request)
+                }
+                override suspend fun turnStreaming(model: app.ember.ideas.ai.ClaudeModel, request: app.ember.ideas.ai.TurnRequest, onText: (String) -> Unit) = turn(model, request)
+            }
+            val c2 = AppContainer(ApplicationProvider.getApplicationContext<Application>(), spy)
+            c2.settings.setFastQuestions(true) // 무료 계정은 '질문은 빠르게'를 켜도 Haiku 다
+            c2.settings.setCreditAccount("tok_free", 20)
+            c2.settings.setPreferCredits(true)
+            assertTrue(c2.settings.settings.value.freeTier)
+            ai.turnReplies += Result.success(FakeAi.ideas("A"))
+            c2.engine.createProject(ProjectKind.GAME, "", "새 게임", quick = true)
+            idle()
+            assertEquals(listOf(app.ember.ideas.ai.ClaudeModel.HAIKU), models)
+
+            // 한 번 사면 고른 모델(Opus)로 돌아간다.
+            c2.settings.setPurchased(true)
+            assertFalse(c2.settings.settings.value.freeTier)
+            ai.turnReplies += Result.success(FakeAi.ideas("B"))
+            c2.engine.createProject(ProjectKind.GAME, "", "새 게임", quick = true)
+            idle()
+            assertEquals(app.ember.ideas.ai.ClaudeModel.OPUS, models.last())
+
+            // 내 API 키로 쓰면 무료 계정 제한이 없다.
+            c2.settings.setPurchased(false)
+            c2.settings.setPreferCredits(false)
+            assertFalse(c2.settings.settings.value.freeTier)
+            assertEquals(app.ember.ideas.ai.ClaudeModel.OPUS, c2.settings.settings.value.activeModel)
+        } finally {
+            app.ember.ideas.account.ServerConfig.override = null
+        }
+    }
+
     @Test fun importMergesNewerProjects() {
         ai.turnReplies += Result.success(FakeAi.question("Q1"))
         val p = c.engine.createProject(ProjectKind.GAME, "", "원래 제목")

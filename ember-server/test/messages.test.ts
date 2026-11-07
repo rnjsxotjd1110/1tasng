@@ -147,7 +147,7 @@ describe("POST /v1/messages", () => {
     const { res, ctx } = await send(env, token);
     expect(res.status).toBe(529);
     expect(await res.text()).toBe(err);
-    expect(res.headers.get("ember-model")).toBe("claude-sonnet-5-5"); // 무료 계정이라 Sonnet 으로 보냄
+    expect(res.headers.get("ember-model")).toBe("claude-haiku-5-5"); // 무료 계정이라 Haiku 로 보냄
     expect(res.headers.get("x-should-retry")).toBe("true");
     await ctx.settle();
     expect(balance(env)).toBe(100);
@@ -162,7 +162,7 @@ describe("POST /v1/messages", () => {
     expect(res.status).toBe(500);
     expect((await errorBody(res)).error.type).toBe("api_error");
     expect(res.headers.get("x-should-retry")).toBe("false");
-    expect(res.headers.get("ember-model")).toBe("claude-sonnet-5-5");
+    expect(res.headers.get("ember-model")).toBe("claude-haiku-5-5");
   });
 
   it("허용되지 않은 모델·도구는 400 이고 업스트림을 부르지 않는다", async () => {
@@ -212,6 +212,7 @@ describe("POST /v1/messages", () => {
       return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "request-id": "req_s" } });
     });
     const { token } = await register(env);
+    await markPaid(env, token); // 결제 계정은 고른 모델(Sonnet)을 그대로 쓴다
     const { res, ctx } = await send(env, token, { ...BODY, model: "claude-sonnet-5-5", stream: true });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/event-stream");
@@ -244,6 +245,7 @@ describe("POST /v1/messages", () => {
       return new Response(stream, { headers: { "content-type": "text/event-stream" } });
     });
     const { token } = await register(env);
+    await markPaid(env, token); // 결제 계정은 고른 모델(Sonnet)을 그대로 쓴다
     const { res, ctx } = await send(env, token, { ...BODY, model: "claude-sonnet-5-5", stream: true });
     const reader = res.body!.getReader();
     const first = await reader.read();
@@ -271,7 +273,7 @@ describe("POST /v1/messages", () => {
   }, 5000);
 });
 
-describe("무료 계정(결제한 적 없음)은 Opus 대신 Sonnet", () => {
+describe("무료 계정(결제한 적 없음)은 Haiku 로 답한다", () => {
   /** 업스트림이 받은 모델을 그대로 응답 model 에 넣는다(실제 API 처럼). */
   function echoModel(): Captured[] {
     const calls: Captured[] = [];
@@ -287,55 +289,91 @@ describe("무료 계정(결제한 적 없음)은 Opus 대신 Sonnet", () => {
     return calls;
   }
 
-  it("Opus 요청을 Sonnet 으로 바꿔 보내고, ember-model 헤더와 과금도 Sonnet 기준", async () => {
+  it("Opus 요청을 Haiku 로 바꿔 보내고, ember-model 헤더와 과금도 Haiku 기준", async () => {
     const env = makeEnv();
     const calls = echoModel();
     const { token } = await register(env);
     const { res } = await send(env, token);
     expect(res.status).toBe(200);
-    expect(res.headers.get("ember-model")).toBe("claude-sonnet-5-5");
-    expect(calls[0]!.body["model"]).toBe("claude-sonnet-5-5");
+    expect(res.headers.get("ember-model")).toBe("claude-haiku-5-5");
+    expect(calls[0]!.body["model"]).toBe("claude-haiku-5-5");
     expect(calls[0]!.body["messages"]).toEqual(BODY.messages);
-    // sonnet: (1000×2 + 500×10)/1e6 = 0.007 → 1.05 → 2 크레딧(Opus 였다면 3)
-    expect(res.headers.get("ember-credits-remaining")).toBe("98");
-    expect(balance(env)).toBe(98);
-    expect(env.db.rows("SELECT model, credits FROM usage_log")).toEqual([{ model: "claude-sonnet-5-5", credits: 2 }]);
+    // haiku: (1000×0.1 + 500×0.5)/1e6 = 0.00035 → 최소 1 크레딧(Opus 였다면 3)
+    expect(res.headers.get("ember-credits-remaining")).toBe("99");
+    expect(balance(env)).toBe(99);
+    expect(env.db.rows("SELECT model, credits FROM usage_log")).toEqual([{ model: "claude-haiku-5-5", credits: 1 }]);
   });
 
-  it("Haiku·Sonnet 요청은 그대로 둔다", async () => {
+  it("Sonnet 요청도 Haiku 로 바꾸고, Haiku 요청은 그대로 둔다", async () => {
     const env = makeEnv();
     const calls = echoModel();
     const { token } = await register(env);
     for (const model of ["claude-haiku-5-5", "claude-sonnet-5-5"]) {
       const { res } = await send(env, token, { ...BODY, model });
-      expect(res.headers.get("ember-model")).toBe(model);
+      expect(res.headers.get("ember-model")).toBe("claude-haiku-5-5");
     }
-    expect(calls.map((c) => c.body["model"])).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
+    expect(calls.map((c) => c.body["model"])).toEqual(["claude-haiku-5-5", "claude-haiku-5-5"]);
   });
 
-  it("지급된 구매가 있으면 Opus, 그 구매가 환불(voided)되면 다시 Sonnet", async () => {
+  it("Haiku 로 바꿀 때 웹 검색 도구·fallbacks·대체 베타 헤더를 뺀다", async () => {
+    const env = makeEnv();
+    const calls = echoModel();
+    const { token } = await register(env);
+    const body = {
+      ...BODY,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+      fallbacks: "default",
+    };
+    const { res } = await send(env, token, body, { "anthropic-beta": "server-side-fallback-2026-07-01" });
+    expect(res.status).toBe(200);
+    const sent = calls[0]!;
+    expect(sent.body["model"]).toBe("claude-haiku-5-5");
+    expect(sent.body).not.toHaveProperty("tools");
+    expect(sent.body).not.toHaveProperty("fallbacks");
+    expect(sent.headers.get("anthropic-beta")).toBeNull();
+  });
+
+  it("결제한 계정은 웹 검색 도구·fallbacks·베타 헤더를 그대로 보낸다", async () => {
+    const env = makeEnv();
+    const calls = echoModel();
+    const { token } = await register(env);
+    await markPaid(env, token, "tok-paid-tools");
+    const body = { ...BODY, tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }], fallbacks: "default" };
+    const { res } = await send(env, token, body, { "anthropic-beta": "server-side-fallback-2026-07-01" });
+    expect(res.status).toBe(200);
+    const sent = calls[0]!;
+    expect(sent.body["model"]).toBe("claude-opus-5-5");
+    expect(sent.body["tools"]).toEqual([{ type: "web_search_20260209", name: "web_search", max_uses: 3 }]);
+    expect(sent.body["fallbacks"]).toBe("default");
+    expect(sent.headers.get("anthropic-beta")).toBe("server-side-fallback-2026-07-01");
+  });
+
+  it("지급된 구매가 있으면 Opus, 그 구매가 환불(voided)되면 다시 Haiku", async () => {
     const env = makeEnv();
     const calls = echoModel();
     const { token } = await register(env);
     await markPaid(env, token, "tok-paid");
     expect((await send(env, token)).res.headers.get("ember-model")).toBe("claude-opus-5-5");
     env.db.sqlite.exec("UPDATE purchases SET voided = 1 WHERE purchase_token = 'tok-paid'");
-    expect((await send(env, token)).res.headers.get("ember-model")).toBe("claude-sonnet-5-5");
+    expect((await send(env, token)).res.headers.get("ember-model")).toBe("claude-haiku-5-5");
     // 지급 전(credited = 0) 기록만 있는 경우도 무료 계정
     env.db.sqlite.exec("UPDATE purchases SET voided = 0, credited = 0");
-    expect((await send(env, token)).res.headers.get("ember-model")).toBe("claude-sonnet-5-5");
-    expect(calls.map((c) => c.body["model"])).toEqual(["claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5-5"]);
+    expect((await send(env, token)).res.headers.get("ember-model")).toBe("claude-haiku-5-5");
+    expect(calls.map((c) => c.body["model"])).toEqual(["claude-opus-5-5", "claude-haiku-5-5", "claude-haiku-5-5"]);
   });
 
-  it("스트리밍도 Sonnet 으로 보내고 헤더를 붙인다", async () => {
+  it("스트리밍도 Haiku 로 보내고 헤더를 붙인다", async () => {
     const env = makeEnv();
-    const calls = stubUpstream(() => new Response(SAMPLE_STREAM, { headers: { "content-type": "text/event-stream" } }));
+    // 실제 API 처럼 응답 모델도 Haiku 로 온다(과금은 응답 모델 기준).
+    const haikuStream = SAMPLE_STREAM.replaceAll('"claude-sonnet-5-5"', '"claude-haiku-5-5"');
+    const calls = stubUpstream(() => new Response(haikuStream, { headers: { "content-type": "text/event-stream" } }));
     const { token } = await register(env);
     const { res, ctx } = await send(env, token, { ...BODY, stream: true });
-    expect(res.headers.get("ember-model")).toBe("claude-sonnet-5-5");
-    expect(await res.text()).toBe(SAMPLE_STREAM);
+    expect(res.headers.get("ember-model")).toBe("claude-haiku-5-5");
+    expect(await res.text()).toBe(haikuStream);
     await ctx.settle();
-    expect(calls[0]!.body["model"]).toBe("claude-sonnet-5-5");
-    expect(balance(env)).toBe(95); // 위 스트리밍 테스트와 같은 Sonnet 요금
+    expect(calls[0]!.body["model"]).toBe("claude-haiku-5-5");
+    // haiku: (1200×0.1 + 300×0.1×1.25 + 5000×0.01 + 842×0.5)/1e6 + 2×0.01 = 0.0206285 → ×150 = 3.09 → 4
+    expect(balance(env)).toBe(96);
   });
 });

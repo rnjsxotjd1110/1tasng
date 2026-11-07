@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Env } from "../src/env";
 import worker from "../src/index";
 import { hmacSha256Hex } from "../src/util";
 import { addUsage, call, errorBody, makeCtx, makeEnv, register } from "./helpers/env";
@@ -565,5 +566,25 @@ describe("마이그레이션", () => {
     expect(await balanceBreakdown(D, 2, now)).toEqual({ credits: 1200, freeCredits: 700, paidCredits: 500, expiringSoon: null });
     expect(await balanceBreakdown(D, 3, now)).toEqual({ credits: -50, freeCredits: -50, paidCredits: 0, expiringSoon: null });
     expect(await balanceBreakdown(D, 4, now)).toEqual({ credits: 300, freeCredits: 300, paidCredits: 0, expiringSoon: null });
+  });
+});
+
+describe("운영 기본값(가격 체제)", () => {
+  it("변수가 없으면 무료 20 크레딧, 마크업 2.5, 하루 무료 상한 2000(= 100명)", async () => {
+    const { loadConfig } = await import("../src/env");
+    const cfg = loadConfig({ DB: {} as D1Database } as Env);
+    expect(cfg.freeCredits).toBe(20);
+    expect(cfg.markup).toBe(2.5);
+    expect(cfg.freeCreditsDailyCap).toBe(2000);
+  });
+
+  it("wrangler.toml 의 상품·가격·마크업이 앱 기본값과 맞는다", async () => {
+    const { readFileSync } = await import("node:fs");
+    const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+    const value = (key: string): string => new RegExp(`^${key} = (.*)$`, "m").exec(toml)![1]!.trim().replace(/^['"]|['"]$/g, "");
+    expect(value("MARKUP")).toBe("2.5");
+    expect(value("FREE_CREDITS")).toBe("20");
+    expect(JSON.parse(value("PRODUCTS"))).toEqual({ ember_credits_500: 500, ember_credits_1500: 1650, ember_credits_5000: 5750 });
+    expect(JSON.parse(value("PRODUCT_PRICES_KRW"))).toEqual({ ember_credits_500: 5900, ember_credits_1500: 17900, ember_credits_5000: 59000 });
   });
 });

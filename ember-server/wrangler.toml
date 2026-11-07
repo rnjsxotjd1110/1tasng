@@ -23,12 +23,13 @@ database_id = "00000000-0000-0000-0000-000000000000"
 [vars]
 # 안드로이드 앱 패키지 이름(구글 플레이 영수증 검증용)
 PACKAGE_NAME = "app.ember.ideas"
-# 신규 설치 1회 무료 크레딧(결제 전에는 Opus 요청도 Sonnet 으로 처리된다)
-FREE_CREDITS = "40"
+# Google 계정당 1회 무료 크레딧(결제 전에는 모든 요청을 Haiku 로 처리한다). 20 = Haiku 로 아이디어 탐색 1번 + 표준 설계서 1개
+FREE_CREDITS = "20"
 # 하루(UTC) 동안 새 계정에 주는 무료 크레딧 합계 상한. 다 쓰면 그날 새 계정은 0(freeGranted:false).
-FREE_CREDITS_DAILY_CAP = "20000"
-# 원가 대비 마크업 배수(1.5 = 원가의 150%)
-MARKUP = "1.5"
+# 2000 = 20 크레딧 × 하루 100명
+FREE_CREDITS_DAILY_CAP = "2000"
+# 원가 대비 마크업 배수(2.5 = 원가의 250%). 앱의 ember.creditMarkup 과 같은 값이어야 한다.
+MARKUP = "2.5"
 # max_tokens 상한(이보다 크면 잘라서 보낸다)
 MAX_OUTPUT_TOKENS = "64000"
 # 요청 본문 최대 크기(바이트). 이미지 base64 포함.
@@ -36,8 +37,8 @@ MAX_BODY_BYTES = "2097152"
 # 상품 ID → 지급 크레딧(JSON)
 PRODUCTS = '{"ember_credits_500":500,"ember_credits_1500":1650,"ember_credits_5000":5750}'
 # 상품 ID → 1개 가격(원, KRW) JSON. Play 확인 응답에 결제 금액이 없을 때 구매 기록·환불 계산(README 6장 "환불·청약철회 처리")에 쓴다.
-# Play Console 의 실제 판매가로 채운다. 예: '{"ember_credits_500":5900,"ember_credits_1500":16500,"ember_credits_5000":55000}'
-PRODUCT_PRICES_KRW = ""
+# Play Console 의 실제 판매가와 같아야 한다(부가세 포함 소비자가).
+PRODUCT_PRICES_KRW = '{"ember_credits_500":5900,"ember_credits_1500":17900,"ember_credits_5000":59000}'
 # IP 당 가입 제한: 창(초)당 횟수. IPv4 는 주소 전체, IPv6 는 /64 단위로 센다.
 REGISTER_LIMIT = "5"
 REGISTER_WINDOW_SECONDS = "3600"

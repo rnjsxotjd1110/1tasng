@@ -400,7 +400,7 @@ class ScreenshotTest {
     // ------------------------------------------------------------ 출시 기능
 
     private fun withServer() {
-        ServerConfig.override = ServerConfig.Values(serverUrl = "https://ember.example", reportEmail = "support@example.com", privacyUrl = "", creditMarkup = 1.5, freeCredits = 150)
+        ServerConfig.override = ServerConfig.Values(serverUrl = "https://ember.example", reportEmail = "support@example.com", privacyUrl = "", creditMarkup = 2.5, freeCredits = 20)
     }
 
     @org.junit.After fun resetServer() { ServerConfig.override = null }
@@ -414,8 +414,16 @@ class ScreenshotTest {
     @Test fun s30_credits_balance() {
         withServer()
         c.settings.setCreditAccount("tok_test", 1234)
+        c.settings.setPurchased(true)
         setContent { ApiKeyScreen(fromSettings = true, onDone = {}, onBack = {}) }
         shot("30_credits_balance")
+    }
+
+    @Test fun s54_credits_free_balance() {
+        withServer()
+        c.settings.setCreditAccount("tok_test", 20)
+        setContent { ApiKeyScreen(fromSettings = true, onDone = {}, onBack = {}) }
+        shot("54_credits_free_balance")
     }
 
     @Test fun s31_report() {

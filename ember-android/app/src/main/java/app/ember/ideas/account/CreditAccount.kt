@@ -116,6 +116,8 @@ class CreditAccount(
                 expiring = exp?.get("credits")?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                 expiringAt = exp?.get("at")?.jsonPrimitive?.content?.let(::parseTime) ?: 0L,
             )
+            // 다른 기기에서 산 크레딧이 보이면 결제 계정이다(서버도 고른 모델로 답한다).
+            if ((body["paidCredits"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0) > 0) settings.setPurchased(true)
             credits
         } catch (e: AiError.InvalidKey) {
             settings.setCreditAccount(null, 0)

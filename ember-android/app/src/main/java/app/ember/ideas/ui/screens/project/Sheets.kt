@@ -290,7 +290,7 @@ fun DesignSetupSheet(idea: Idea, model: app.ember.ideas.ai.ClaudeModel, onDismis
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(8.dp))
             DocDepth.entries.forEach { d ->
-                val cost = s.estimate(app.ember.ideas.ai.CostEstimate.design(model, d, ask))
+                val cost = s.estimate(app.ember.ideas.ai.CostEstimate.design(model, d, ask), app.ember.ideas.ai.CostEstimate.designCredits(model, d, ask))
                 val (lo, hi) = app.ember.ideas.ai.CostEstimate.minutes(model, d)
                 ChoiceRow(s.depthTitle(d), s.depthBody(d) + "\n" + s.depthMeta(d, cost, s.minutes(lo, hi)), depth == d) { depth = d }
                 Spacer(Modifier.height(8.dp))

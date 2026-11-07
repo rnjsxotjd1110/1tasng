@@ -492,12 +492,15 @@ object EnStrings : Strings() {
     override val accessTabCredits = "Ember credits"
     override val accessTabKey = "My API key"
     override val creditsHeadline = "Start right away with Google"
-    override fun creditsBody(free: Int, discoveries: Int) = "You get $free free credits, enough for about $discoveries idea sessions. When they run out, top up with Google Play."
+    override fun creditsBody(free: Int, discoveries: Int) =
+        "You get $free free credits" +
+            (if (discoveries > 0) ", enough for ${if (discoveries == 1) "one idea session and one" else "about $discoveries idea sessions and $discoveries"} standard design doc${if (discoveries == 1) "" else "s"} on Haiku 5.5" else "") +
+            ". When they run out, top up with Google Play."
     override val creditsStart = "Continue with Google"
     override val creditsContinue = "Get started"
     override val creditsBalance = "Credits left"
     override fun creditsWorth(discoveries: Int, docs: Int) = "About $discoveries idea sessions or $docs standard design docs"
-    override fun creditsUnit(discovery: Int, doc: Int) = "Credits only go down by what you use: about $discovery per idea session and $doc per standard design doc (Opus 5.5)."
+    override fun creditsUnit(discovery: Int, doc: Int, model: String) = "Credits only go down by what you use: about $discovery per idea session and $doc per standard design doc ($model)."
     override val creditsPacks = "Top up"
     override fun creditsAmount(n: Int) = "%,d credits".format(java.util.Locale.ENGLISH, n)
     override val creditsPriceLoading = "Checking price"
@@ -735,7 +738,7 @@ object EnStrings : Strings() {
 
     override fun verifiedWorks(n: Int) = if (n == 1) "1 real work checked" else "$n real works checked"
 
-    override val freeSonnetNote = "While you only have free credits, Sonnet answers instead of Opus. Buy credits once to unlock Opus."
+    override val freeTierNote = "While you only have free credits, Haiku 5.5 answers and web search is off. Buy credits once to use the model you picked."
 
     override fun kindShort(k: ProjectKind) = when (k) { ProjectKind.GAME -> "Game"; ProjectKind.APP -> "App"; ProjectKind.WEB -> "Web"; ProjectKind.ANY -> "Not sure" }
 

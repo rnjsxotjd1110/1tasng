@@ -36,6 +36,17 @@ object CostEstimate {
 
     fun fullSet(m: ClaudeModel) = discovery(m) + design(m, DocDepth.STANDARD, true)
 
+    // 크레딧은 요청마다 올림하고 최소 1 크레딧이라(서버 billing/pricing.ts) 요청 단위로 더한다.
+    // 값싼 모델(Haiku)은 합계 USD 로 한 번에 바꾸면 실제보다 훨씬 적게 나온다.
+    private fun credits(usd: Double) = app.ember.ideas.account.ServerConfig.creditsFor(usd)
+
+    fun discoveryCredits(m: ClaudeModel) = credits(question(m)) * DISCOVERY_QUESTIONS + credits(ideas(m))
+
+    fun designCredits(m: ClaudeModel, depth: DocDepth, withQuestions: Boolean) =
+        credits(document(m, depth)) + if (withQuestions) credits(question(m)) * depth.designQuestions else 0
+
+    fun fullSetCredits(m: ClaudeModel) = discoveryCredits(m) + designCredits(m, DocDepth.STANDARD, true)
+
     /** 출력 속도 기준 대략 시간(분) 범위. */
     fun minutes(m: ClaudeModel, depth: DocDepth): Pair<Int, Int> {
         val tps = when (m) { ClaudeModel.OPUS -> 60.0; ClaudeModel.SONNET -> 90.0; ClaudeModel.HAIKU -> 180.0 }

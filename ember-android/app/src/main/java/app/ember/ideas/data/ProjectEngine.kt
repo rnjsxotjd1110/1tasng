@@ -78,7 +78,7 @@ class ProjectEngine(
         }
 
     private val deep get() = settings.settings.value.deepThinking
-    private val model get() = settings.settings.value.model
+    private val model get() = settings.settings.value.activeModel
 
     /** '질문은 빠르게'를 켜면 질문 단계만 Sonnet 으로 보낸다. 아이디어·설계서는 고른 모델 그대로. */
     private fun questionModel(kind: OpKind): ClaudeModel =

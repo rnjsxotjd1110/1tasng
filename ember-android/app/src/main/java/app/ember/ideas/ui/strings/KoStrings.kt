@@ -501,12 +501,19 @@ object KoStrings : Strings() {
     override val accessTabCredits = "Ember 크레딧"
     override val accessTabKey = "내 API 키"
     override val creditsHeadline = "Google 계정으로 바로 시작해요"
-    override fun creditsBody(free: Int, discoveries: Int) = "처음 ${free}크레딧을 무료로 드려요. 아이디어 탐색을 약 ${discoveries}번 할 수 있어요. 다 쓰면 Google Play 결제로 충전해요."
+    override fun creditsBody(free: Int, discoveries: Int) =
+        "처음 ${free}크레딧을 무료로 드려요. " +
+            when {
+                discoveries == 1 -> "Haiku 5.5로 아이디어 탐색 1번과 표준 설계서 1개를 만들 수 있어요. "
+                discoveries > 1 -> "Haiku 5.5로 아이디어 탐색과 표준 설계서를 약 ${discoveries}번씩 할 수 있어요. "
+                else -> ""
+            } +
+            "다 쓰면 Google Play 결제로 충전해요."
     override val creditsStart = "Google 계정으로 시작"
     override val creditsContinue = "시작하기"
     override val creditsBalance = "남은 크레딧"
     override fun creditsWorth(discoveries: Int, docs: Int) = "탐색 약 ${discoveries}회 또는 표준 설계서 약 ${docs}개"
-    override fun creditsUnit(discovery: Int, doc: Int) = "크레딧은 쓴 만큼만 줄어요. 탐색 1회에 약 ${discovery}크레딧, 표준 설계서 1개에 약 ${doc}크레딧이 들어요(Opus 5.5 기준)."
+    override fun creditsUnit(discovery: Int, doc: Int, model: String) = "크레딧은 쓴 만큼만 줄어요. 탐색 1회에 약 ${discovery}크레딧, 표준 설계서 1개에 약 ${doc}크레딧이 들어요($model 기준)."
     override val creditsPacks = "충전하기"
     override fun creditsAmount(n: Int) = "%,d크레딧".format(n)
     override val creditsPriceLoading = "가격 확인 중"
@@ -744,7 +751,7 @@ object KoStrings : Strings() {
 
     override fun verifiedWorks(n: Int) = "실제 작품 ${n}개 확인"
 
-    override val freeSonnetNote = "무료 크레딧만 있는 동안은 Opus 대신 Sonnet이 답해요. 크레딧을 한 번 사면 Opus를 쓸 수 있어요."
+    override val freeTierNote = "무료 크레딧만 있는 동안은 Haiku 5.5가 답하고 웹 검색은 쓰지 않아요. 크레딧을 한 번 사면 고른 모델로 답해요."
 
     override fun kindShort(k: ProjectKind) = when (k) { ProjectKind.GAME -> "게임"; ProjectKind.APP -> "앱"; ProjectKind.WEB -> "웹"; ProjectKind.ANY -> "미정" }
 

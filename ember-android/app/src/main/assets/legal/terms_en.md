@@ -28,10 +28,10 @@ These terms are posted in the app (Workshop → About) and on the web. We announ
 ## 5. Buying and using credits
 
 - Prices and amounts are as shown on the purchase screen. Google Play processes payments.
-- Each request is charged for what was actually processed (model, input and output tokens, web searches). Before a request we hold the maximum possible cost, then settle at the actual usage and release the rest.
+- Each request is charged for what was actually processed (model, input and output tokens, web searches). Before a request we hold the maximum possible cost, then settle at the actual usage and release the rest. Each request is rounded up to a whole credit, with a minimum of 1 credit when it has any cost.
 - If you tap Stop or the connection drops before the answer finishes, we charge an estimate based on what you received plus the same amount of unseen processing ("thinking"). If the Service or the AI provider fails, we charge only the input cost.
 - Free credits are used first, then paid credits from the oldest purchase.
-- While you only have free credits, Opus requests may be answered by Sonnet.
+- Until you buy credits for the first time, Haiku answers whichever model you pick, and web search is off.
 
 ## 6. Validity
 

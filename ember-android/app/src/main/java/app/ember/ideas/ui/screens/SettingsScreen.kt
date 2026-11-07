@@ -135,9 +135,9 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
                 onOpenKey, icon = Icons.Rounded.Key,
             )
             NavRow(
-                s.model, s.modelShort(settings.model), { dialog = "model" }, icon = Icons.Rounded.Memory,
-                body = if (settings.usingCredits && !settings.purchased && settings.model == app.ember.ideas.ai.ClaudeModel.OPUS) s.freeSonnetNote
-                else s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(settings.model))),
+                s.model, s.modelShort(settings.activeModel), { dialog = "model" }, icon = Icons.Rounded.Memory,
+                body = if (settings.freeTier) s.freeTierNote
+                else s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(settings.model), app.ember.ideas.ai.CostEstimate.fullSetCredits(settings.model))),
             )
             ToggleRow(s.deepThinking, s.deepThinkingBody, settings.deepThinking, { container.settings.setDeepThinking(it) }, icon = Icons.Rounded.HourglassTop)
             ToggleRow(s.webSearchSetting, s.webSearchBody(s.estimate(app.ember.ideas.ai.WEB_SEARCH_USD)), settings.webSearch, { container.settings.setWebSearch(it) }, icon = Icons.Rounded.TravelExplore)
@@ -215,7 +215,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         "model" -> EmberDialog(s.model, null, s.close, { dialog = null }, { dialog = null }, content = {
             Column {
                 ClaudeModel.entries.forEach { m ->
-                    ChoiceRow(s.modelName(m), s.modelBody(m) + "\n" + s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(m))), settings.model == m) { container.settings.setModel(m); dialog = null }
+                    ChoiceRow(s.modelName(m), s.modelBody(m) + "\n" + s.modelSetCost(s.estimate(app.ember.ideas.ai.CostEstimate.fullSet(m), app.ember.ideas.ai.CostEstimate.fullSetCredits(m))), settings.model == m) { container.settings.setModel(m); dialog = null }
                     Spacer(Modifier.height(8.dp))
                 }
             }

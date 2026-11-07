@@ -72,6 +72,15 @@ data class Settings(
     /** 지금 요청을 Ember 크레딧(중계 서버)으로 보낸다. */
     val usingCredits: Boolean get() = app.ember.ideas.account.ServerConfig.creditsEnabled && creditsReady && (preferCredits || !hasKey)
 
+    /**
+     * 무료 크레딧만 쓰는 중(결제한 적 없음). 이때 중계 서버는 모든 요청을 Haiku 로 처리하므로
+     * 앱도 처음부터 Haiku 로 보낸다(웹 검색·거절 대체를 빼고, 비용 안내도 Haiku 기준).
+     */
+    val freeTier: Boolean get() = usingCredits && !purchased && paidCredits <= 0
+
+    /** 실제로 요청에 쓰는 모델. */
+    val activeModel: app.ember.ideas.ai.ClaudeModel get() = if (freeTier) app.ember.ideas.ai.ClaudeModel.HAIKU else model
+
     /** Claude 를 부를 수 있는 상태(내 키 또는 크레딧). */
     val ready: Boolean get() = hasKey || usingCredits
 }
@@ -149,7 +158,7 @@ class SettingsStore(context: Context) {
 
     fun setCredits(credits: Int) = put { putInt("credits", credits) }
 
-    /** 크레딧을 한 번이라도 샀는지. 무료 크레딧만 쓰는 동안 서버는 Opus 요청을 Sonnet 으로 답한다. */
+    /** 크레딧을 한 번이라도 샀는지. 무료 크레딧만 쓰는 동안 서버는 모든 요청을 Haiku 로 답한다. */
     fun setPurchased(v: Boolean) = put { putBoolean("purchased", v) }
     fun setCreditDetail(paid: Int, free: Int, expiring: Int, expiringAt: Long) = put {
         putInt("paid_credits", paid); putInt("free_credits", free); putInt("expiring_credits", expiring); putLong("expiring_at", expiringAt)

@@ -34,8 +34,9 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
     db,
     ANTHROPIC_API_KEY: "sk-ant-test-server-key",
     ADMIN_KEY: "test-admin-key",
-    // 테스트는 무료 크레딧 100 을 기준으로 계산한다(운영 기본값은 40).
+    // 테스트는 무료 크레딧 100, 마크업 1.5 를 기준으로 계산한다(운영 기본값은 20, 2.5).
     FREE_CREDITS: "100",
+    MARKUP: "1.5",
     // Google 로그인(REQUIRE_GOOGLE_SIGNIN 은 기본값 = 필수)
     GOOGLE_OAUTH_CLIENT_IDS: `other-client.apps.googleusercontent.com, ${TEST_CLIENT_ID}`,
     SUB_HASH_SECRET: "test-sub-hash-secret",

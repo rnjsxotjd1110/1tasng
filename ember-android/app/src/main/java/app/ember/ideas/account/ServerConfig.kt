@@ -28,6 +28,6 @@ object ServerConfig {
         "ember_credits_5000" to 5750,
     )
 
-    /** API 비용(USD)을 크레딧으로 바꾼다. 1 크레딧 = 수수료를 포함한 $0.01. */
+    /** API 비용(USD)을 크레딧으로 바꾼다. 요청마다 올림, 최소 1(서버 billing/pricing.ts 와 같다). 1 크레딧 = API 원가 $0.01 ÷ 마크업. */
     fun creditsFor(usd: Double): Int = kotlin.math.ceil(usd * 100 * values.creditMarkup).toInt().coerceAtLeast(1)
 }

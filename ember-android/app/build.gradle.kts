@@ -16,8 +16,8 @@ android {
         applicationId = "app.ember.ideas"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.5.0"
+        versionCode = 12
+        versionName = "1.5.1"
         vectorDrawables { useSupportLibrary = true }
 
         // 출시 설정. gradle.properties 나 -P 옵션으로 넣는다(비우면 해당 기능이 숨겨진다).
@@ -25,8 +25,8 @@ android {
         buildConfigField("String", "EMBER_SERVER_URL", "\"${prop("ember.serverUrl")}\"")
         buildConfigField("String", "REPORT_EMAIL", "\"${prop("ember.reportEmail")}\"")
         buildConfigField("String", "PRIVACY_URL", "\"${prop("ember.privacyUrl")}\"")
-        buildConfigField("double", "CREDIT_MARKUP", prop("ember.creditMarkup").ifEmpty { "1.5" })
-        buildConfigField("int", "FREE_CREDITS", prop("ember.freeCredits").ifEmpty { "40" })
+        buildConfigField("double", "CREDIT_MARKUP", prop("ember.creditMarkup").ifEmpty { "2.5" })
+        buildConfigField("int", "FREE_CREDITS", prop("ember.freeCredits").ifEmpty { "20" })
         // 작업대(PC 브리지)는 다음 업데이트에서 켠다. 꺼 두면 화면에 나오지 않고 동작하지도 않는다.
         buildConfigField("boolean", "WORKBENCH_ENABLED", prop("ember.workbench").ifEmpty { "false" })
         // Google 로그인용 OAuth 웹 클라이언트 ID(서버의 GOOGLE_OAUTH_CLIENT_IDS 와 같은 값).

@@ -23,6 +23,10 @@ abstract class Strings {
     fun estimate(usd: Double): String =
         if (CostMode.credits) creditsApprox(app.ember.ideas.account.ServerConfig.creditsFor(usd)) else costApprox(usd)
 
+    /** 여러 요청을 묶은 행동의 예상 비용. 크레딧은 요청마다 올림한 합계([credits])를 보여 준다. */
+    fun estimate(usd: Double, credits: Int): String =
+        if (CostMode.credits) creditsApprox(credits) else costApprox(usd)
+
     // 공통
     abstract val back: String; abstract val next: String; abstract val skip: String; abstract val close: String
     abstract val cancel: String; abstract val save: String; abstract val delete: String; abstract val retry: String
@@ -252,7 +256,7 @@ abstract class Strings {
     abstract val creditsContinue: String
     abstract val creditsBalance: String
     abstract fun creditsWorth(discoveries: Int, docs: Int): String
-    abstract fun creditsUnit(discovery: Int, doc: Int): String
+    abstract fun creditsUnit(discovery: Int, doc: Int, model: String): String
     abstract val creditsPacks: String
     abstract fun creditsAmount(n: Int): String
     abstract val creditsPriceLoading: String
@@ -490,7 +494,7 @@ abstract class Strings {
 
     abstract fun verifiedWorks(n: Int): String
 
-    abstract val freeSonnetNote: String
+    abstract val freeTierNote: String
 
     abstract fun kindShort(k: ProjectKind): String
 

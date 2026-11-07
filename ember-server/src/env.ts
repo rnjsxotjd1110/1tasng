@@ -88,8 +88,8 @@ export const DEFAULT_PRODUCTS: Readonly<Record<string, number>> = {
 
 export const DEFAULTS = {
   packageName: "app.ember.ideas",
-  freeCredits: 40,
-  markup: 1.5,
+  freeCredits: 20,
+  markup: 2.5,
   maxOutputTokens: 64000,
   maxBodyBytes: 2 * 1024 * 1024,
   registerLimit: 5,
@@ -99,7 +99,7 @@ export const DEFAULTS = {
   anthropicBaseUrl: "https://api.anthropic.com",
   integrityMode: "off",
   reregisterLimit: 30,
-  freeCreditsDailyCap: 20000,
+  freeCreditsDailyCap: 2000,
   maxConcurrentRequests: 2,
   inflightStaleSeconds: 1800,
   reportsDailyCap: 500,

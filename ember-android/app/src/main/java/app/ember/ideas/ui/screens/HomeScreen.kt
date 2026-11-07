@@ -342,7 +342,7 @@ fun HomeScreen(
                         if (settings.ready) {
                             PrimaryButton(s.startDiscovery, { start() }, Modifier.fillMaxWidth())
                             Text(
-                                s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+                                s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.activeModel), app.ember.ideas.ai.CostEstimate.discoveryCredits(settings.activeModel)), s.modelShort(settings.activeModel)),
                                 style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             )
@@ -446,7 +446,7 @@ fun HomeScreen(
         initialKind = kind,
         initialText = seed,
         moldName = mold?.name,
-        costLine = s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+        costLine = s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.activeModel), app.ember.ideas.ai.CostEstimate.discoveryCredits(settings.activeModel)), s.modelShort(settings.activeModel)),
         onDismiss = { conceptSheet = false },
     ) { k, text ->
         conceptSheet = false

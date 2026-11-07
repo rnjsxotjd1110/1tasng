@@ -265,7 +265,17 @@ private fun QuestionCard(
     var selected by rememberSaveable(key) { mutableStateOf(draft?.selectedIds ?: if (!q.multiSelect && recommendedId != null) listOf(recommendedId) else emptyList()) }
     var custom by rememberSaveable(key) { mutableStateOf(draft?.customText ?: "") }
     var customOpen by rememberSaveable(key) { mutableStateOf((draft?.customText ?: "").isNotEmpty()) }
+    // 하나만 고르는 질문에서도 '여러 개 고르기'를 켜면 둘 이상 고를 수 있다.
+    var pickMany by rememberSaveable(key) { mutableStateOf((draft?.selectedIds?.size ?: 0) > 1) }
+    val multi = q.multiSelect || pickMany
     val hasAnswer = selected.isNotEmpty() || custom.isNotBlank()
+    /** 직접 입력이 "b+e" 처럼 기호뿐이면 그 선택지를 고른 것으로 바꿔 보낸다. */
+    fun buildAnswer(): Answer {
+        val text = if (customOpen) custom.trim() else ""
+        val letters = app.ember.ideas.ai.Protocol.lettersIn(text, q.options.size)
+        return if (letters != null) Answer(selectedIds = (selected + letters.map { q.options[it].id }).distinct())
+        else Answer(selectedIds = selected, customText = text)
+    }
     val scroll = rememberScrollState()
 
     LaunchedEffect(customOpen) { if (customOpen) scroll.animateScrollTo(scroll.maxValue) }
@@ -317,24 +327,43 @@ private fun QuestionCard(
                 Text(q.subtitle, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
             }
             Spacer(Modifier.height(6.dp))
-            Text(if (q.multiSelect) s.multiHint else s.singleHint, style = MaterialTheme.typography.labelMedium, color = c.textFaint)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (multi) s.multiHint else s.singleHint, style = MaterialTheme.typography.labelMedium, color = c.textFaint, modifier = Modifier.weight(1f))
+                if (!q.multiSelect) {
+                    Row(
+                        Modifier.clip(EmberShape.chip)
+                            .border(1.dp, if (pickMany) c.ember else c.outline, EmberShape.chip)
+                            .background(if (pickMany) c.emberSoft else androidx.compose.ui.graphics.Color.Transparent)
+                            .clickable(role = Role.Switch) {
+                                pickMany = !pickMany
+                                if (!pickMany && selected.size > 1) selected = selected.take(1)
+                            }
+                            .heightIn(min = 36.dp).padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        app.ember.ideas.ui.components.SelectMark(pickMany, multi = true)
+                        Spacer(Modifier.width(6.dp))
+                        Text(s.pickMany, style = MaterialTheme.typography.labelMedium, color = if (pickMany) c.text else c.textMuted)
+                    }
+                }
+            }
             Spacer(Modifier.height(16.dp))
             q.options.forEachIndexed { idx, opt ->
                 val isSel = opt.id in selected
-                OptionRow(opt, ('A' + idx).toString(), isSel, q.multiSelect) {
-                    selected = if (q.multiSelect) {
+                OptionRow(opt, ('A' + idx).toString(), isSel, multi) {
+                    selected = if (multi) {
                         if (isSel) selected - opt.id else selected + opt.id
                     } else {
                         if (isSel) emptyList() else listOf(opt.id)
                     }
-                    if (!q.multiSelect && !isSel) customOpen = false
+                    if (!multi && !isSel) customOpen = false
                 }
                 Spacer(Modifier.height(10.dp))
             }
             if (q.allowCustom) {
-                CustomRow(open = customOpen, filled = custom.isNotBlank(), multi = q.multiSelect, onClick = {
+                CustomRow(open = customOpen, filled = custom.isNotBlank(), multi = multi, onClick = {
                     customOpen = !customOpen
-                    if (customOpen && !q.multiSelect) selected = emptyList()
+                    if (customOpen && !multi) selected = emptyList()
                 })
                 AnimatedVisibility(customOpen, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                     Column {
@@ -366,7 +395,7 @@ private fun QuestionCard(
             Spacer(Modifier.width(4.dp))
             app.ember.ideas.ui.components.StrikeButton(
                 text = if (errorBanner != null) s.resend else strikeLabel,
-                onClick = { onSubmit(Answer(selectedIds = selected, customText = if (customOpen) custom.trim() else "")) },
+                onClick = { onSubmit(buildAnswer()) },
                 enabled = hasAnswer,
                 modifier = Modifier.weight(1f),
             )

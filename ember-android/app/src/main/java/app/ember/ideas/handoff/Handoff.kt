@@ -33,6 +33,24 @@ object Handoff {
     /** URL 쿼리로 넘길 수 있는 안전한 최대 길이(인코딩 후). 넘으면 클립보드로 전달한다. */
     private const val MAX_URL_PROMPT = 6000
 
+    /**
+     * Claude 가 이어서 질문할 때 지킬 규칙. 사용자가 "b+e" 처럼 선택지를 섞어 답해도 알아듣게 한다.
+     * (Claude 앱·claude.ai 대화와 Claude Code 의 질문 카드 모두에 해당한다.)
+     */
+    fun questionRules(korean: Boolean): String = if (korean) """
+## 질문 규칙
+- 결정이 필요하면 한 번에 하나씩 묻고, 선택지마다 A, B, C … 기호를 붙여 주세요(질문 카드를 쓸 때는 선택지 이름 앞에 "A. " 처럼 기호를 붙여 주세요).
+- 둘 이상을 함께 고르는 것이 자연스러운 질문은 그렇다고 알려 주고, 질문 카드라면 여러 개 선택(multiSelect)을 켜 주세요.
+- 사용자가 "b+e", "B, E", "b와 e", "2 4" 처럼 기호나 번호로 답하면 그 선택지를 모두 고른 것으로 이해하고, 무엇을 골랐는지 한 줄로 확인한 뒤 진행해 주세요.
+- "B인데 더 어둡게" 처럼 기호와 설명을 섞어 답하면 그 선택지를 바탕으로 설명을 반영해 주세요.
+""".trim() else """
+## Question rules
+- Ask one decision at a time and label every option A, B, C … (in question cards, start each option label with "A. " and so on).
+- When picking several options makes sense, say so, and turn on multi-select in question cards.
+- If I answer with letters or numbers such as "b+e", "B, E", "b and e" or "2 4", treat it as choosing all of those options; confirm in one line what you understood, then continue.
+- If I mix a letter with a comment ("B but darker"), start from that option and apply the comment.
+""".trim()
+
     fun buildPrompt(project: Project, idea: Idea?, profile: DevProfile, options: HandoffOptions, korean: Boolean): String {
         val doc = project.design?.latest?.markdown
         val sb = StringBuilder()
@@ -53,6 +71,8 @@ object Handoff {
             sb.appendLine()
             sb.appendLine((if (korean) "추가 요청: " else "Additional request: ") + options.extra.trim())
         }
+        sb.appendLine()
+        sb.appendLine(questionRules(korean))
         if (idea != null) {
             sb.appendLine()
             sb.appendLine(if (korean) "## 고른 아이디어" else "## Chosen idea")
@@ -119,11 +139,13 @@ object Handoff {
                 "CLAUDE.md 와 docs/DESIGN.md 를 읽고, 이 프로젝트를 어떻게 이해했는지와 첫 마일스톤 계획을 짧게 정리해 주세요. 아직 코드는 쓰지 말아 주세요."
             else "Read CLAUDE.md and docs/DESIGN.md, then summarize how you understand the project and plan the first milestone. Don't write code yet."
         }
+        // '다음 작업 하나'는 CLAUDE.md 를 보내지 않으므로 질문 규칙을 프롬프트에 직접 붙인다.
+        val fullPrompt = if (what == BenchWhat.NEXT) prompt + "\n\n" + questionRules(korean) else prompt
         val files = when (what) {
             BenchWhat.NEXT -> listOf(design)
             else -> listOf(design, claudeMd)
         }
-        return app.ember.ideas.bridge.BridgeApi.SendRequest(title = title, mode = mode, prompt = prompt, files = if (doc.isBlank()) emptyList() else files, folder = folder)
+        return app.ember.ideas.bridge.BridgeApi.SendRequest(title = title, mode = mode, prompt = fullPrompt, files = if (doc.isBlank()) emptyList() else files, folder = folder)
     }
 
     /** Claude Code 가 저장소 루트에서 읽는 CLAUDE.md 형식으로 설계를 정리한다. */
@@ -138,6 +160,8 @@ object Handoff {
             appendLine("- 설계서와 다르게 구현해야 하면 먼저 이유를 설명하고 확인을 받아 주세요.")
             appendLine("- 마일스톤마다 실행 가능한 상태를 유지하고, 끝나면 무엇을 했는지 짧게 보고해 주세요.")
             appendLine("- 정해지지 않은 부분은 설계서의 (제안) 표시를 기본값으로 삼아 주세요.")
+            appendLine()
+            appendLine(questionRules(true))
         } else {
             appendLine("This repository implements a project designed in Ember. Read the full design doc below before starting, and follow its roadmap in order.")
             appendLine()
@@ -145,6 +169,8 @@ object Handoff {
             appendLine("- If you need to deviate from the design, explain why and ask first.")
             appendLine("- Keep every milestone runnable and report briefly when one is done.")
             appendLine("- Treat items marked (suggested) as defaults for open decisions.")
+            appendLine()
+            appendLine(questionRules(false))
         }
         if (!profile.isEmpty()) {
             appendLine()

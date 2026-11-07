@@ -140,10 +140,9 @@ class BillingManager(context: Context, private val account: CreditAccount, priva
                 try {
                     var credits = 0
                     purchase.products.forEach { id -> credits = account.redeem(id, purchase.purchaseToken) }
-                    // 서버가 크레딧을 준 뒤에만 소비해야 결제가 사라지지 않는다.
-                    val consumed = client.consumePurchase(ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build())
-                    // 소비에 실패해도 크레딧은 이미 받았다. 다음 복원 때 서버가 같은 영수증을 다시 지급하지 않으므로 안전하다.
-                    if (consumed.billingResult.responseCode != BillingClient.BillingResponseCode.OK) restore()
+                    // 서버가 Google 에 직접 소비 처리를 한 뒤 크레딧을 준다. 여기서의 소비는 예전 서버를 위한 보조라서
+                    // 실패해도(이미 소비됨 등) 다시 시도하지 않는다. 실패할 때마다 복원을 부르면 무한히 되풀이된다.
+                    runCatching { client.consumePurchase(ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()) }
                     _state.value = PurchaseState.Done(credits)
                 } catch (e: AiError) {
                     _state.value = PurchaseState.Failed(e)

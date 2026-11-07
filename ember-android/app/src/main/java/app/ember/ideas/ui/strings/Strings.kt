@@ -522,6 +522,8 @@ abstract class Strings {
     abstract fun conceptMoldNote(name: String): String
     abstract val conceptGo: String
 
+    abstract val pickMany: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

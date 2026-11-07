@@ -356,14 +356,44 @@ $sections
         append("첫 질문을 해 주세요.")
     }
 
+    /** 화면에 보이는 선택지 기호(A, B, C …). */
+    fun optionLetter(index: Int): String = ('A' + index).toString()
+
     fun answerMessage(question: Question, answer: Answer): String {
         if (answer.skipped) return "[건너뜀] \"${question.title}\" 질문은 건너뛰겠습니다. 이 부분은 알아서 판단해 주세요."
-        val labels = question.options.filter { it.id in answer.selectedIds }.map { it.label }
+        val picked = question.options.withIndex().filter { it.value.id in answer.selectedIds }
         return buildString {
             appendLine("[답변] ${question.title}")
-            if (labels.isNotEmpty()) appendLine("선택: ${labels.joinToString(", ")}")
-            if (answer.customText.isNotBlank()) appendLine("직접 입력: ${answer.customText.trim()}")
+            if (picked.isNotEmpty()) appendLine("선택: ${picked.joinToString(", ") { "${optionLetter(it.index)}) ${it.value.label}" }}")
+            if (picked.size > 1 && !question.multiSelect) appendLine("(하나만 고르는 질문이었지만 여러 개를 함께 골랐어요. 고른 것을 모두 반영해 주세요.)")
+            if (answer.customText.isNotBlank()) {
+                appendLine("직접 입력: ${answer.customText.trim()}")
+                // 직접 입력에서 "B처럼", "b+e" 같이 기호로 가리킬 수 있으므로 기호와 선택지를 함께 알려 준다.
+                appendLine("(화면의 선택지 기호: " + question.options.withIndex().joinToString(", ") { "${optionLetter(it.index)}) ${it.value.label}" } + ")")
+            }
         }.trimEnd()
+    }
+
+    /**
+     * 직접 입력이 선택지 기호만으로 되어 있으면(예: "b+e", "A, C", "b와 e", "2 4") 그 선택지들의 순번을 돌려준다.
+     * 기호가 아닌 글이 섞여 있거나 없는 기호를 가리키면 null(글 그대로 보낸다).
+     */
+    fun lettersIn(text: String, optionCount: Int): List<Int>? {
+        val t = text.trim()
+        if (t.isEmpty() || optionCount <= 0) return null
+        val tokens = t.split(Regex("[\\s+,/&·.]+|와|과|랑|하고|그리고|and|AND|And"))
+            .map { it.trim().removeSuffix(")").removePrefix("(") }
+            .filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return null
+        val idx = tokens.map { tok ->
+            when {
+                tok.length == 1 && tok[0].uppercaseChar() in 'A'..'Z' -> tok[0].uppercaseChar() - 'A'
+                tok.toIntOrNull() != null -> tok.toInt() - 1
+                else -> return null
+            }
+        }
+        if (idx.any { it !in 0 until optionCount }) return null
+        return idx.distinct()
     }
 
     /** 사용자가 적은 컨셉을 지키며 질문 없이 아이디어를 받는다. */

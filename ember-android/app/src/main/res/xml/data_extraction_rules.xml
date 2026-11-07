@@ -5,11 +5,15 @@
     <cloud-backup>
         <include domain="file" path="projects.json" />
         <include domain="file" path="images/" />
+        <include domain="file" path="memos.json" />
+        <include domain="file" path="molds.json" />
         <include domain="sharedpref" path="ember_settings.xml" />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="projects.json" />
         <include domain="file" path="images/" />
+        <include domain="file" path="memos.json" />
+        <include domain="file" path="molds.json" />
         <include domain="sharedpref" path="ember_settings.xml" />
     </device-transfer>
 </data-extraction-rules>

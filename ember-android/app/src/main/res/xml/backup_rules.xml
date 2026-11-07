@@ -3,5 +3,7 @@
 <full-backup-content>
     <include domain="file" path="projects.json" />
     <include domain="file" path="images/" />
+        <include domain="file" path="memos.json" />
+        <include domain="file" path="molds.json" />
     <include domain="sharedpref" path="ember_settings.xml" />
 </full-backup-content>

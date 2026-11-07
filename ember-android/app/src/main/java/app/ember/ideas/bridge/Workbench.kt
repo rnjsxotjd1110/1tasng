@@ -25,6 +25,8 @@ import java.net.Socket
 object BridgeApi {
     const val SERVICE_TYPE = "_ember._tcp."
     const val DEFAULT_PORT = 47615
+    /** 페어링 코드 자릿수(무차별 대입을 어렵게 하려고 8자리). */
+    const val CODE_LENGTH = 8
 
     @Serializable data class Info(val id: String = "", val name: String = "", val version: String = "", val os: String = "", val pairingRequired: Boolean = true)
     @Serializable data class PairRequest(val code: String, val deviceName: String)
@@ -260,7 +262,7 @@ class Workbench(private val context: Context, private val settings: SettingsStor
         Protocol.json.decodeFromString(BridgeApi.Info.serializer(), r.body)
     }
 
-    /** 6자리 코드로 연결한다. 성공하면 토큰을 저장한다. */
+    /** 8자리 코드로 연결한다. 성공하면 토큰을 저장한다. */
     suspend fun pair(host: String, port: Int, code: String): BridgeApi.PairResponse = io {
         val body = Protocol.json.encodeToString(BridgeApi.PairRequest.serializer(), BridgeApi.PairRequest(code.filter { it.isDigit() }, deviceName()))
         val r = MiniHttp.request(host, port, "POST", "/ember/pair", body)
@@ -319,7 +321,7 @@ class Workbench(private val context: Context, private val settings: SettingsStor
         val msg = e?.message.orEmpty()
         return when {
             r.status == 401 -> BridgeError.Unauthorized(msg)
-            r.status == 403 || e?.error == "bad_code" -> BridgeError.BadCode(msg)
+            e?.error == "bad_code" -> BridgeError.BadCode(msg)
             r.status == 429 -> BridgeError.RateLimited(msg)
             else -> BridgeError.Rejected(msg)
         }

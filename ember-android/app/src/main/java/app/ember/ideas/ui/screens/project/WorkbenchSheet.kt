@@ -105,7 +105,7 @@ internal fun benchErrorText(e: Throwable, s: Strings): String = when (e) {
 }
 
 /**
- * PC 와 연결하기: 같은 Wi‑Fi 에서 브리지를 찾고(직접 주소 입력도 가능), 6자리 코드로 연결한다.
+ * PC 와 연결하기: 같은 Wi‑Fi 에서 브리지를 찾고(직접 주소 입력도 가능), 8자리 코드로 연결한다.
  */
 @Composable
 fun PairPanel(onPaired: () -> Unit) {
@@ -186,7 +186,7 @@ fun PairPanel(onPaired: () -> Unit) {
             Text(s.benchCodeTitle, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
             Spacer(Modifier.height(8.dp))
             EmberTextField(
-                code, { v -> code = v.filter { it.isDigit() }.take(6); error = null }, "000000", singleLine = true, maxLength = 6,
+                code, { v -> code = v.filter { it.isDigit() }.take(BridgeApi.CODE_LENGTH); error = null }, "0".repeat(BridgeApi.CODE_LENGTH), singleLine = true, maxLength = BridgeApi.CODE_LENGTH,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             )
             Spacer(Modifier.height(10.dp))
@@ -199,7 +199,7 @@ fun PairPanel(onPaired: () -> Unit) {
                         .onFailure { error = benchErrorText(it, s) }
                     working = false
                 }
-            }, Modifier.fillMaxWidth(), enabled = code.length == 6, loading = working, height = 48.dp)
+            }, Modifier.fillMaxWidth(), enabled = code.length == BridgeApi.CODE_LENGTH, loading = working, height = 48.dp)
         }
         error?.let {
             Spacer(Modifier.height(8.dp))

@@ -72,6 +72,8 @@ data class Settings(
 class SettingsStore(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("ember_settings", Context.MODE_PRIVATE)
+    /** 백업에 넣지 않는 이 기기 전용 값(설치 ID). backup_rules 에 없으므로 복원되지 않는다. */
+    private val deviceOnly: SharedPreferences = context.getSharedPreferences("ember_device", Context.MODE_PRIVATE)
     private val secure: SharedPreferences? = runCatching {
         val master = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
         EncryptedSharedPreferences.create(
@@ -113,8 +115,18 @@ class SettingsStore(context: Context) {
     // ------------------------------------------------------------ Ember 크레딧
 
     /** 기기 설치마다 한 번 만드는 익명 ID. 서버 등록에만 쓴다. */
-    fun installId(): String = prefs.getString("install_id", null) ?: java.util.UUID.randomUUID().toString().also {
-        prefs.edit(commit = true) { putString("install_id", it) }
+    /**
+     * 설치 ID 는 백업하지 않는 별도 저장소에 둔다. 백업으로 새 기기에 같은 ID 가 복원되면
+     * 두 기기가 한 계정을 두고 서로 로그아웃시키기 때문이다.
+     * 예전 버전에서 일반 설정에 저장한 ID 는 이 기기에 크레딧 토큰이 있을 때만(복원된 기기가 아닐 때만) 옮겨 온다.
+     */
+    fun installId(): String {
+        deviceOnly.getString("install_id", null)?.let { return it }
+        val legacy = prefs.getString("install_id", null)?.takeIf { !creditToken().isNullOrBlank() }
+        val id = legacy ?: java.util.UUID.randomUUID().toString()
+        deviceOnly.edit(commit = true) { putString("install_id", id) }
+        prefs.edit(commit = true) { remove("install_id") }
+        return id
     }
 
     fun creditToken(): String? = keyPrefs.getString(KEY_CREDIT, null)

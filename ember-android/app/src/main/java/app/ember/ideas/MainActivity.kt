@@ -143,7 +143,7 @@ fun EmberRoot(
             androidx.compose.runtime.LaunchedEffect(inc, onboarded) {
                 if (inc == null || !onboarded) return@LaunchedEffect
                 when (inc) {
-                    is Incoming.OpenProject -> nav.navigate("project/${inc.id}") { launchSingleTop = true }
+                    is Incoming.OpenProject -> runCatching { nav.navigate("project/${inc.id}") { launchSingleTop = true } }
                     is Incoming.Shared -> {
                         SharedSeed.shared = inc
                         nav.navigate("main") { popUpTo(0) { inclusive = true } }
@@ -228,6 +228,8 @@ fun MainTabs(
     val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     var oreTab by rememberSaveable { mutableIntStateOf(0) }
+    // 다른 탭에서 뒤로 가기를 누르면 앱을 끄지 않고 화로 탭으로 돌아온다.
+    androidx.activity.compose.BackHandler(tab != 0) { tab = 0 }
     // 원석이나 거푸집을 골라 화로로 넘기면 화로 탭으로 돌아간다.
     val oreSeed = app.ember.ideas.ui.screens.OreSeed.value.value
     val moldSeed = app.ember.ideas.ui.screens.MoldSeed.value.value
@@ -365,14 +367,19 @@ sealed interface Incoming {
     companion object {
         fun from(intent: android.content.Intent?): Incoming? {
             if (intent == null) return null
-            intent.getStringExtra(app.ember.ideas.work.Notifier.EXTRA_PROJECT)?.let { return OpenProject(it) }
+            // 다른 앱도 이 화면을 열 수 있으므로 프로젝트 id 형식을 확인한다(이상한 값은 화면 이동에서 앱을 죽인다).
+            intent.getStringExtra(app.ember.ideas.work.Notifier.EXTRA_PROJECT)
+                ?.takeIf { Regex("^[A-Za-z0-9_]{1,64}$").matches(it) }
+                ?.let { return OpenProject(it) }
             if (intent.action == android.content.Intent.ACTION_SEND) {
                 val text = listOfNotNull(
                     intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT),
                     intent.getStringExtra(android.content.Intent.EXTRA_TEXT),
                 ).joinToString("\n").trim()
                 @Suppress("DEPRECATION")
-                val image = if (intent.type?.startsWith("image/") == true) intent.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM) else null
+                // content:// 만 받는다(file:// 로 앱 자신의 파일을 가리키는 것을 막는다).
+                val image = if (intent.type?.startsWith("image/") == true) intent.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)
+                    ?.takeIf { it.scheme == "content" && it.authority != "app.ember.ideas.files" } else null
                 if (text.isNotEmpty() || image != null) return Shared(text.take(400), image)
             }
             return null

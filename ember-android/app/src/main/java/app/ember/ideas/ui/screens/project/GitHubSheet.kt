@@ -103,6 +103,11 @@ fun GitHubConnectForm(onConnected: () -> Unit) {
                     onConnected()
                 } catch (e: GitHubError) {
                     error = s.githubError(e)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 토큰에 헤더로 보낼 수 없는 글자(한글, …)가 섞이면 여기로 온다.
+                    error = s.githubError(GitHubError.BadToken)
                 } finally {
                     checking = false
                 }

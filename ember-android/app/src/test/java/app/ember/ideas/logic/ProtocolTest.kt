@@ -23,7 +23,8 @@ class ProtocolTest {
         assertEquals(listOf(1, 4), Protocol.lettersIn("b+e", 5))
         assertEquals(listOf(0, 2), Protocol.lettersIn("A, C", 5))
         assertEquals(listOf(1, 4), Protocol.lettersIn("b와 e", 5))
-        assertEquals(listOf(1, 3), Protocol.lettersIn("2 4", 5))
+        // 숫자는 "4명"처럼 답일 수 있으므로 기호로 보지 않는다.
+        assertEquals(null, Protocol.lettersIn("2 4", 5))
         assertEquals(listOf(1, 4), Protocol.lettersIn("(B) + (E)", 5))
         assertEquals(null, Protocol.lettersIn("b인데 더 어둡게", 5))
         assertEquals(null, Protocol.lettersIn("f", 5))

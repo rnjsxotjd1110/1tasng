@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -23,10 +23,23 @@ import (
 const (
 	// MaxBodyBytes caps every request body.
 	MaxBodyBytes = 2 << 20
+	// MaxPairBodyBytes caps /ember/pair bodies (a code and a device name).
+	MaxPairBodyBytes = 1 << 10
 	// MaxFiles caps the number of files in one send.
 	MaxFiles = 500
-	// PairAttemptsPerMinute is the per-IP pairing rate limit.
+	// PairAttemptsPerMinute is the per-IP (IPv6: per /64) pairing rate limit.
 	PairAttemptsPerMinute = 5
+	// PairGlobalMaxFailures wrong codes from any sources within
+	// PairGlobalWindow pause all pairing for PairLockoutDuration.
+	PairGlobalMaxFailures = 10
+	PairGlobalWindow      = 10 * time.Minute
+	PairLockoutDuration   = 5 * time.Minute
+	// CodeLaunchCooldown is the minimum gap between two code-mode sends
+	// (each opens a terminal) from one device.
+	CodeLaunchCooldown = 10 * time.Second
+	// HTTPWriteTimeout is the http.Server WriteTimeout. It must exceed the
+	// slowest /ember/send (launch timeout + clipboard + open folder).
+	HTTPWriteTimeout = 120 * time.Second
 
 	maxDeviceNameRunes = 64
 	maxTitleRunes      = 80
@@ -44,11 +57,15 @@ type Server struct {
 	Config  *config.Store
 	Codes   *pairing.CodeManager
 	Limiter *pairing.RateLimiter
+	Lockout *pairing.Lockout // global wrong-code lockout for pairing
 	Exec    launcher.Executor
 	Version string
 	Logf    func(format string, args ...any) // console status lines; never secrets
 	Now     func() time.Time
 	mux     *http.ServeMux
+
+	launchMu   sync.Mutex
+	lastLaunch map[string]time.Time // device token hash → last code-mode send
 }
 
 // New wires a server with default limits.
@@ -60,11 +77,14 @@ func New(cfg *config.Store, codes *pairing.CodeManager, exec launcher.Executor, 
 		Config:  cfg,
 		Codes:   codes,
 		Limiter: pairing.NewRateLimiter(PairAttemptsPerMinute, time.Minute),
+		Lockout: pairing.NewLockout(PairGlobalMaxFailures, PairGlobalWindow, PairLockoutDuration),
 		Exec:    exec,
 		Version: version,
 		Logf:    logf,
 		Now:     time.Now,
 		mux:     http.NewServeMux(),
+
+		lastLaunch: map[string]time.Time{},
 	}
 	s.mux.HandleFunc("/ember/info", s.method(http.MethodGet, s.handleInfo))
 	s.mux.HandleFunc("/ember/pair", s.method(http.MethodPost, s.handlePair))
@@ -77,8 +97,8 @@ func New(cfg *config.Store, codes *pairing.CodeManager, exec launcher.Executor, 
 	return s
 }
 
-// Handler returns the HTTP handler for the API.
-func (s *Server) Handler() http.Handler { return s.mux }
+// Handler returns the HTTP handler for the API, behind the LAN/browser guard.
+func (s *Server) Handler() http.Handler { return s.guard(s.mux) }
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -103,6 +123,11 @@ func (s *Server) method(m string, h http.HandlerFunc) http.HandlerFunc {
 		if r.Method != m {
 			w.Header().Set("Allow", m)
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", m+" 요청만 받아요.")
+			return
+		}
+		if m == http.MethodPost && !isJSON(r.Header.Get("Content-Type")) {
+			writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type",
+				"Content-Type 은 application/json 이어야 해요.")
 			return
 		}
 		h(w, r)
@@ -143,29 +168,25 @@ func bearer(r *http.Request) (string, bool) {
 	return t, t != ""
 }
 
-// decode reads a JSON body capped at MaxBodyBytes. It writes the error
+// decode reads a JSON body capped at limit bytes. It writes the error
 // response itself and returns false on failure.
-func decode(w http.ResponseWriter, r *http.Request, v any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+func decode(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(v); err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writeError(w, http.StatusRequestEntityTooLarge, "too_large", "보낸 내용이 너무 커요(최대 2MB).")
+			size := fmt.Sprintf("%dMB", limit>>20)
+			if limit < 1<<20 {
+				size = fmt.Sprintf("%dKB", limit>>10)
+			}
+			writeError(w, http.StatusRequestEntityTooLarge, "too_large", "보낸 내용이 너무 커요(최대 "+size+").")
 			return false
 		}
 		writeError(w, http.StatusBadRequest, "bad_json", "요청 형식이 올바르지 않아요.")
 		return false
 	}
 	return true
-}
-
-func remoteIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
 
 // Printable removes control characters (so a phone cannot inject terminal
@@ -219,23 +240,43 @@ type pairResponse struct {
 	ID    string `json:"id"`
 }
 
+// retrySeconds rounds a wait up to whole seconds for Retry-After.
+func retrySeconds(d time.Duration) int {
+	secs := int((d + time.Second - 1) / time.Second)
+	if secs < 1 {
+		secs = 1
+	}
+	return secs
+}
+
+func tooMany(w http.ResponseWriter, wait time.Duration, msgf string) {
+	secs := retrySeconds(wait)
+	w.Header().Set("Retry-After", strconv.Itoa(secs))
+	writeError(w, http.StatusTooManyRequests, "rate_limited", fmt.Sprintf(msgf, secs))
+}
+
 func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
-	ip := remoteIP(r)
-	if ok, retry := s.Limiter.Allow(ip); !ok {
-		secs := int(retry.Seconds()) + 1
-		w.Header().Set("Retry-After", strconv.Itoa(secs))
-		writeError(w, http.StatusTooManyRequests, "rate_limited",
-			fmt.Sprintf("시도가 너무 많아요. %d초 뒤에 다시 해 주세요.", secs))
+	if locked, left := s.Lockout.Locked(); locked {
+		tooMany(w, left, "틀린 페어링 코드가 너무 많이 들어와서 PC가 연결을 잠시 막았어요. %d초 뒤에 다시 해 주세요.")
+		return
+	}
+	key := rateKey(r.RemoteAddr)
+	if ok, retry := s.Limiter.Allow(key); !ok {
+		tooMany(w, retry, "시도가 너무 많아요. %d초 뒤에 다시 해 주세요.")
 		return
 	}
 	var req pairRequest
-	if !decode(w, r, &req) {
+	if !decode(w, r, &req, MaxPairBodyBytes) {
 		return
 	}
 	if !s.Codes.Verify(req.Code) {
-		s.logf("페어링 실패: 코드가 맞지 않아요 (%s)", ip)
+		s.logf("페어링 실패: 코드가 맞지 않아요 (%s)", Printable(key, 64))
+		if s.Lockout.Fail() {
+			s.logf("! 틀린 페어링 코드가 %d분 안에 %d번 들어와서 페어링을 %d분 동안 멈춰요. 모르는 기기가 연결을 시도하고 있을 수 있어요.",
+				int(PairGlobalWindow/time.Minute), PairGlobalMaxFailures, int(PairLockoutDuration/time.Minute))
+		}
 		writeError(w, http.StatusForbidden, "bad_code",
-			"페어링 코드가 맞지 않거나 만료됐어요. PC 화면에 보이는 6자리 코드를 다시 확인해 주세요.")
+			fmt.Sprintf("페어링 코드가 맞지 않거나 만료됐어요. PC 화면에 보이는 %d자리 코드를 다시 확인해 주세요.", pairing.CodeDigits))
 		return
 	}
 	name := Printable(req.DeviceName, maxDeviceNameRunes)
@@ -281,7 +322,7 @@ var modeLabels = map[string]string{
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice) {
 	var req sendRequest
-	if !decode(w, r, &req) {
+	if !decode(w, r, &req, MaxBodyBytes) {
 		return
 	}
 	label, okMode := modeLabels[req.Mode]
@@ -312,11 +353,19 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 		return
 	}
 
+	if req.Mode == ModeCode {
+		if wait := s.reserveLaunch(d.hash); wait > 0 {
+			tooMany(w, wait, fmt.Sprintf("Claude Code는 기기마다 %d초에 한 번만 실행할 수 있어요. %%d초 뒤에 다시 보내 주세요.",
+				int(CodeLaunchCooldown/time.Second)))
+			return
+		}
+	}
+
 	title := Printable(req.Title, maxTitleRunes)
 	if title == "" {
 		title = "(제목 없음)"
 	}
-	s.logf("받음: \"%s\" · 모드: %s · 기기: %s", title, label, d.dev.DeviceName)
+	s.logf("받음: \"%s\" · 모드: %s · 기기: %s", title, label, Printable(d.dev.DeviceName, maxDeviceNameRunes))
 
 	claudePath, claudeFound := s.Exec.FindClaude()
 	resp := sendResponse{OK: true, Mode: req.Mode, Saved: []string{}, ClaudeFound: claudeFound}
@@ -326,7 +375,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 	if needFolder {
 		saved, err := project.Write(root, dir, req.Files, req.Prompt)
 		if err != nil {
-			s.logf("  ! 저장 실패: %v", err)
+			s.logf("  ! 저장 실패: %s", Printable(err.Error(), 300))
 			if errors.Is(err, project.ErrBadPath) {
 				writeError(w, http.StatusBadRequest, "bad_path", "프로젝트 폴더 밖으로 나가는 경로라서 저장하지 않았어요.")
 				return
@@ -345,11 +394,11 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 		} else {
 			resp.Message = "프로젝트 폴더에 프롬프트를 저장했어요"
 		}
-		s.logf("  → 저장: %s (파일 %d개)", dir, len(resp.Saved))
+		s.logf("  → 저장: %s (파일 %d개)", Printable(dir, 300), len(resp.Saved))
 
 	case ModeClipboard:
 		if err := s.Exec.CopyToClipboard(req.Prompt); err != nil {
-			s.logf("  ! 클립보드 복사 실패: %v", err)
+			s.logf("  ! 클립보드 복사 실패: %s", Printable(err.Error(), 300))
 			msg := "PC 클립보드에 복사하지 못했어요."
 			if resp.Folder != "" {
 				msg += " 프롬프트는 프로젝트 폴더의 .ember/prompt.md 에 저장했어요."
@@ -363,7 +412,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 		}
 		s.logf("  → 클립보드에 복사했어요")
 		if resp.Folder != "" {
-			s.logf("  → 저장: %s (파일 %d개)", dir, len(resp.Saved))
+			s.logf("  → 저장: %s (파일 %d개)", Printable(dir, 300), len(resp.Saved))
 		}
 
 	case ModeCode:
@@ -375,7 +424,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 		}
 		if launched {
 			resp.Message = "PC에서 새 터미널을 열고 Claude Code를 시작했어요"
-			s.logf("  → Claude Code 실행: %s", dir)
+			s.logf("  → Claude Code 실행: %s", Printable(dir, 300))
 			break
 		}
 		// Fallback: clipboard + open the folder.
@@ -387,7 +436,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 			s.logf("  ! Claude Code(claude)를 찾지 못했어요 — 클립보드 복사로 대신해요")
 		} else {
 			reason = "터미널을 열지 못해서"
-			s.logf("  ! 터미널 실행 실패: %v — 클립보드 복사로 대신해요", launchErr)
+			s.logf("  ! 터미널 실행 실패: %s — 클립보드 복사로 대신해요", Printable(launchErr.Error(), 300))
 		}
 		switch {
 		case clipErr == nil:
@@ -398,16 +447,36 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d ctxDevice)
 				resp.Message += "했어요"
 			}
 		default:
-			s.logf("  ! 클립보드 복사 실패: %v", clipErr)
+			s.logf("  ! 클립보드 복사 실패: %s", Printable(clipErr.Error(), 300))
 			resp.Message = reason + " 프롬프트를 프로젝트 폴더의 .ember/prompt.md 에 저장해 두었어요"
 		}
 		if !claudeFound {
 			resp.Message += ". Claude Code를 설치하면 다음부터 바로 실행돼요"
 		}
-		s.logf("  → 저장: %s (파일 %d개)", dir, len(resp.Saved))
+		s.logf("  → 저장: %s (파일 %d개)", Printable(dir, 300), len(resp.Saved))
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// reserveLaunch records a code-mode send for the device and returns 0, or,
+// if the device sent one less than CodeLaunchCooldown ago, how long to wait.
+func (s *Server) reserveLaunch(hash string) time.Duration {
+	s.launchMu.Lock()
+	defer s.launchMu.Unlock()
+	now := s.Now()
+	if last, ok := s.lastLaunch[hash]; ok {
+		if wait := last.Add(CodeLaunchCooldown).Sub(now); wait > 0 {
+			return wait
+		}
+	}
+	for h, t := range s.lastLaunch { // at most one entry per paired device
+		if now.Sub(t) >= CodeLaunchCooldown {
+			delete(s.lastLaunch, h)
+		}
+	}
+	s.lastLaunch[hash] = now
+	return 0
 }
 
 func (s *Server) handleUnpair(w http.ResponseWriter, r *http.Request, d ctxDevice) {
@@ -417,7 +486,7 @@ func (s *Server) handleUnpair(w http.ResponseWriter, r *http.Request, d ctxDevic
 		return
 	}
 	if ok {
-		s.logf("기기 연결 해제: %s", dev.DeviceName)
+		s.logf("기기 연결 해제: %s", Printable(dev.DeviceName, maxDeviceNameRunes))
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

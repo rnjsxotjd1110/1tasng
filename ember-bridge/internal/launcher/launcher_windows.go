@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"golang.org/x/sys/windows"
 )
@@ -56,7 +55,7 @@ func (osExecutor) CopyToClipboard(text string) error {
 		return err
 	}
 	script := "Get-Content -Raw -Encoding UTF8 -LiteralPath " + PSSingleQuote(tmp) + " | Set-Clipboard"
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ClipboardTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, powershellPath(), "-NoProfile", "-NonInteractive", "-Command", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}

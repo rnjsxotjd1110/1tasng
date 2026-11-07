@@ -114,6 +114,7 @@ fun OreBoxScreen(
         item {
             Column(Modifier.statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 18.dp)) {
                 Text(s.oreBoxTitle, style = MaterialTheme.typography.headlineLarge, color = c.text)
+                Text(s.oreBoxSub, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(top = 4.dp))
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     OreTab(s.memosTab(memos.size), tab == 0) { tab = 0 }

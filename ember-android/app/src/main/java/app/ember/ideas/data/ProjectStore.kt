@@ -92,7 +92,15 @@ class ProjectStore(private val dir: File, private val scope: CoroutineScope) {
      * @return 새로 들어오거나 바뀐 프로젝트 수. 파일 형식이 틀리면 null.
      */
     fun importJson(text: String): Int? {
-        val incoming = runCatching { Protocol.json.decodeFromString(serializer, text) }.getOrNull() ?: return null
+        val imagesDir = File(dir, "images").canonicalPath + File.separator
+        fun ownImage(p: String) = runCatching { File(p).canonicalPath.startsWith(imagesDir) }.getOrDefault(false)
+        // 가져온 파일이 앱 밖의 파일을 참고 이미지로 가리키지 못하게 걸러 낸다.
+        val incoming = (runCatching { Protocol.json.decodeFromString(serializer, text) }.getOrNull() ?: return null).map { p ->
+            p.copy(
+                images = p.images.filter(::ownImage),
+                messages = p.messages.map { m -> if (m.images.isEmpty()) m else m.copy(images = m.images.filter(::ownImage)) },
+            )
+        }
         var changed = 0
         _projects.update { list ->
             val byId = list.associateBy { it.id }.toMutableMap()

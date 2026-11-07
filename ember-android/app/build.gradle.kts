@@ -118,3 +118,12 @@ dependencies {
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.50.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
+
+// Play 에 올리는 번들(bundleRelease)은 출시 키가 없으면 만들지 않는다(디버그 키로 서명된 번들은 Play 가 거절한다).
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    doFirst {
+        if (android.signingConfigs.findByName("release") == null) {
+            throw GradleException("출시 서명 키가 없어요. 프로젝트 루트에 keystore.properties 를 두세요(README '빌드' 참고).")
+        }
+    }
+}

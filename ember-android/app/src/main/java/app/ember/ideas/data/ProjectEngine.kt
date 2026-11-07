@@ -265,10 +265,11 @@ class ProjectEngine(
                     webSearch = search,
                 ),
             ) { text -> showPartial(id, text) }
+            // 응답을 받은 순간 요금은 이미 나갔으므로, 해석 실패·중지와 상관없이 먼저 기록한다.
+            charge(id, result.usage)
             var reply = parse(result.text).let { r -> r.copy(ideas = r.ideas.map { it.copy(references = verifiedReferences(it.references, result.sources)) }) }
             if (!reply.isQuestion && !reply.isIdeas) throw AiError.BadResponse
             var history = messages + ChatMessage(ChatMessage.ASSISTANT, result.text)
-            var usage = result.usage
             // 앞에서 받은 아이디어를 그대로 다시 보내면 겹치는 것을 빼고, 대부분 겹치면 한 번 더 요청한다.
             val previous = store.get(id)?.allIdeas.orEmpty()
             val discarded = store.get(id)?.discardedTitles.orEmpty()
@@ -280,24 +281,17 @@ class ProjectEngine(
                         questionModel(OpKind.IDEAS),
                         TurnRequest(Protocol.discoverySystem(lang), history + ask, Protocol.discoverySchema, if (deep) Effort.HIGH else Effort.MEDIUM),
                     )
-                    usage += again.usage
+                    charge(id, again.usage)
                     val r2 = parse(again.text)
-                    if (!r2.isIdeas) {
-                        settings.addUsage(usage)
-                        throw AiError.BadResponse
-                    }
+                    if (!r2.isIdeas) throw AiError.BadResponse
                     history = history + ask + ChatMessage(ChatMessage.ASSISTANT, again.text)
                     reply = r2
                 }
                 val fresh = reply.ideas - duplicatesOf(reply.ideas, previous, discarded).toSet()
-                if (fresh.isEmpty()) {
-                    settings.addUsage(usage)
-                    throw AiError.DuplicateIdeas
-                }
+                if (fresh.isEmpty()) throw AiError.DuplicateIdeas
                 reply = reply.copy(ideas = fresh)
             }
             val finalHistory = history
-            val finalUsage = usage
             val finalReply = reply
             // 중지된 작업이 늦게 돌아와도 결과를 저장하지 않는다.
             currentCoroutineContext().ensureActive()
@@ -306,7 +300,6 @@ class ProjectEngine(
                 val reply = finalReply
                 val withMsgs = proj.copy(
                     messages = finalHistory,
-                    usage = proj.usage + finalUsage,
                     extraQuestionsLeft = extraAfter(reply.isQuestion),
                 )
                 if (reply.isQuestion) {
@@ -329,8 +322,14 @@ class ProjectEngine(
                     )
                 }
             }
-            settings.addUsage(finalUsage)
         }
+    }
+
+    /** 받은 응답의 사용량을 바로 기록한다(앱 전체와 이 프로젝트). */
+    private fun charge(id: String, u: Usage) {
+        if (u.requests == 0 && u.costUsd == 0.0 && u.inputTokens == 0L && u.outputTokens == 0L) return
+        store.update(id, touch = false) { it.copy(usage = it.usage + u) }
+        settings.addUsage(u)
     }
 
     // ------------------------------------------------------------ 아이디어 보관
@@ -457,6 +456,7 @@ class ProjectEngine(
                     effort = if (deep) Effort.HIGH else Effort.MEDIUM,
                 ),
             ) { text -> showPartial(id, text) }
+            charge(id, result.usage)
             val reply = parse(result.text)
             if (!reply.isQuestion && !reply.isReady) throw AiError.BadResponse
             currentCoroutineContext().ensureActive()
@@ -468,9 +468,8 @@ class ProjectEngine(
                 } else {
                     d1.copy(readySummary = reply.readySummary)
                 }
-                proj.copy(design = d2, usage = proj.usage + result.usage, stage = if (reply.isReady) ProjectStage.DOCUMENT else ProjectStage.DESIGN_INTERVIEW)
+                proj.copy(design = d2, stage = if (reply.isReady) ProjectStage.DOCUMENT else ProjectStage.DESIGN_INTERVIEW)
             }
-            settings.addUsage(result.usage)
             if (reply.isReady) {
                 // 결정이 끝나면 곧바로 설계서 작성으로 넘어간다.
                 nextAfter[id] = { generateDocument(id) }
@@ -526,6 +525,7 @@ class ProjectEngine(
             val p = store.get(id) ?: return@launchOp
             val depth = p.design?.depth ?: DocDepth.STANDARD
             val sb = StringBuilder()
+            var charged = false
             var lastPush = 0L
             try {
                 aiFor(id).stream(
@@ -546,24 +546,23 @@ class ProjectEngine(
                             }
                         }
                         is StreamEvent.Done -> {
+                            charged = true
+                            charge(id, ev.usage)
                             val md = sb.toString().trim()
                             if (md.isEmpty()) throw AiError.BadResponse
                             currentCoroutineContext().ensureActive()
-                            saveVersion(id, md, note, complete = !ev.truncated, usage = ev.usage)
-                            settings.addUsage(ev.usage)
+                            saveVersion(id, md, note, complete = !ev.truncated, usage = Usage())
                         }
                     }
                 }
             } catch (e: CancellationException) {
                 // 사용자가 멈춘 경우: 잘린 원고를 새 버전으로 남기지 않는다.
                 // 멈추기 전까지 받은 분량은 이미 요금이 나갔으므로 어림값으로 기록한다.
-                if (sb.isNotEmpty() && store.get(id)?.isDemo != true) {
-                    val est = estimateUsage(model, messages, p.kind, depth, sb.length)
-                    store.update(id, touch = false) { it.copy(usage = it.usage + est) }
-                    settings.addUsage(est)
-                }
+                if (!charged && sb.isNotEmpty() && store.get(id)?.isDemo != true) charge(id, estimateUsage(model, messages, p.kind, depth, sb.length))
                 throw e
             } catch (e: Throwable) {
+                // 네트워크가 끊기는 등으로 사용량 보고를 받지 못했으면 받은 분량만큼 어림값으로 기록한다.
+                if (!charged && sb.isNotEmpty() && store.get(id)?.isDemo != true) charge(id, estimateUsage(model, messages, p.kind, depth, sb.length))
                 // 처음 쓰다가 끊기면 받은 부분을 미완성 버전으로 남긴다.
                 // 수정 중에 끊기면 잘린 원고가 최신본이 되지 않도록 이전 완성본을 그대로 둔다.
                 val partial = sb.toString().trim()

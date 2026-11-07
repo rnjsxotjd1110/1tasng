@@ -45,6 +45,9 @@ data class Endpoint(val key: String, val baseUrl: String? = null)
  * Anthropic Java SDK 로 Claude 를 부른다.
  * 보낼 곳은 매 요청마다 [endpoint] 에서 읽어 오며, 바뀌면 클라이언트를 다시 만든다.
  */
+/** 참고 이미지 한 장의 최대 크기(앱이 저장할 때 줄이므로 이보다 크면 앱이 만든 파일이 아니다). */
+private const val MAX_IMAGE_BYTES = 5L * 1024 * 1024
+
 class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
 
     @Volatile private var cached: Pair<Endpoint, AnthropicClient>? = null
@@ -103,8 +106,9 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
     }
 
     private fun imageBlock(path: String): ContentBlockParam? {
-        val f = java.io.File(path)
-        if (!f.isFile) return null
+        val f = java.io.File(path).canonicalFile
+        // 앱이 저장한 참고 이미지(files/images/)만 보낸다. 가져온 백업이 다른 파일을 가리켜도 읽지 않는다.
+        if (!f.isFile || f.parentFile?.name != "images" || f.parentFile?.parentFile?.name != "files" || f.length() > MAX_IMAGE_BYTES) return null
         val data = java.util.Base64.getEncoder().encodeToString(f.readBytes())
         return ContentBlockParam.ofImage(Base64ImageSource.builder().mediaType(Base64ImageSource.MediaType.IMAGE_JPEG).data(data).build())
     }
@@ -135,7 +139,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
             }
             val u = response.usage()
             val searches = u.serverToolUse().map { it.webSearchRequests() }.orElse(0L)
-            usage += usageOf(model, u.inputTokens(), u.outputTokens(), u.cacheReadInputTokens().orElse(0L), u.cacheCreationInputTokens().orElse(0L), searches)
+            usage += usageOf(ClaudeModel.find(response.model().asString()) ?: model, u.inputTokens(), u.outputTokens(), u.cacheReadInputTokens().orElse(0L), u.cacheCreationInputTokens().orElse(0L), searches)
             response.content().forEach { b ->
                 b.webSearchToolResult().orElse(null)?.content()?.resultBlocks()?.orElse(null)?.forEach { r ->
                     sources.putIfAbsent(r.url(), app.ember.ideas.data.Reference(r.title(), r.url()))
@@ -170,6 +174,8 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
             var cacheWrite = 0L
             var output = 0L
             var stop: StopReason? = null
+        // 서버가 다른 모델로 답했으면(무료 크레딧의 Sonnet, 대체 모델) 그 모델 단가로 계산한다.
+        var answered = model
             var lastEmit = 0L
             mapErrors {
                 withFallbackRetry { fb ->
@@ -183,6 +189,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
                             currentCoroutineContext().ensureActive()
                             val event = it.next()
                             event.messageStart().orElse(null)?.let { st ->
+                                ClaudeModel.find(st.message().model().asString())?.let { answered = it }
                                 val u = st.message().usage()
                                 input = u.inputTokens()
                                 cacheRead = u.cacheReadInputTokens().orElse(0L)
@@ -209,7 +216,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
             val result = text.toString()
             if (result.isBlank() || stop == StopReason.MAX_TOKENS) throw AiError.BadResponse
             onText(result)
-            TurnResult(result, usageOf(model, input, output, cacheRead, cacheWrite))
+            TurnResult(result, usageOf(answered, input, output, cacheRead, cacheWrite))
         }
     }
 
@@ -220,6 +227,8 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
         var cacheWrite = 0L
         var output = 0L
         var stop: StopReason? = null
+        // 서버가 다른 모델로 답했으면(무료 크레딧의 Sonnet, 대체 모델) 그 모델 단가로 계산한다.
+        var answered = model
         mapErrors {
             withFallbackRetry { fb ->
                 val params = MessageCreateParams.builder()
@@ -231,6 +240,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
                         currentCoroutineContext().ensureActive()
                         val event = it.next()
                         event.messageStart().orElse(null)?.let { s ->
+                            ClaudeModel.find(s.message().model().asString())?.let { answered = it }
                             val u = s.message().usage()
                             input = u.inputTokens()
                             cacheRead = u.cacheReadInputTokens().orElse(0L)
@@ -249,7 +259,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
             }
         }
         if (stop == StopReason.REFUSAL) throw AiError.Refused
-        emit(StreamEvent.Done(usageOf(model, input, output, cacheRead, cacheWrite), truncated = stop == StopReason.MAX_TOKENS))
+        emit(StreamEvent.Done(usageOf(answered, input, output, cacheRead, cacheWrite), truncated = stop == StopReason.MAX_TOKENS))
     }.flowOn(Dispatchers.IO)
 
     override suspend fun validate(apiKey: String, model: ClaudeModel) = withContext(Dispatchers.IO) {

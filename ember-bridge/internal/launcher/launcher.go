@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Executor is the OS-facing side of the bridge.
@@ -22,6 +23,19 @@ type Executor interface {
 	// OpenFolder shows folder in the file manager.
 	OpenFolder(folder string) error
 }
+
+// Timeouts for the helper programs. The HTTP server's WriteTimeout must be
+// longer than the slowest path through /ember/send (launch, then the
+// clipboard fallback), or the phone never gets the response.
+const (
+	// LaunchTimeout bounds osascript (macOS), which may wait on the
+	// "control Terminal" permission dialog the first time.
+	LaunchTimeout = 40 * time.Second
+	// ClipboardTimeout bounds one clipboard helper run.
+	ClipboardTimeout = 20 * time.Second
+	// OpenFolderTimeout bounds opening the file manager (darwin waits for it).
+	OpenFolderTimeout = 10 * time.Second
+)
 
 // New returns the Executor for the current OS.
 func New() Executor { return osExecutor{} }
@@ -66,9 +80,11 @@ func AppleScriptString(s string) string {
 
 // UnixClaudeCommand is the shell command run in the new terminal on
 // macOS/Linux: cd into the project and start Claude with the saved prompt.
+// The "--" ends option parsing, so a prompt that starts with '-' (say
+// "--dangerously-skip-permissions") is always the prompt, never a flag.
 func UnixClaudeCommand(folder, claudePath string) string {
 	return "cd " + ShSingleQuote(folder) + " && " + ShSingleQuote(claudePath) +
-		` "$(cat .ember/prompt.md)"`
+		` -- "$(cat .ember/prompt.md)"`
 }
 
 // WindowsClaudeScript is the PowerShell -Command script for the new window.

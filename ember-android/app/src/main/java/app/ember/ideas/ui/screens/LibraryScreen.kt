@@ -126,6 +126,7 @@ fun LibraryScreen(
             Column(Modifier.statusBarsPadding().padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(20.dp))
                 Text(s.libraryTitle, style = MaterialTheme.typography.headlineLarge, color = c.text)
+                Text(s.librarySub, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(top = 4.dp))
                 Spacer(Modifier.height(16.dp))
                 EmberTextField(
                     value = query,

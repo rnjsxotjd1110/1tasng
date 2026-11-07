@@ -107,10 +107,10 @@ func run() error {
 	}
 	cfg, warning, err := config.Load(cfgPath, hostname)
 	if err != nil {
-		return fmt.Errorf("설정 파일을 열지 못했어요(%s): %w", cfgPath, err)
+		return fmt.Errorf("설정 파일을 열지 못했어요(%s): %w", server.Printable(cfgPath, 300), err)
 	}
 	if warning != "" {
-		fmt.Println("주의:", warning)
+		fmt.Println("주의:", server.Printable(warning, 400))
 	}
 	if *name != "" {
 		n := server.Printable(*name, 64)
@@ -158,7 +158,7 @@ func run() error {
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		WriteTimeout:      server.HTTPWriteTimeout, // longer than the slowest /ember/send
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    32 << 10,
 	}
@@ -211,7 +211,7 @@ func printBanner(cfg *config.Store, addrs []netinfo.Addr, port, wantedPort int, 
 	fmt.Println(line)
 	fmt.Printf("  Ember 브리지 v%s\n", version)
 	fmt.Println(line)
-	fmt.Printf("  브리지 이름   %s\n", cfg.Name())
+	fmt.Printf("  브리지 이름   %s\n", server.Printable(cfg.Name(), 64))
 	if len(addrs) == 0 {
 		fmt.Printf("  주소          (네트워크 연결을 찾지 못했어요) 포트 %d\n", port)
 	}
@@ -220,12 +220,12 @@ func printBanner(cfg *config.Store, addrs []netinfo.Addr, port, wantedPort int, 
 		if i > 0 {
 			label = "                "
 		}
-		fmt.Printf("%s%s:%d   (%s)\n", label, a.IP, port, a.Iface)
+		fmt.Printf("%s%s:%d   (%s)\n", label, a.IP, port, server.Printable(a.Iface, 40))
 	}
 	if port != wantedPort {
 		fmt.Printf("  (포트 %d 이 사용 중이라 %d 을 쓰고 있어요)\n", wantedPort, port)
 	}
-	fmt.Printf("  프로젝트 폴더 %s\n", cfg.Root())
+	fmt.Printf("  프로젝트 폴더 %s\n", server.Printable(cfg.Root(), 300))
 	fmt.Printf("  연결된 기기   %d대\n", cfg.DeviceCount())
 	fmt.Println()
 	fmt.Printf("  페어링 코드   %s   (%s까지 유효)\n", code, exp.Format("15:04"))

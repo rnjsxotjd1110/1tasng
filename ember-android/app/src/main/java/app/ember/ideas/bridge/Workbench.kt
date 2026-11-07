@@ -72,6 +72,7 @@ internal object MiniHttp {
     private const val CONNECT_TIMEOUT_MS = 2500
     private const val READ_TIMEOUT_MS = 20000
     private const val MAX_BODY = 1 shl 20
+    private const val MAX_HEADERS = 100
 
     fun request(host: String, port: Int, method: String, path: String, body: String? = null, token: String? = null, readTimeoutMs: Int = READ_TIMEOUT_MS): Response {
         val bytes = body?.toByteArray(Charsets.UTF_8)
@@ -99,19 +100,24 @@ internal object MiniHttp {
             out.write(head.toByteArray(Charsets.ISO_8859_1))
             if (bytes != null) out.write(bytes)
             out.flush()
-            return try { parse(BufferedInputStream(sock.getInputStream())) } catch (e: BridgeError) { throw e } catch (e: Exception) {
+            return try { parse(BufferedInputStream(sock.getInputStream()), System.currentTimeMillis() + readTimeoutMs * 2L) } catch (e: BridgeError) { throw e } catch (e: Exception) {
                 throw BridgeError.Unreachable(e.message ?: "read")
             }
         }
     }
 
-    internal fun parse(input: InputStream): Response {
+    /** [deadline] 까지 다 받지 못하면(조금씩 흘려보내는 응답) 실패로 본다. 본문 합계는 [MAX_BODY] 까지. */
+    internal fun parse(input: InputStream, deadline: Long = Long.MAX_VALUE): Response {
+        fun checkTime() { if (System.currentTimeMillis() > deadline) throw BridgeError.Unreachable("timeout") }
         val status = readLine(input).split(' ').getOrNull(1)?.toIntOrNull() ?: throw BridgeError.Rejected("bad status line")
         var length = -1
         var chunked = false
+        var headers = 0
         while (true) {
+            checkTime()
             val line = readLine(input)
             if (line.isEmpty()) break
+            if (++headers > MAX_HEADERS) throw BridgeError.Rejected("too many headers")
             val name = line.substringBefore(':').trim().lowercase()
             val value = line.substringAfter(':', "").trim()
             if (name == "content-length") length = value.toIntOrNull() ?: -1
@@ -120,12 +126,17 @@ internal object MiniHttp {
         val buf = ByteArrayOutputStream()
         when {
             chunked -> while (true) {
-                val size = readLine(input).substringBefore(';').trim().toInt(16)
+                checkTime()
+                val size = readLine(input).substringBefore(';').trim().toIntOrNull(16) ?: throw BridgeError.Rejected("bad chunk")
                 if (size == 0) break
-                copy(input, buf, size)
+                if (size < 0 || buf.size() + size > MAX_BODY) throw BridgeError.Rejected("body too large")
+                copy(input, buf, size, ::checkTime)
                 readLine(input)
             }
-            length >= 0 -> copy(input, buf, length)
+            length >= 0 -> {
+                if (length > MAX_BODY) throw BridgeError.Rejected("body too large")
+                copy(input, buf, length, ::checkTime)
+            }
             else -> {
                 val tmp = ByteArray(4096)
                 while (true) {
@@ -139,13 +150,14 @@ internal object MiniHttp {
         return Response(status, buf.toString(Charsets.UTF_8.name()))
     }
 
-    private fun copy(input: InputStream, out: ByteArrayOutputStream, n: Int) {
-        require(n <= MAX_BODY) { "body too large" }
+    private fun copy(input: InputStream, out: ByteArrayOutputStream, n: Int, checkTime: () -> Unit) {
         val tmp = ByteArray(4096)
         var left = n
         while (left > 0) {
+            checkTime()
             val r = input.read(tmp, 0, minOf(tmp.size, left))
-            if (r < 0) break
+            // 약속한 길이보다 일찍 끊기면 잘린 본문을 그대로 쓰지 않는다.
+            if (r < 0) throw BridgeError.Unreachable("truncated")
             out.write(tmp, 0, r)
             left -= r
         }
@@ -237,9 +249,15 @@ class Workbench(private val context: Context, private val settings: SettingsStor
                         val f = Found(info.serviceName, host.substringBefore('%'), info.port)
                         _found.update { list -> (list.filter { it.name != f.name } + f).sortedBy { it.name } }
                         // 연결해 둔 PC 의 주소가 바뀌었으면 고쳐 둔다.
+                        // 이름만 같은 다른 기기(사칭)로 토큰을 보내지 않도록, PC 의 고유 id 를 확인한 뒤에만 주소를 바꾼다.
                         val st = settings.settings.value
-                        if (st.workbenchName.isNotEmpty() && st.workbenchName == f.name && (st.workbenchHost != f.host || st.workbenchPort != f.port)) {
-                            settings.updateWorkbenchAddress(f.host, f.port)
+                        if (st.workbenchName.isNotEmpty() && st.workbenchName == f.name && st.workbenchId.isNotEmpty() &&
+                            (st.workbenchHost != f.host || st.workbenchPort != f.port)
+                        ) {
+                            scope.launch {
+                                val same = runCatching { info(f.host, f.port).id == st.workbenchId }.getOrDefault(false)
+                                if (same) settings.updateWorkbenchAddress(f.host, f.port)
+                            }
                         }
                     }
                     done()
@@ -340,6 +358,9 @@ class Workbench(private val context: Context, private val settings: SettingsStor
             val port = if (t.contains(':')) t.substringAfterLast(':').toIntOrNull() ?: return null else BridgeApi.DEFAULT_PORT
             if (port !in 1..65535) return null
             if (!Regex("^[A-Za-z0-9.\\-]+$").matches(host)) return null
+            // 브리지는 IP 주소나 '이름.local' 로 온 요청만 받는다(DNS 리바인딩 방지).
+            val isIp = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$").matches(host)
+            if (!isIp && !host.lowercase().endsWith(".local") && host.lowercase() != "localhost") return null
             return host to port
         }
     }

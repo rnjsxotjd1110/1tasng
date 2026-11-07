@@ -42,7 +42,8 @@ class AppContainer(context: Context, aiOverride: AiService? = null) {
         memos.load()
         molds.load()
         // 원석(메모)에 붙인 사진도 쓰는 중인 이미지로 친다.
-        images.cleanup(store.projects.value.flatMap { it.images }.toSet() + memos.items.value.mapNotNull { it.imagePath })
+        // 저장 파일이 손상되어 빈 채로 시작했다면 지우지 않는다(나중에 원본을 복구할 때 이미지가 남아 있게).
+        if (store.corruptBackup == null && !memos.corrupt) images.cleanup(store.projects.value.flatMap { it.images }.toSet() + memos.items.value.mapNotNull { it.imagePath })
         val prefs = context.getSharedPreferences("ember_meta", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("sample_added", false)) {
             store.upsert(SampleProject.create(context))

@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens
 
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Speed
@@ -86,16 +87,36 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
     val container = ctx.container
     val settings by container.settings.settings.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
+    val importScope = androidx.compose.runtime.rememberCoroutineScope()
     val importer = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val text = runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
-        val n = text?.let { container.store.importJson(it) }
-        Toast.makeText(ctx, if (n == null) s.importFailed else s.imported(n), Toast.LENGTH_LONG).show()
+        // 큰 파일을 화면 스레드에서 읽으면 멈추므로 IO 스레드에서, 크기 상한을 두고 읽는다.
+        importScope.launch {
+            val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    ctx.contentResolver.openInputStream(uri)?.use { input ->
+                        // readNBytes 는 Android 13 부터라 직접 읽는다.
+                        val out = java.io.ByteArrayOutputStream()
+                        val buf = ByteArray(64 * 1024)
+                        var tooBig = false
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            if (out.size() > MAX_IMPORT_BYTES) { tooBig = true; break }
+                        }
+                        if (tooBig) null else out.toByteArray().decodeToString()
+                    }
+                }.getOrNull()
+            }?.let { container.store.importJson(it) }
+            Toast.makeText(ctx, if (n == null) s.importFailed else s.imported(n), Toast.LENGTH_LONG).show()
+        }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(20.dp))
         Text(s.settingsTitle, style = MaterialTheme.typography.headlineLarge, color = c.text)
+        Text(s.settingsSub, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(12.dp))
 
         Group(s.benchSection) {
@@ -411,3 +432,7 @@ fun PrivacyScreen(onBack: () -> Unit) {
         }
     }
 }
+
+
+/** 가져올 백업 파일의 최대 크기. */
+private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024

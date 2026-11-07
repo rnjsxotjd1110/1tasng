@@ -24,7 +24,24 @@ const (
 	maxPathBytes    = 512
 	maxSegmentBytes = 200
 	maxFolderRunes  = 100
+
+	// Unix permissions for what the bridge creates: only the PC's user can
+	// read the project files (prompts may hold private ideas).
+	filePerm = 0o600
+	dirPerm  = 0o700
 )
+
+// blockedNames are path segments (compared case-insensitively, at any depth)
+// that tools treat as configuration: writing them could make git, Claude
+// Code, editors or direnv run commands when the folder is opened.
+var blockedNames = map[string]bool{
+	".git":      true,
+	".claude":   true,
+	".vscode":   true,
+	".idea":     true,
+	".mcp.json": true,
+	".envrc":    true,
+}
 
 var (
 	// ErrBadPath means a file path in the request is not a safe relative path.
@@ -101,9 +118,6 @@ func CleanRelPath(p string) (string, error) {
 			return "", ErrBadPath
 		}
 	}
-	if strings.EqualFold(segs[0], ".git") {
-		return "", ErrBadPath
-	}
 	return strings.Join(segs, "/"), nil
 }
 
@@ -112,8 +126,12 @@ func checkSegment(seg string) error {
 		return ErrBadPath
 	}
 	for _, r := range seg {
-		if r < 0x20 || r == 0x7f || r == utf8.RuneError {
-			return ErrBadPath // control characters, NUL, invalid UTF-8
+		if r < 0x20 || r == 0x7f || r == utf8.RuneError ||
+			unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			// Control characters, NUL, invalid UTF-8, and invisible format
+			// characters such as U+202E (right-to-left override) that make
+			// a name look different from what it is.
+			return ErrBadPath
 		}
 		switch r {
 		case '/', '\\', ':', '*', '?', '"', '<', '>', '|':
@@ -129,7 +147,21 @@ func checkSegment(seg string) error {
 	if isWindowsReserved(seg) {
 		return ErrBadPath
 	}
+	if blockedNames[strings.ToLower(seg)] || hasShortNameTilde(seg) {
+		return ErrBadPath
+	}
 	return nil
+}
+
+// hasShortNameTilde reports whether seg contains '~' followed by a digit, the
+// shape of a Windows 8.3 short name (GIT~1 is another name for .git).
+func hasShortNameTilde(seg string) bool {
+	for i := 0; i+1 < len(seg); i++ {
+		if seg[i] == '~' && seg[i+1] >= '0' && seg[i+1] <= '9' {
+			return true
+		}
+	}
+	return false
 }
 
 var reservedNames = map[string]bool{
@@ -201,7 +233,7 @@ func Write(root, dir string, files []File, prompt string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(absRoot, 0o755); err != nil {
+	if err := os.MkdirAll(absRoot, dirPerm); err != nil {
 		return nil, err
 	}
 	rel, err := filepath.Rel(absRoot, dir)
@@ -241,7 +273,7 @@ func writeOne(dir, rel, content string) error {
 	if fi, err := os.Lstat(target); err == nil && !fi.Mode().IsRegular() {
 		return fmt.Errorf("%w: %s is not a regular file", ErrBadPath, rel)
 	}
-	return os.WriteFile(target, []byte(content), 0o644)
+	return os.WriteFile(target, []byte(content), filePerm)
 }
 
 // mkdirNoLinks creates base/rel one level at a time and refuses to walk
@@ -253,7 +285,7 @@ func mkdirNoLinks(base, rel string) error {
 		cur = filepath.Join(cur, seg)
 		fi, err := os.Lstat(cur)
 		if errors.Is(err, fs.ErrNotExist) {
-			if err := os.Mkdir(cur, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			if err := os.Mkdir(cur, dirPerm); err != nil && !errors.Is(err, fs.ErrExist) {
 				return err
 			}
 			continue

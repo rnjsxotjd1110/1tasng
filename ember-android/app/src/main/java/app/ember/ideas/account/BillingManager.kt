@@ -132,20 +132,29 @@ class BillingManager(context: Context, private val account: CreditAccount, priva
 
     fun clearState() { _state.value = PurchaseState.Idle }
 
+    private val handled = java.util.Collections.synchronizedSet(HashSet<String>())
+
     private fun handle(purchase: Purchase) {
         when (purchase.purchaseState) {
             Purchase.PurchaseState.PENDING -> _state.value = PurchaseState.Pending
-            Purchase.PurchaseState.PURCHASED -> scope.launch {
+            Purchase.PurchaseState.PURCHASED -> {
+                // 앱으로 돌아올 때마다 같은 영수증을 다시 처리하지 않는다(이번 실행에서 한 번만).
+                if (!handled.add(purchase.purchaseToken)) return
+                scope.launch {
                 _state.value = PurchaseState.Working
                 try {
                     var credits = 0
-                    purchase.products.forEach { id -> credits = account.redeem(id, purchase.purchaseToken) }
+                    var granted = 0
+                    purchase.products.forEach { id -> credits = account.redeem(id, purchase.purchaseToken); granted += account.lastGranted }
                     // 서버가 Google 에 직접 소비 처리를 한 뒤 크레딧을 준다. 여기서의 소비는 예전 서버를 위한 보조라서
                     // 실패해도(이미 소비됨 등) 다시 시도하지 않는다. 실패할 때마다 복원을 부르면 무한히 되풀이된다.
                     runCatching { client.consumePurchase(ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()) }
-                    _state.value = PurchaseState.Done(credits)
+                    // 새로 받은 것이 있을 때만 '충전했어요'를 보여 준다.
+                    _state.value = if (granted > 0) PurchaseState.Done(credits) else PurchaseState.Idle
                 } catch (e: AiError) {
+                    handled.remove(purchase.purchaseToken)
                     _state.value = PurchaseState.Failed(e)
+                }
                 }
             }
             else -> Unit

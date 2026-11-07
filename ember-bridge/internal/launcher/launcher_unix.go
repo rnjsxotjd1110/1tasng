@@ -43,7 +43,7 @@ func (osExecutor) CopyToClipboard(text string) error {
 		if err != nil {
 			continue
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), ClipboardTimeout/4)
 		cmd := exec.CommandContext(ctx, path, t.args...)
 		cmd.Stdin = strings.NewReader(text)
 		// No Stdout/Stderr pipes: xclip and wl-copy fork a helper that keeps

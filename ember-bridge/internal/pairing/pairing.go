@@ -23,7 +23,13 @@ const DefaultCodeTTL = 10 * time.Minute
 // survives before it is replaced.
 const DefaultMaxFailures = 20
 
-// CodeManager owns the current 6-digit pairing code.
+// CodeDigits is the length of a pairing code (digits only).
+const CodeDigits = 8
+
+// codeSpace is 10^CodeDigits.
+const codeSpace = 100_000_000
+
+// CodeManager owns the current 8-digit pairing code.
 type CodeManager struct {
 	mu          sync.Mutex
 	code        string
@@ -152,13 +158,13 @@ func NormalizeCode(s string) string {
 	}, strings.TrimSpace(s))
 }
 
-// RandomCode returns a uniformly random 6-digit code from crypto/rand.
+// RandomCode returns a uniformly random 8-digit code from crypto/rand.
 func RandomCode() string {
-	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	n, err := rand.Int(rand.Reader, big.NewInt(codeSpace))
 	if err != nil {
 		panic("crypto/rand failed: " + err.Error())
 	}
-	return fmt.Sprintf("%06d", n.Int64())
+	return fmt.Sprintf("%0*d", CodeDigits, n.Int64())
 }
 
 // NewToken returns a new device token (32 random bytes, base64url) and its hash.
@@ -177,22 +183,60 @@ func HashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// DefaultMaxKeys caps how many distinct keys a RateLimiter tracks. A flood
+// of new source addresses beyond this is treated as limited rather than
+// growing memory without bound.
+const DefaultMaxKeys = 4096
+
 // RateLimiter allows at most limit events per key in a sliding window.
+// Allow only prunes the key it is asked about, plus a full sweep at most
+// once per window, so a request never costs O(number of keys).
 type RateLimiter struct {
-	mu     sync.Mutex
-	limit  int
-	window time.Duration
-	hits   map[string][]time.Time
-	now    func() time.Time
+	mu        sync.Mutex
+	limit     int
+	window    time.Duration
+	maxKeys   int
+	hits      map[string][]time.Time
+	lastSweep time.Time
+	now       func() time.Time
 }
 
 // NewRateLimiter creates a limiter (e.g. 5 per minute).
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
-	return &RateLimiter{limit: limit, window: window, hits: map[string][]time.Time{}, now: time.Now}
+	return &RateLimiter{limit: limit, window: window, maxKeys: DefaultMaxKeys, hits: map[string][]time.Time{}, now: time.Now}
 }
 
 // SetClock replaces the clock (tests only).
 func (r *RateLimiter) SetClock(now func() time.Time) { r.now = now }
+
+// SetMaxKeys changes the key cap (tests only).
+func (r *RateLimiter) SetMaxKeys(n int) { r.maxKeys = n }
+
+// Len reports how many keys are tracked (tests only).
+func (r *RateLimiter) Len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.hits)
+}
+
+func pruneTimes(ts []time.Time, cutoff time.Time) []time.Time {
+	i := 0
+	for i < len(ts) && !ts[i].After(cutoff) {
+		i++ // timestamps are appended in order, so stale ones are a prefix
+	}
+	return ts[i:]
+}
+
+func (r *RateLimiter) sweepLocked(now, cutoff time.Time) {
+	for k, ts := range r.hits {
+		if kept := pruneTimes(ts, cutoff); len(kept) == 0 {
+			delete(r.hits, k)
+		} else {
+			r.hits[k] = kept
+		}
+	}
+	r.lastSweep = now
+}
 
 // Allow records an attempt for key and reports whether it is allowed. When
 // it is not, retryAfter says how long until the oldest attempt expires.
@@ -201,23 +245,74 @@ func (r *RateLimiter) Allow(key string) (ok bool, retryAfter time.Duration) {
 	defer r.mu.Unlock()
 	now := r.now()
 	cutoff := now.Add(-r.window)
-	for k, ts := range r.hits { // tiny map; prune everything stale
-		kept := ts[:0]
-		for _, t := range ts {
-			if t.After(cutoff) {
-				kept = append(kept, t)
-			}
-		}
-		if len(kept) == 0 {
-			delete(r.hits, k)
+	if now.Sub(r.lastSweep) >= r.window {
+		r.sweepLocked(now, cutoff)
+	}
+	ts, known := r.hits[key]
+	if known {
+		ts = pruneTimes(ts, cutoff)
+		if len(ts) == 0 {
+			delete(r.hits, key)
+			known = false
 		} else {
-			r.hits[k] = kept
+			r.hits[key] = ts
 		}
 	}
-	ts := r.hits[key]
+	if !known && len(r.hits) >= r.maxKeys {
+		return false, r.window
+	}
 	if len(ts) >= r.limit {
 		return false, ts[0].Add(r.window).Sub(now)
 	}
 	r.hits[key] = append(ts, now)
 	return true, 0
+}
+
+// Lockout refuses everything for a while once too many failures (from any
+// source) happen within a window. It backs the global pairing lockout, which
+// the per-IP limiter alone cannot provide against many source addresses.
+type Lockout struct {
+	mu          sync.Mutex
+	maxFailures int
+	window      time.Duration
+	duration    time.Duration
+	failures    []time.Time
+	until       time.Time
+	now         func() time.Time
+}
+
+// NewLockout locks for duration after maxFailures failures within window.
+func NewLockout(maxFailures int, window, duration time.Duration) *Lockout {
+	return &Lockout{maxFailures: maxFailures, window: window, duration: duration, now: time.Now}
+}
+
+// SetClock replaces the clock (tests only).
+func (l *Lockout) SetClock(now func() time.Time) { l.now = now }
+
+// Locked reports whether the lockout is active and for how much longer.
+func (l *Lockout) Locked() (bool, time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if left := l.until.Sub(l.now()); left > 0 {
+		return true, left
+	}
+	return false, 0
+}
+
+// Fail records one failure. It returns true when this failure started a
+// lockout (so the caller can tell the user once).
+func (l *Lockout) Fail() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	if now.Before(l.until) {
+		return false
+	}
+	l.failures = append(pruneTimes(l.failures, now.Add(-l.window)), now)
+	if len(l.failures) >= l.maxFailures {
+		l.until = now.Add(l.duration)
+		l.failures = l.failures[:0]
+		return true
+	}
+	return false
 }

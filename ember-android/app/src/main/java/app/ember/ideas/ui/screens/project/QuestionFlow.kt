@@ -228,6 +228,7 @@ fun QuestionFlow(
                 ) { turn ->
                     QuestionCard(
                         turn = turn,
+                        turnIndex = turns.size,
                         draft = if (error != null && pendingAnswer != null && !pendingAnswer!!.skipped) pendingAnswer else draft,
                         canUndo = turns.size >= 2 && canUndoCurrent,
                         onSubmit = submit,
@@ -247,6 +248,7 @@ fun QuestionFlow(
 @Composable
 private fun QuestionCard(
     turn: Turn,
+    turnIndex: Int,
     draft: Answer?,
     canUndo: Boolean,
     onSubmit: (Answer) -> Unit,
@@ -260,7 +262,8 @@ private fun QuestionCard(
     val s = LocalStrings.current
     val c = Ember.colors
     val q = turn.question
-    val key = q.title
+    // 같은 제목의 질문이 이어져도 앞 질문의 선택이 남지 않도록 순번을 함께 쓴다.
+    val key = "$turnIndex:" + q.title
     val recommendedId = q.options.firstOrNull { o -> o.description.startsWith("추천 · ") || o.description.startsWith("Recommended · ") }?.id
     var selected by rememberSaveable(key) { mutableStateOf(draft?.selectedIds ?: if (!q.multiSelect && recommendedId != null) listOf(recommendedId) else emptyList()) }
     var custom by rememberSaveable(key) { mutableStateOf(draft?.customText ?: "") }

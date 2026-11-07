@@ -711,7 +711,7 @@ private fun GoalTile(title: String, body: String, selected: Boolean, modifier: M
 fun EditDocumentSheet(markdown: String, onDismiss: () -> Unit, title: String? = null, subtitle: String? = null, onSave: (String) -> Unit) {
     val s = LocalStrings.current
     val c = Ember.colors
-    var text by rememberSaveable { mutableStateOf(markdown) }
+    var text by remember { mutableStateOf(markdown) } // 수십만 자가 될 수 있어 저장 상태(Bundle)에 넣지 않는다
     var preview by rememberSaveable { mutableStateOf(false) }
     EmberSheet(onDismiss) {
         SheetTitle(title ?: s.editDocument, subtitle ?: s.editDocumentSub, onDismiss)

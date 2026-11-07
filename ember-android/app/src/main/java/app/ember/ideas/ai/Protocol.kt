@@ -62,11 +62,12 @@ object Protocol {
         return reply.copy(
             progress = reply.progress.coerceIn(0, 100),
             question = sanitizeQuestion(reply.question),
-            // 모델이 같은 id 를 두 번 주면 목록 키가 겹쳐 화면이 죽으므로 순서대로 다시 매긴다.
-            ideas = reply.ideas.mapIndexed { i, idea ->
-                val dupId = idea.id.isBlank() || reply.ideas.take(i).any { it.id == idea.id }
+            // 모델이 같은 id 를 두 번 주면 목록 키가 겹쳐 화면이 죽으므로, 아직 쓰지 않은 id 로 다시 매긴다.
+            ideas = run {
+                val used = HashSet<String>()
+                reply.ideas.map { idea -> idea.copy(id = uniqueId(idea.id, "idea", used)) }
+            }.map { idea ->
                 idea.copy(
-                    id = if (dupId) "idea${i + 1}" else idea.id,
                     difficulty = idea.difficulty.coerceIn(1, 5),
                     funScore = if (idea.funScore == 0) 0 else idea.funScore.coerceIn(1, 5),
                     noveltyScore = if (idea.noveltyScore == 0) 0 else idea.noveltyScore.coerceIn(1, 5),
@@ -77,12 +78,21 @@ object Protocol {
         )
     }
 
+    /** [used] 에 없는 id 를 돌려주고 [used] 에 넣는다. 비었거나 겹치면 prefix 와 번호로 새로 만든다. */
+    internal fun uniqueId(id: String, prefix: String, used: MutableSet<String>): String {
+        val clean = id.trim()
+        if (clean.isNotEmpty() && used.add(clean)) return clean
+        var n = used.size + 1
+        while (!used.add("$prefix$n")) n++
+        return "$prefix$n"
+    }
+
     /** 중복·빈 선택지를 걸러내고 id 를 보장한다. 모델 출력이 조금 어긋나도 화면이 깨지지 않게 한다. */
     fun sanitizeQuestion(q: Question): Question {
         val seen = HashSet<String>()
         val options = q.options
             .filter { it.label.isNotBlank() }
-            .mapIndexed { i, o -> if (o.id.isBlank() || !seen.add(o.id)) o.copy(id = "opt${i + 1}") else o }
+            .map { o -> o.copy(id = uniqueId(o.id, "opt", seen)) }
             .distinctBy { it.label.trim() }
         return q.copy(options = options.take(8))
     }
@@ -375,7 +385,8 @@ $sections
     }
 
     /**
-     * 직접 입력이 선택지 기호만으로 되어 있으면(예: "b+e", "A, C", "b와 e", "2 4") 그 선택지들의 순번을 돌려준다.
+     * 직접 입력이 선택지 기호만으로 되어 있으면(예: "b+e", "A, C", "b와 e") 그 선택지들의 순번을 돌려준다.
+     * 숫자는 기호로 보지 않는다("4명"처럼 숫자로 답하는 질문이 있어서).
      * 기호가 아닌 글이 섞여 있거나 없는 기호를 가리키면 null(글 그대로 보낸다).
      */
     fun lettersIn(text: String, optionCount: Int): List<Int>? {
@@ -388,7 +399,6 @@ $sections
         val idx = tokens.map { tok ->
             when {
                 tok.length == 1 && tok[0].uppercaseChar() in 'A'..'Z' -> tok[0].uppercaseChar() - 'A'
-                tok.toIntOrNull() != null -> tok.toInt() - 1
                 else -> return null
             }
         }

@@ -13,7 +13,7 @@ func (c *clock) now() time.Time          { return c.t }
 func (c *clock) advance(d time.Duration) { c.t = c.t.Add(d) }
 
 func TestRandomCodeFormat(t *testing.T) {
-	re := regexp.MustCompile(`^\d{6}$`)
+	re := regexp.MustCompile(`^\d{8}$`)
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
 		c := RandomCode()
@@ -60,11 +60,11 @@ func TestWrongCode(t *testing.T) {
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	m := newCodeManager(10*time.Minute, 20, c.now, nil)
 	code, _ := m.Current()
-	wrong := "000000"
+	wrong := "00000000"
 	if code == wrong {
-		wrong = "111111"
+		wrong = "11111111"
 	}
-	for _, in := range []string{wrong, "", "12345", "1234567", "abcdef", code + "0"} {
+	for _, in := range []string{wrong, "", "1234567", "123456789", "abcdefgh", code[:6], code + "0"} {
 		if m.Verify(in) {
 			t.Fatalf("accepted %q", in)
 		}
@@ -79,7 +79,7 @@ func TestCodeRotatesAfterTooManyFailures(t *testing.T) {
 	m := newCodeManager(10*time.Minute, 3, c.now, nil)
 	code, _ := m.Current()
 	for i := 0; i < 3; i++ {
-		m.Verify("xxxxxx")
+		m.Verify("xxxxxxxx")
 	}
 	if cur, _ := m.Current(); cur == code {
 		t.Fatal("code should rotate after max failures")
@@ -125,6 +125,75 @@ func TestRateLimiter(t *testing.T) {
 	c.advance(time.Minute)
 	if ok, _ := r.Allow("10.0.0.2"); !ok {
 		t.Fatal("not allowed again after the window")
+	}
+}
+
+func TestRateLimiterPrunesAndCaps(t *testing.T) {
+	c := &clock{t: time.Unix(1_700_000_000, 0)}
+	r := NewRateLimiter(5, time.Minute)
+	r.SetClock(c.now)
+	r.SetMaxKeys(3)
+	for _, k := range []string{"a", "b", "c"} {
+		if ok, _ := r.Allow(k); !ok {
+			t.Fatalf("%s blocked", k)
+		}
+	}
+	// The map is full: a new key is treated as limited, known keys still work.
+	if ok, retry := r.Allow("d"); ok || retry <= 0 {
+		t.Fatalf("new key over cap: ok=%v retry=%v", ok, retry)
+	}
+	if ok, _ := r.Allow("a"); !ok {
+		t.Fatal("known key blocked by the cap")
+	}
+	if r.Len() != 3 {
+		t.Fatalf("len = %d", r.Len())
+	}
+	// After the window the periodic sweep frees the stale keys.
+	c.advance(time.Minute + time.Second)
+	if ok, _ := r.Allow("d"); !ok {
+		t.Fatal("new key blocked after stale keys expired")
+	}
+	if r.Len() != 1 {
+		t.Fatalf("stale keys not pruned: len = %d", r.Len())
+	}
+}
+
+func TestLockout(t *testing.T) {
+	c := &clock{t: time.Unix(1_700_000_000, 0)}
+	l := NewLockout(10, 10*time.Minute, 5*time.Minute)
+	l.SetClock(c.now)
+	// Failures older than the window do not count.
+	for i := 0; i < 9; i++ {
+		if l.Fail() {
+			t.Fatal("locked too early")
+		}
+	}
+	c.advance(10*time.Minute + time.Second)
+	for i := 0; i < 9; i++ {
+		if l.Fail() {
+			t.Fatalf("locked at %d after window reset", i+1)
+		}
+		c.advance(time.Second)
+	}
+	if locked, _ := l.Locked(); locked {
+		t.Fatal("locked before the 10th failure")
+	}
+	if !l.Fail() {
+		t.Fatal("10th failure should start the lockout")
+	}
+	locked, left := l.Locked()
+	if !locked || left != 5*time.Minute {
+		t.Fatalf("locked=%v left=%v", locked, left)
+	}
+	if l.Fail() {
+		t.Fatal("failures while locked must not re-announce")
+	}
+	c.advance(5 * time.Minute)
+	if locked, _ := l.Locked(); locked {
+		t.Fatal("still locked after the lockout")
+	}
+	if l.Fail() {
+		t.Fatal("counter should restart after a lockout")
 	}
 }
 

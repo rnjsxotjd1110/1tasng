@@ -53,6 +53,10 @@ func TestCleanRelPathAccepts(t *testing.T) {
 		".ember/notes.md":        ".ember/notes.md",
 		"a/b/c/d.txt":            "a/b/c/d.txt",
 		"..hidden/file..name.md": "..hidden/file..name.md",
+		".github/workflows/x.md": ".github/workflows/x.md",
+		".gitignore":             ".gitignore",
+		"notes~draft.md":         "notes~draft.md",
+		"claude/notes.md":        "claude/notes.md",
 	}
 	for in, want := range ok {
 		got, err := CleanRelPath(in)
@@ -101,6 +105,23 @@ func TestCleanRelPathRejects(t *testing.T) {
 		`quote".md`,
 		".git/hooks/pre-commit",
 		".GIT/config",
+		"sub/.git/config",
+		"sub/.Git",
+		"GIT~1/config",
+		"git~12/hooks/x",
+		"docs/PROGRA~1.md",
+		".claude/settings.json",
+		"x/.CLAUDE/commands/a.md",
+		".vscode/tasks.json",
+		"a/b/.idea/workspace.xml",
+		".mcp.json",
+		"nested/.MCP.json",
+		".envrc",
+		"app/.envrc",
+		"evil\u202egpj.md",
+		"docs/\u200bhidden.md",
+		"bom\ufeff.md",
+		"c1\u0085ctrl.md",
 		strings.Repeat("a", 600),
 		"bad\xffutf8",
 	}
@@ -117,7 +138,9 @@ func TestValidateFolderName(t *testing.T) {
 			t.Errorf("%q rejected: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"", ".", "..", "a/b", `a\b`, "../x", "C:", "/abs", "nul", "50%off", "x\x00", "dot."} {
+	for _, bad := range []string{"", ".", "..", "a/b", `a\b`, "../x", "C:", "/abs", "nul", "50%off", "x\x00", "dot.",
+		".git", ".GIT", "GIT~1", "my~2game", ".claude", ".vscode", ".idea", ".mcp.json", ".envrc",
+		"a\u202eb", "zero\u200bwidth", "c1\u009bx"} {
 		if err := ValidateFolderName(bad); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
@@ -220,6 +243,33 @@ func TestWriteRefusesSymlinkEscape(t *testing.T) {
 	entries, _ := os.ReadDir(outside)
 	if len(entries) != 0 {
 		t.Fatalf("files appeared outside: %v", entries)
+	}
+}
+
+func TestWritePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits only")
+	}
+	root := filepath.Join(t.TempDir(), "EmberProjects")
+	dir := filepath.Join(root, "proj")
+	if _, err := Write(root, dir, []File{{Path: "docs/a.md", Content: "x"}}, "p"); err != nil {
+		t.Fatal(err)
+	}
+	for rel, want := range map[string]os.FileMode{
+		"":                      0o700,
+		"proj":                  0o700,
+		"proj/docs":             0o700,
+		"proj/.ember":           0o700,
+		"proj/docs/a.md":        0o600,
+		"proj/.ember/prompt.md": 0o600,
+	} {
+		fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := fi.Mode().Perm(); got != want {
+			t.Errorf("%s: mode %o, want %o", rel, got, want)
+		}
 	}
 }
 

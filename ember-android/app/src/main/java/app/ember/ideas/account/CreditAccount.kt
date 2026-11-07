@@ -79,6 +79,10 @@ class CreditAccount(
         }
     }
 
+    /** 마지막 [redeem] 으로 새로 받은 크레딧 수. */
+    @Volatile var lastGranted: Int = 0
+        private set
+
     /** Play 결제 영수증을 서버에 보내 크레딧을 받는다. 같은 영수증은 서버가 한 번만 인정한다. */
     suspend fun redeem(productId: String, purchaseToken: String): Int {
         val token = settings.creditToken() ?: run { connect(); settings.creditToken()!! }
@@ -88,7 +92,9 @@ class CreditAccount(
         }, token)
         val credits = body["credits"]?.jsonPrimitive?.int ?: throw AiError.BadResponse
         settings.setCredits(credits)
-        settings.setPurchased(true)
+        // 이번 요청으로 새로 받은 크레딧. 같은 영수증을 다시 보내면 0 이다.
+        lastGranted = body["granted"]?.jsonPrimitive?.int ?: 0
+        if (lastGranted > 0) settings.setPurchased(true)
         return credits
     }
 

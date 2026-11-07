@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"ember-bridge/internal/config"
+	"ember-bridge/internal/launcher"
 	"ember-bridge/internal/pairing"
 )
 
@@ -89,6 +90,14 @@ func newEnv(t *testing.T) *env {
 
 func (e *env) do(method, path, token string, body any, remote string) (*httptest.ResponseRecorder, map[string]any) {
 	e.t.Helper()
+	return e.doWith(method, path, token, body, remote, nil)
+}
+
+// doWith is do with extra headers. By default a request looks like the app:
+// from a LAN address, Host = an IP literal, JSON Content-Type on POST. A
+// header mapped to "" is removed; "Host" sets the Host line.
+func (e *env) doWith(method, path, token string, body any, remote string, hdr map[string]string) (*httptest.ResponseRecorder, map[string]any) {
+	e.t.Helper()
 	var rdr *bytes.Reader
 	switch b := body.(type) {
 	case nil:
@@ -102,11 +111,26 @@ func (e *env) do(method, path, token string, body any, remote string) (*httptest
 		rdr = bytes.NewReader(raw)
 	}
 	req := httptest.NewRequest(method, path, rdr)
+	req.RemoteAddr = "192.168.0.50:40000"
 	if remote != "" {
 		req.RemoteAddr = remote
 	}
+	req.Host = "192.168.0.12:47615"
+	if method == "POST" {
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for k, v := range hdr {
+		switch {
+		case k == "Host":
+			req.Host = v
+		case v == "":
+			req.Header.Del(k)
+		default:
+			req.Header.Set(k, v)
+		}
 	}
 	rec := httptest.NewRecorder()
 	e.srv.Handler().ServeHTTP(rec, req)
@@ -178,9 +202,9 @@ func TestPairSuccessAndOneTimeCode(t *testing.T) {
 func TestPairWrongCode(t *testing.T) {
 	e := newEnv(t)
 	code, _ := e.codes.Current()
-	wrong := "000000"
+	wrong := "00000000"
 	if wrong == code {
-		wrong = "999999"
+		wrong = "99999999"
 	}
 	rec, out := e.do("POST", "/ember/pair", "", map[string]string{"code": wrong, "deviceName": "x"}, "10.0.0.7:1")
 	if rec.Code != 403 || out["error"] != "bad_code" || out["message"] == "" {
@@ -198,7 +222,7 @@ func TestPairWrongCode(t *testing.T) {
 func TestPairRateLimit(t *testing.T) {
 	e := newEnv(t)
 	for i := 0; i < PairAttemptsPerMinute; i++ {
-		rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": "abcdef"}, "10.0.0.9:1000")
+		rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": "abcdefgh"}, "10.0.0.9:1000")
 		if rec.Code != 403 {
 			t.Fatalf("attempt %d = %d", i+1, rec.Code)
 		}
@@ -309,7 +333,7 @@ func TestSendCustomFolder(t *testing.T) {
 	if rec.Code != 200 || out["folder"] != filepath.Join(e.root, "my-game") {
 		t.Fatalf("send = %d %v", rec.Code, out)
 	}
-	for _, bad := range []string{"../escape", "a/b", `..\x`, "C:", "/tmp"} {
+	for _, bad := range []string{"../escape", "a/b", `..\x`, "C:", "/tmp", ".git", "GIT~1", ".claude", "a\u202eb"} {
 		rec, out = e.do("POST", "/ember/send", tok, map[string]any{"title": "t", "mode": "file", "prompt": "p", "folder": bad}, "")
 		if rec.Code != 400 || out["error"] != "bad_folder" {
 			t.Fatalf("folder %q = %d %v", bad, rec.Code, out)
@@ -324,6 +348,8 @@ func TestSendRejectsBadPaths(t *testing.T) {
 		"../evil.md", "../../evil.md", "docs/../../evil.md", `..\evil.md`, `docs\..\..\evil.md`,
 		"/etc/evil.md", `C:\Windows\evil.md`, "C:/evil.md", "D:evil.md", `\\server\share\evil.md`,
 		"evil\x00.md", "", ".git/hooks/post-checkout",
+		"sub/.git/config", "GIT~1/hooks/pre-commit", ".claude/settings.json", ".vscode/tasks.json",
+		".idea/x.xml", ".mcp.json", "a/.envrc", "evil\u202egpj.md",
 	}
 	for _, p := range bad {
 		files := []map[string]string{{"path": "good.md", "content": "ok"}, {"path": p, "content": "pwned"}}
@@ -463,5 +489,228 @@ func TestPrintableStripsControlChars(t *testing.T) {
 	}
 	if got := Printable(strings.Repeat("가", 100), 10); got != strings.Repeat("가", 10)+"…" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestGuardRejectsNonLANPeers(t *testing.T) {
+	e := newEnv(t)
+	for _, remote := range []string{
+		"8.8.8.8:1", "192.0.2.1:1234", "100.64.0.1:1", "172.32.0.1:1", "[2001:4860::1]:1",
+		"[::ffff:8.8.8.8]:1", "[ff02::1]:1", "0.0.0.0:1", "garbage",
+	} {
+		rec, out := e.do("GET", "/ember/info", "", nil, remote)
+		if rec.Code != 403 || out["error"] != "forbidden" || out["message"] == "" {
+			t.Errorf("%s = %d %v", remote, rec.Code, out)
+		}
+	}
+	for _, remote := range []string{
+		"127.0.0.1:1", "[::1]:1", "10.1.2.3:1", "172.16.0.1:1", "172.31.255.1:1", "192.168.0.7:1",
+		"169.254.10.1:1", "[fe80::1%wlan0]:1", "[fd12:3456::1]:1", "[::ffff:192.168.1.2]:1",
+	} {
+		if rec, out := e.do("GET", "/ember/info", "", nil, remote); rec.Code != 200 {
+			t.Errorf("%s = %d %v", remote, rec.Code, out)
+		}
+	}
+	// The guard runs before the handlers: nothing reaches pairing.
+	code, _ := e.codes.Current()
+	if rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": code}, "8.8.8.8:1"); rec.Code != 403 {
+		t.Fatalf("pair from internet = %d", rec.Code)
+	}
+	if e.srv.Config.DeviceCount() != 0 {
+		t.Fatal("device paired from a public address")
+	}
+}
+
+func TestGuardRejectsBrowsers(t *testing.T) {
+	e := newEnv(t)
+	tok := e.pair()
+	for _, origin := range []string{"http://evil.example", "null", "http://192.168.0.12:47615"} {
+		rec, out := e.doWith("POST", "/ember/send", tok, map[string]any{"title": "t", "mode": "file", "prompt": "p"}, "",
+			map[string]string{"Origin": origin})
+		if rec.Code != 403 || out["error"] != "forbidden" {
+			t.Errorf("origin %q = %d %v", origin, rec.Code, out)
+		}
+	}
+	// An empty Origin header is still an Origin header.
+	req := httptest.NewRequest("GET", "/ember/info", nil)
+	req.RemoteAddr = "192.168.0.50:1"
+	req.Host = "192.168.0.12:47615"
+	req.Header["Origin"] = []string{""}
+	rec := httptest.NewRecorder()
+	e.srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != 403 {
+		t.Fatalf("empty Origin = %d", rec.Code)
+	}
+	if _, err := os.Stat(e.root); !os.IsNotExist(err) {
+		t.Fatal("a browser request wrote files")
+	}
+}
+
+func TestGuardHost(t *testing.T) {
+	e := newEnv(t)
+	for _, h := range []string{"evil.example", "evil.example:47615", "", "localhost.evil.example:1", ".local", "local:1", "192.168.0.12.nip.io:47615"} {
+		rec, out := e.doWith("GET", "/ember/info", "", nil, "", map[string]string{"Host": h})
+		if rec.Code != 421 || out["error"] != "bad_host" {
+			t.Errorf("host %q = %d %v", h, rec.Code, out)
+		}
+	}
+	for _, h := range []string{"192.168.0.12:47615", "192.168.0.12", "[fe80::1%25wlan0]:47615", "[fd00::5]:47615", "localhost:47615", "LOCALHOST", "my-pc.local:47615", "My-PC.LOCAL.:47615"} {
+		if rec, out := e.doWith("GET", "/ember/info", "", nil, "", map[string]string{"Host": h}); rec.Code != 200 {
+			t.Errorf("host %q = %d %v", h, rec.Code, out)
+		}
+	}
+}
+
+func TestPostRequiresJSONContentType(t *testing.T) {
+	e := newEnv(t)
+	tok := e.pair()
+	body := map[string]any{"title": "t", "mode": "file", "prompt": "p"}
+	for _, ct := range []string{"", "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", "application/jsonx"} {
+		hdr := map[string]string{"Content-Type": ct}
+		for _, path := range []string{"/ember/send", "/ember/unpair", "/ember/pair"} {
+			rec, out := e.doWith("POST", path, tok, body, "", hdr)
+			if rec.Code != 415 || out["error"] != "unsupported_media_type" {
+				t.Errorf("%s with %q = %d %v", path, ct, rec.Code, out)
+			}
+		}
+	}
+	if _, err := os.Stat(e.root); !os.IsNotExist(err) {
+		t.Fatal("non-JSON request wrote files")
+	}
+	if rec, out := e.doWith("POST", "/ember/send", tok, body, "", map[string]string{"Content-Type": "Application/JSON"}); rec.Code != 200 {
+		t.Fatalf("case-insensitive JSON type = %d %v", rec.Code, out)
+	}
+	// GET needs no Content-Type.
+	if rec, _ := e.do("GET", "/ember/ping", tok, nil, ""); rec.Code != 200 {
+		t.Fatalf("ping = %d", rec.Code)
+	}
+}
+
+func TestPairGlobalLockout(t *testing.T) {
+	e := newEnv(t)
+	c := time.Unix(1_700_000_000, 0)
+	e.srv.Lockout.SetClock(func() time.Time { return c })
+	// 10 wrong codes from 10 different addresses (each under the per-IP limit).
+	for i := 0; i < PairGlobalMaxFailures; i++ {
+		rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": "abcdefgh"}, fmt.Sprintf("10.0.1.%d:1", i+1))
+		if rec.Code != 403 {
+			t.Fatalf("attempt %d = %d", i+1, rec.Code)
+		}
+	}
+	if !strings.Contains(e.logs.String(), "페어링을 5분 동안 멈춰요") {
+		t.Fatalf("no console notice: %s", e.logs.String())
+	}
+	// Now everyone is refused, even with the right code from a fresh address.
+	code, _ := e.codes.Current()
+	rec, out := e.do("POST", "/ember/pair", "", map[string]string{"code": code}, "192.168.7.7:1")
+	if rec.Code != 429 || out["error"] != "rate_limited" || rec.Header().Get("Retry-After") != "300" {
+		t.Fatalf("locked = %d %v retry=%q", rec.Code, out, rec.Header().Get("Retry-After"))
+	}
+	if !strings.Contains(out["message"].(string), "초 뒤") {
+		t.Fatalf("message %q", out["message"])
+	}
+	c = c.Add(PairLockoutDuration)
+	code, _ = e.codes.Current()
+	if rec, out := e.do("POST", "/ember/pair", "", map[string]string{"code": code, "deviceName": "ok"}, "192.168.7.7:1"); rec.Code != 200 {
+		t.Fatalf("after lockout = %d %v", rec.Code, out)
+	}
+}
+
+func TestPairRateLimitIPv6Prefix(t *testing.T) {
+	e := newEnv(t)
+	// Five attempts from five addresses in one /64 use up that /64's budget.
+	for i := 0; i < PairAttemptsPerMinute; i++ {
+		remote := fmt.Sprintf("[fd00:1:2:3::%x%%wlan0]:1", i+1)
+		if rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": "abcdefgh"}, remote); rec.Code != 403 {
+			t.Fatalf("attempt %d = %d", i+1, rec.Code)
+		}
+	}
+	code, _ := e.codes.Current()
+	if rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": code}, "[fd00:1:2:3::99]:1"); rec.Code != 429 {
+		t.Fatalf("same /64 = %d", rec.Code)
+	}
+	if rec, _ := e.do("POST", "/ember/pair", "", map[string]string{"code": code, "deviceName": "x"}, "[fd00:1:2:4::1]:1"); rec.Code != 200 {
+		t.Fatalf("other /64 = %d", rec.Code)
+	}
+	for in, want := range map[string]string{
+		"192.168.0.5:1":          "192.168.0.5",
+		"[::ffff:10.0.0.1]:1":    "10.0.0.1",
+		"[fe80::1:2:3:4%eth0]:9": "fe80::/64",
+		"[fd00:1:2:3:4::5]:9":    "fd00:1:2:3::/64",
+	} {
+		if got := rateKey(in); got != want {
+			t.Errorf("rateKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPairBodyLimit(t *testing.T) {
+	e := newEnv(t)
+	code, _ := e.codes.Current()
+	body := map[string]string{"code": code, "deviceName": strings.Repeat("x", MaxPairBodyBytes)}
+	rec, out := e.do("POST", "/ember/pair", "", body, "")
+	if rec.Code != 413 || out["error"] != "too_large" {
+		t.Fatalf("big pair body = %d %v", rec.Code, out)
+	}
+	if e.srv.Config.DeviceCount() != 0 {
+		t.Fatal("paired with an oversized body")
+	}
+}
+
+func TestCodeModeCooldown(t *testing.T) {
+	e := newEnv(t)
+	now := time.Unix(1_700_000_000, 0)
+	e.srv.Now = func() time.Time { return now }
+	tok := e.pair()
+	other := e.pair()
+	send := func(token string) (*httptest.ResponseRecorder, map[string]any) {
+		return e.do("POST", "/ember/send", token, map[string]any{"title": "쿨다운", "mode": "code", "prompt": "p"}, "")
+	}
+	if rec, out := send(tok); rec.Code != 200 {
+		t.Fatalf("first = %d %v", rec.Code, out)
+	}
+	now = now.Add(3 * time.Second)
+	rec, out := send(tok)
+	if rec.Code != 429 || out["error"] != "rate_limited" || rec.Header().Get("Retry-After") != "7" {
+		t.Fatalf("second = %d %v retry=%q", rec.Code, out, rec.Header().Get("Retry-After"))
+	}
+	// Other modes and other devices are not affected.
+	if rec, _ := e.do("POST", "/ember/send", tok, map[string]any{"title": "t", "mode": "clipboard", "prompt": "p"}, ""); rec.Code != 200 {
+		t.Fatalf("clipboard during cooldown = %d", rec.Code)
+	}
+	if rec, _ := send(other); rec.Code != 200 {
+		t.Fatalf("other device = %d", rec.Code)
+	}
+	if len(e.exec.launched) != 2 {
+		t.Fatalf("launched %v", e.exec.launched)
+	}
+	now = now.Add(7 * time.Second)
+	if rec, out := send(tok); rec.Code != 200 {
+		t.Fatalf("after cooldown = %d %v", rec.Code, out)
+	}
+}
+
+func TestConsolePathsArePrintable(t *testing.T) {
+	e := newEnv(t)
+	root := filepath.Join(t.TempDir(), "evil\x1b]0;pwned\x07\x1b[2Jroot")
+	if err := e.srv.Config.SetRoot(root); err != nil {
+		t.Fatal(err)
+	}
+	tok := e.pair()
+	if rec, out := e.do("POST", "/ember/send", tok, map[string]any{"title": "t", "mode": "code", "prompt": "p"}, ""); rec.Code != 200 {
+		t.Fatalf("send = %d %v", rec.Code, out)
+	}
+	if strings.ContainsAny(e.logs.String(), "\x1b\x07") {
+		t.Fatalf("control characters reached the console: %q", e.logs.String())
+	}
+	if !strings.Contains(e.logs.String(), "Claude Code 실행") {
+		t.Fatalf("log %q", e.logs.String())
+	}
+}
+
+func TestWriteTimeoutCoversSlowestSend(t *testing.T) {
+	slowest := launcher.LaunchTimeout + launcher.ClipboardTimeout + launcher.OpenFolderTimeout
+	if HTTPWriteTimeout <= slowest+10*time.Second {
+		t.Fatalf("WriteTimeout %v must exceed the slowest send %v with margin", HTTPWriteTimeout, slowest)
 	}
 }

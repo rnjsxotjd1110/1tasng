@@ -140,9 +140,15 @@ class ListStore<T>(private val file: File, private val serializer: KSerializer<T
     private val _items = MutableStateFlow<List<T>>(emptyList())
     val items: StateFlow<List<T>> = _items.asStateFlow()
 
+    /** 파일이 손상되어 빈 목록으로 시작했는지. 이때는 이미지 정리를 하지 않는다. */
+    @Volatile var corrupt = false
+        private set
+
     fun load() {
         _items.value = runCatching { if (file.exists()) Protocol.json.decodeFromString(listSerializer, file.readText()) else emptyList() }.getOrElse {
-            runCatching { file.copyTo(File(file.parentFile, file.name + ".corrupt"), overwrite = true) }
+            // 보관본은 시각을 붙여 남긴다(두 번째 손상이 첫 원본을 덮어쓰지 않게).
+            runCatching { file.copyTo(File(file.parentFile, file.name + ".corrupt." + System.currentTimeMillis()), overwrite = false) }
+            corrupt = true
             emptyList()
         }
     }

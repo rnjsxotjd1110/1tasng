@@ -524,6 +524,10 @@ abstract class Strings {
 
     abstract val pickMany: String
 
+    abstract val oreBoxSub: String
+    abstract val librarySub: String
+    abstract val settingsSub: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

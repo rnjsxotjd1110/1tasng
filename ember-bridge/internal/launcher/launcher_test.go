@@ -73,6 +73,45 @@ func TestUnixClaudeCommandRunsInShell(t *testing.T) {
 	}
 }
 
+func TestUnixClaudeCommandPromptIsNeverAnOption(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell only")
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	if !strings.Contains(UnixClaudeCommand("/x", "/bin/claude"), `'/bin/claude' -- "$(cat .ember/prompt.md)"`) {
+		t.Fatalf("command lacks --: %s", UnixClaudeCommand("/x", "/bin/claude"))
+	}
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".ember"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prompt := "--dangerously-skip-permissions -p hi"
+	if err := os.WriteFile(filepath.Join(dir, ".ember", "prompt.md"), []byte(prompt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A stand-in claude that prints each argument on its own line.
+	fake := filepath.Join(t.TempDir(), "claude")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nfor a in \"$@\"; do printf '[%s]\\n' \"$a\"; done\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(sh, "-c", UnixClaudeCommand(dir, fake)).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "[--]\n[" + prompt + "]\n"; string(out) != want {
+		t.Fatalf("got %q, want %q", out, want)
+	}
+}
+
+func TestWindowsInstructionIsNotAnOption(t *testing.T) {
+	if strings.HasPrefix(WindowsClaudeInstruction, "-") {
+		t.Fatal("the fixed Windows first message must not look like an option")
+	}
+}
+
 func TestAppleScriptString(t *testing.T) {
 	got := AppleScriptString(`cd '/a b' && claude "$(cat x)" \n`)
 	want := `"cd '/a b' && claude \"$(cat x)\" \\n"`

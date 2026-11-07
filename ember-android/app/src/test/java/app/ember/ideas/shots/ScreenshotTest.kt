@@ -252,7 +252,7 @@ class ScreenshotTest {
         c.store.upsert(ideasProject())
         setContent(auto = true) { ProjectScreen("p_ideas", {}, {}) }
         click("지하철 정원사")
-        click("도면으로 단조")
+        click("설계서 만들기")
         shot("11_design_setup", 1500)
     }
 

@@ -22,6 +22,8 @@ enum class ClaudeModel(
 
     companion object {
         fun fromId(id: String?): ClaudeModel = entries.firstOrNull { it.id == id } ?: OPUS
+        /** 응답에 적힌 모델 id(날짜 접미사가 붙을 수 있음)로 찾는다. 모르는 모델이면 null. */
+        fun find(id: String?): ClaudeModel? = if (id.isNullOrBlank()) null else entries.firstOrNull { id == it.id || id.startsWith(it.id + "-") }
     }
 }
 

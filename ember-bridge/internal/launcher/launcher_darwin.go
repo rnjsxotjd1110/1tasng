@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 )
 
 type osExecutor struct{}
@@ -24,7 +23,7 @@ func (osExecutor) FindClaude() (string, bool) {
 }
 
 func (osExecutor) CopyToClipboard(text string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ClipboardTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "pbcopy")
 	// pbcopy decodes stdin according to the locale; force UTF-8.
@@ -39,8 +38,9 @@ func (osExecutor) CopyToClipboard(text string) error {
 func (osExecutor) LaunchClaude(folder, claudePath string) error {
 	shell := UnixClaudeCommand(folder, claudePath)
 	// The first run may show the macOS "control Terminal" permission dialog,
-	// so allow plenty of time.
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// so allow plenty of time, but less than the HTTP WriteTimeout so the
+	// phone still gets an answer (the clipboard fallback) if it times out.
+	ctx, cancel := context.WithTimeout(context.Background(), LaunchTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "osascript",
 		"-e", `tell application "Terminal"`,
@@ -54,5 +54,7 @@ func (osExecutor) LaunchClaude(folder, claudePath string) error {
 }
 
 func (osExecutor) OpenFolder(folder string) error {
-	return exec.Command("open", folder).Run()
+	ctx, cancel := context.WithTimeout(context.Background(), OpenFolderTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, "open", folder).Run()
 }

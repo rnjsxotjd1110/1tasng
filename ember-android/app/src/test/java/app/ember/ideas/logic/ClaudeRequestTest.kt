@@ -80,15 +80,19 @@ class ClaudeRequestTest {
     }
 
     @Test fun imagesGoBeforeText() = runBlocking {
-        val img = java.io.File.createTempFile("ember", ".jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+        // 앱이 저장하는 위치(files/images/)의 이미지만 보낸다. 다른 곳의 파일은 보내지 않는다.
+        val root = java.nio.file.Files.createTempDirectory("ember").toFile()
+        val img = java.io.File(root, "files/images/a.jpg").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1, 2, 3, 4)) }
+        val outside = java.io.File(root, "secret.jpg").apply { writeBytes(byteArrayOf(9, 9, 9, 9)) }
         mock.on("POST /v1/messages", Res(200, message("""{"type":"text","text":${JsonPrimitive(FakeAi.question("질문"))}}""", "end_turn")))
-        ai.turn(ClaudeModel.OPUS, request(messages = listOf(ChatMessage(ChatMessage.USER, "시작", listOf(img.absolutePath, "/missing.jpg")))))
+        ai.turn(ClaudeModel.OPUS, request(messages = listOf(ChatMessage(ChatMessage.USER, "시작", listOf(img.absolutePath, "/missing.jpg", outside.absolutePath)))))
         val body = mock.last("/v1/messages").body
         assertTrue(body.contains("\"type\":\"image\""))
         assertTrue(body.contains("image/jpeg"))
         assertTrue(body.contains(java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3, 4))))
         assertTrue(body.indexOf("\"type\":\"image\"") < body.indexOf("시작"))
-        img.delete()
+        assertTrue(!body.contains(java.util.Base64.getEncoder().encodeToString(byteArrayOf(9, 9, 9, 9))))
+        root.deleteRecursively()
         Unit
     }
 

@@ -1,4 +1,4 @@
-// 운영자용: GET /ember/admin/reports, GET /ember/admin/stats (x-admin-key 필요)
+// 운영자용: GET /ember/admin/reports, GET /ember/admin/stats (x-admin-key 필요). 환불은 refund.ts.
 import type { Env } from "./env";
 import { ApiError, jsonResponse } from "./http";
 import { nowSeconds, timingSafeEqual } from "./util";
@@ -56,6 +56,10 @@ interface StatsRow {
   deletions: number;
   deletions_30d: number;
   pending_purchases: number;
+  paid_outstanding: number;
+  expired_paid: number;
+  admin_refunds: number;
+  admin_refund_credits: number;
 }
 
 export async function handleAdminStats(req: Request, env: Env): Promise<Response> {
@@ -80,7 +84,12 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
        (SELECT COALESCE(SUM(credits), 0) FROM accounts) AS outstanding,
        (SELECT COUNT(*) FROM usage_log WHERE created_at >= ?) AS requests_24h,
        (SELECT COALESCE(SUM(credits), 0) FROM usage_log WHERE created_at >= ?) AS spent_24h,
-       (SELECT COUNT(*) FROM reports) AS reports`,
+       (SELECT COUNT(*) FROM reports) AS reports,
+       (SELECT COALESCE(SUM(remaining), 0) FROM purchases
+          WHERE credited = 1 AND expires_at IS NOT NULL AND lot_closed_at IS NULL) AS paid_outstanding,
+       (SELECT COALESCE(SUM(lot_closed_credits), 0) FROM purchases WHERE lot_closed_reason = 'expired') AS expired_paid,
+       (SELECT COUNT(*) FROM purchases WHERE refunded_at IS NOT NULL) AS admin_refunds,
+       (SELECT COALESCE(SUM(refund_credits), 0) FROM purchases WHERE refunded_at IS NOT NULL) AS admin_refund_credits`,
   )
     .bind(now - 30 * 86400, since, since)
     .first<StatsRow>();
@@ -95,6 +104,12 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
     creditsGranted: { free: row.free_granted, purchased: row.purchased, total: row.free_granted + row.purchased },
     creditsSpent: row.spent,
     creditsOutstanding: row.outstanding,
+    // 그중 만료 안 된 유료 크레딧(열린 묶음의 남은 양). 나머지는 무료(음수 잔액이 있으면 그만큼 작아짐)
+    paidCreditsOutstanding: row.paid_outstanding,
+    // 유효기간(5년)이 지나 사라진 유료 크레딧
+    paidCreditsExpired: row.expired_paid,
+    // 운영자 환불(POST /ember/admin/refund)
+    adminRefunds: { purchases: row.admin_refunds, credits: row.admin_refund_credits },
     purchases: row.purchases,
     // 지급 대기 구매(credited = 0): 소비 후 지급이 실패했거나 진행 중. 같은 계정이 다시 보내면 지급된다.
     pendingPurchases: row.pending_purchases,

@@ -1,5 +1,6 @@
 // POST /v1/messages: 인증·요청 제한·검증 → 동시 처리 칸 확보 → 최악의 비용 예약 → Anthropic 으로 전달 → 실제 비용으로 정산.
 import { authenticate, type Account } from "../auth";
+import { interruptedCharge, type StreamEnd } from "../billing/interrupted";
 import { settleUsage } from "../billing/ledger";
 import { computeCredits } from "../billing/pricing";
 import { applyUsage, emptyUsage, type Usage } from "../billing/usage";
@@ -8,7 +9,7 @@ import { ApiError, errorResponse, isRecord, readJsonObject } from "../http";
 import type { AllowedModel } from "../models";
 import { enforceRateLimit } from "../ratelimit";
 import { nowSeconds } from "../util";
-import { acquireSlot, releaseSlot, reserveForRequest, setSlotReserved } from "./reserve";
+import { acquireSlot, estimateInputTokens, releaseSlot, reserveForRequest, setSlotReserved } from "./reserve";
 import { SseUsageParser } from "./sse";
 import { filterBetas, validateAnthropicVersion, validateMessagesBody, type ValidatedRequest } from "./validate";
 
@@ -38,6 +39,8 @@ interface Flight {
   v: ValidatedRequest;
   slotId: number;
   reserved: number;
+  /** 예약액 중 유료 묶음에서 뺀 양 */
+  paidDrawn: number;
 }
 
 export async function handleMessages(
@@ -68,7 +71,15 @@ export async function handleMessages(
   let handedOff = false;
   try {
     const reservation = await reserveForRequest(env.DB, account.id, validated, cfg.markup, nowSeconds());
-    const f: Flight = { env, cfg, account, v: reservation.request, slotId, reserved: reservation.credits };
+    const f: Flight = {
+      env,
+      cfg,
+      account,
+      v: reservation.request,
+      slotId,
+      reserved: reservation.credits,
+      paidDrawn: reservation.paidDrawn,
+    };
     await setSlotReserved(env.DB, slotId, reservation.credits).catch((err: unknown) =>
       console.error("inflight 예약액 기록 실패:", err),
     );
@@ -136,9 +147,36 @@ function settle(f: Flight, o: Outcome): Promise<number | null> {
     usage: o.usage,
     credits: o.credits,
     reserved: f.reserved,
+    paidDrawn: f.paidDrawn,
     estimated: o.estimated,
     now: nowSeconds(),
   });
+}
+
+/**
+ * 비스트리밍 응답을 끝까지 못 읽었거나 usage 가 없을 때(업스트림 쪽 문제): 입력 처리 비용만 청구한다.
+ * 비스트리밍은 message_start 가 없어 입력 토큰을 모르므로, 요청 본문으로 추정한 입력 토큰(실제보다 크게 잡힘)을 쓴다.
+ * 예약액을 넘지 않는다.
+ */
+function inputOnlyEstimate(f: Flight): { usage: Usage; credits: number } {
+  const body = { ...f.v.body };
+  delete body["max_tokens"];
+  const usage = { ...emptyUsage(), inputTokens: estimateInputTokens(body) };
+  return { usage, credits: Math.min(f.reserved, computeCredits(f.v.model, usage, f.cfg.markup).credits) };
+}
+
+/** Google·Anthropic 오류 응답에서 오류 종류만 뽑는다(본문·메시지는 로그에 남기지 않는다). */
+export async function upstreamErrorType(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const parsed: unknown = JSON.parse(text);
+    const err = isRecord(parsed) ? parsed["error"] : undefined;
+    const type = isRecord(err) ? (err["type"] ?? err["status"]) : undefined;
+    if (typeof type === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(type)) return type;
+  } catch {
+    // JSON 이 아니면 종류를 모른다.
+  }
+  return "unknown";
 }
 
 /** 업스트림 오류는 비용 0 으로 정산(예약액 전부 환불)하고 그대로 넘긴다. */
@@ -146,7 +184,7 @@ async function passUpstreamError(upstream: Response, f: Flight): Promise<Respons
   await settle(f, { status: upstream.status, streamed: f.v.stream, usage: emptyUsage(), credits: 0, estimated: false });
   // 서버 키 문제(401/403)를 그대로 넘기면 앱이 '기기 토큰이 틀렸다'고 오해하므로 500 으로 바꾼다.
   if (upstream.status === 401 || upstream.status === 403) {
-    console.error("업스트림 인증 실패:", upstream.status, await upstream.text().catch(() => ""));
+    console.error("업스트림 인증 실패:", upstream.status, await upstreamErrorType(upstream));
     return errorResponse(500, "api_error", "server upstream credentials are invalid", {
       "x-should-retry": "false",
       [MODEL_HEADER]: f.v.model,
@@ -157,7 +195,7 @@ async function passUpstreamError(upstream: Response, f: Flight): Promise<Respons
 
 /**
  * 비스트리밍: 본문을 그대로 돌려주고 usage 로 정산한다.
- * usage 를 읽지 못하면(본문 읽기·파싱 실패) 예약액 전체를 청구한다.
+ * usage 를 읽지 못하면(본문 읽기·파싱 실패 = 업스트림 쪽 문제) 입력 처리 비용(추정)만 청구한다.
  */
 async function bufferedResponse(upstream: Response, f: Flight): Promise<Response> {
   let text: string;
@@ -165,7 +203,8 @@ async function bufferedResponse(upstream: Response, f: Flight): Promise<Response
     text = await upstream.text();
   } catch (err) {
     console.error("업스트림 본문 읽기 실패:", err);
-    await settle(f, { status: 502, streamed: false, usage: emptyUsage(), credits: f.reserved, estimated: true });
+    const est = inputOnlyEstimate(f);
+    await settle(f, { status: 502, streamed: false, usage: est.usage, credits: est.credits, estimated: true });
     throw new ApiError(502, "api_error", "upstream response was interrupted");
   }
   const usage = emptyUsage();
@@ -181,12 +220,13 @@ async function bufferedResponse(upstream: Response, f: Flight): Promise<Response
   } catch {
     console.error("업스트림 응답 JSON 파싱 실패");
   }
-  const credits = sawUsage ? computeCredits(f.v.model, usage, f.cfg.markup, responseModel).credits : f.reserved;
+  const est = sawUsage ? undefined : inputOnlyEstimate(f);
+  const credits = est ? est.credits : computeCredits(f.v.model, usage, f.cfg.markup, responseModel).credits;
   // 응답 직후 앱이 잔액을 다시 읽어도 맞도록 정산을 기다린 뒤 응답한다(수 ms).
   const balance = await settle(f, {
     status: upstream.status,
     streamed: false,
-    usage,
+    usage: est ? est.usage : usage,
     credits,
     estimated: !sawUsage,
     model: responseModel,
@@ -200,10 +240,11 @@ async function bufferedResponse(upstream: Response, f: Flight): Promise<Response
 /**
  * 스트리밍: 업스트림 바이트를 바꾸지 않고 그대로 흘려보내며 usage 를 파싱한다.
  * 펌프는 ctx.waitUntil 안에서 돌고, 끝나면(정상 종료·업스트림 오류·앱 연결 끊김 모두) 정산하고 칸을 놓는다.
- * - 최종 usage(message_delta)를 받았으면 실제 비용으로 정산.
- * - 못 받았으면(앱이 끊음, 업스트림이 끊김, 중간 error 이벤트) 예약액 전체를 청구한다. 화면에 안 보이는
- *   사고(thinking) 토큰·웹 검색도 예약액(max_tokens·max_uses 기준)에 들어 있으므로 빠져나가지 못한다.
- * - message_start 전에 error 이벤트로 끝났으면 생성이 없었으므로 비용 0.
+ * - 최종 usage(message_delta)를 받았고 오류가 없으면 실제 비용으로 정산.
+ * - 그 밖에는 billing/interrupted.ts 의 규칙(이용약관 5장):
+ *   · 앱이 중지·연결 끊김: 입력 토큰 + ceil(받은 출력 문자 ÷ 3) × 2 토큰(보이지 않는 생각 포함 추정), 예약액 이하.
+ *   · 업스트림 오류(error 이벤트, 업스트림 끊김·최종 usage 없이 끝남)·서버 오류: 입력 토큰만.
+ *   · message_start 전에 끝났으면 비용 0.
  */
 function streamResponse(upstream: Response, f: Flight, ctx: ExecutionContext): Response {
   const body = upstream.body;
@@ -220,9 +261,27 @@ function streamResponse(upstream: Response, f: Flight, ctx: ExecutionContext): R
     reader.cancel().catch(() => undefined);
   });
 
+  let settled = false;
+  const settleInterrupted = async (end: StreamEnd): Promise<void> => {
+    const r = parser.result();
+    const charge = interruptedCharge({
+      model: f.v.model,
+      responseModel: r.model,
+      sawMessageStart: r.sawMessageStart,
+      usage: r.usage,
+      outputChars: r.deltaChars,
+      end,
+      markup: f.cfg.markup,
+      reserved: f.reserved,
+    });
+    settled = true;
+    await settle(f, { status: 200, streamed: true, ...charge, model: r.model });
+  };
+
   const pump = async (): Promise<void> => {
     try {
       let upstreamDone = false;
+      let upstreamFailed = false;
       try {
         for (;;) {
           const { done, value } = await reader.read();
@@ -240,28 +299,30 @@ function streamResponse(upstream: Response, f: Flight, ctx: ExecutionContext): R
         }
       } catch (err) {
         // 앱이 끊어 업스트림을 취소한 경우의 읽기 오류는 정상 흐름이다.
-        if (!clientGone) console.error("업스트림 스트림 읽기 실패:", err);
+        if (!clientGone) {
+          upstreamFailed = true;
+          console.error("업스트림 스트림 읽기 실패:", err);
+        }
       }
       if (!upstreamDone) await reader.cancel().catch(() => undefined);
 
       const r = parser.finish();
-      let credits: number;
-      let estimated = false;
       if (r.sawMessageDelta && !r.sawError) {
-        credits = computeCredits(f.v.model, r.usage, f.cfg.markup, r.model).credits;
-      } else if (r.sawError && !r.sawMessageStart) {
-        credits = 0;
+        const credits = computeCredits(f.v.model, r.usage, f.cfg.markup, r.model).credits;
+        settled = true;
+        await settle(f, { status: 200, streamed: true, usage: r.usage, credits, estimated: false, model: r.model });
       } else {
-        credits = f.reserved;
-        estimated = true;
+        // 업스트림 error 이벤트·업스트림 끊김·최종 usage 없이 정상 종료는 업스트림 쪽 문제, 그 밖(앱이 끊음)은 중단.
+        const end: StreamEnd = r.sawError || upstreamFailed || upstreamDone ? "upstream_error" : "client_gone";
+        await settleInterrupted(end);
       }
-      await settle(f, { status: 200, streamed: true, usage: r.usage, credits, estimated, model: r.model });
 
       if (clientGone) await writer.abort().catch(() => undefined);
       else await writer.close().catch(() => undefined);
     } catch (err) {
-      // 여기까지 오면 정산 전의 예기치 못한 오류: 예약액은 이미 빠져 있으므로(보수적) 기록만 남긴다.
+      // 정산 전의 예기치 못한 서버 오류: 입력 처리 비용만 청구한다(아직 정산하지 않았을 때).
       console.error("스트림 처리 오류:", err);
+      if (!settled) await settleInterrupted("server_error").catch(() => undefined);
       await writer.abort().catch(() => undefined);
     } finally {
       await releaseSlot(f.env.DB, f.slotId);

@@ -9,6 +9,12 @@ export interface ProductPurchase {
   productId?: string;
   quantity: number;
   purchaseType?: number; // 0 테스트, 1 프로모션, 2 보상형
+  /**
+   * 결제 금액(전체 수량, 백만분의 1 단위)과 통화. purchases.products.get(v3) 응답에는 보통 없고,
+   * 응답에 있을 때만 쓴다(없으면 PRODUCT_PRICES_KRW, purchase.ts).
+   */
+  priceAmountMicros?: number;
+  priceCurrencyCode?: string;
 }
 
 export type VerifyResult =
@@ -40,7 +46,39 @@ export function parseProductPurchase(data: unknown): ProductPurchase | null {
     productId: typeof data["productId"] === "string" ? data["productId"] : undefined,
     quantity: quantity !== undefined && Number.isInteger(quantity) && quantity >= 1 ? quantity : 1,
     purchaseType: optNum(data["purchaseType"]),
+    ...parsePrice(data),
   };
+}
+
+/** 응답에 가격(priceAmountMicros: int64 문자열·숫자, priceCurrencyCode)이 둘 다 맞게 있으면 꺼낸다. */
+function parsePrice(data: Record<string, unknown>): Pick<ProductPurchase, "priceAmountMicros" | "priceCurrencyCode"> {
+  const rawMicros = data["priceAmountMicros"];
+  const micros = typeof rawMicros === "string" && /^\d{1,18}$/.test(rawMicros) ? Number(rawMicros) : rawMicros;
+  const currency = data["priceCurrencyCode"];
+  if (typeof micros !== "number" || !Number.isSafeInteger(micros) || micros <= 0) return {};
+  if (typeof currency !== "string" || !/^[A-Z]{3}$/.test(currency)) return {};
+  return { priceAmountMicros: micros, priceCurrencyCode: currency };
+}
+
+/**
+ * Google API 오류 응답에서 상태 코드 다음에 남길 '오류 종류'만 뽑는다(error.status 또는 error.errors[0].reason).
+ * 응답 본문·메시지는 로그에 남기지 않는다(개인정보·토큰이 섞일 수 있음).
+ */
+export function googleErrorType(bodyText: string): string {
+  try {
+    const parsed: unknown = JSON.parse(bodyText);
+    const err = isRecord(parsed) ? parsed["error"] : undefined;
+    if (isRecord(err)) {
+      const errors = err["errors"];
+      const first = Array.isArray(errors) && isRecord(errors[0]) ? errors[0]["reason"] : undefined;
+      for (const v of [err["status"], first]) {
+        if (typeof v === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(v)) return v;
+      }
+    }
+  } catch {
+    // JSON 이 아니면 종류를 모른다.
+  }
+  return "unknown";
 }
 
 export async function verifyProductPurchase(
@@ -53,7 +91,7 @@ export async function verifyProductPurchase(
   const res = await googleFetch(serviceAccountJson, ANDROID_PUBLISHER_SCOPE, url);
   if (res.status === 400 || res.status === 404 || res.status === 410) return { kind: "not_found" };
   if (!res.ok) {
-    console.error("Play 검증 실패:", res.status, await res.text().catch(() => ""));
+    console.error("Play 검증 실패:", res.status, googleErrorType(await res.text().catch(() => "")));
     return { kind: "error", status: res.status };
   }
   const purchase = parseProductPurchase(await res.json().catch(() => null));
@@ -86,6 +124,6 @@ export async function consumeProductPurchase(
   }
   const detail = await res.text().catch(() => "");
   if (res.status === 400 && /consum/i.test(detail)) return { kind: "ok" }; // purchaseAlreadyConsumed 등
-  console.error("Play 소비 실패:", res.status, detail.slice(0, 500));
+  console.error("Play 소비 실패:", res.status, googleErrorType(detail));
   return { kind: "error", status: res.status };
 }

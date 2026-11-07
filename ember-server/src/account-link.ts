@@ -4,7 +4,7 @@
 // - LEGACY_UNLINKED_UNTIL 이 지난 뒤에도 쓸 수 있다(예전 계정이 빠져나갈 길).
 import { authenticate } from "./auth";
 import type { Config, Env } from "./env";
-import { recordFreeGrantStmt, subHashOf, verifyGoogleSignIn } from "./google/identity";
+import { linkFreeGrantStmt, recordFreeGrantStmt, subHashOf, verifyGoogleSignIn } from "./google/identity";
 import { ApiError, jsonResponse, readJsonObject } from "./http";
 import { enforceRateLimit } from "./ratelimit";
 import { nowSeconds } from "./util";
@@ -47,6 +47,7 @@ export async function handleLinkGoogle(req: Request, env: Env, cfg: Config): Pro
       .bind(sub, now, account.id, sub),
     // 예전 계정이 받은 무료 크레딧도 이 Google 계정의 '받음'으로 기록한다(탈퇴 후 다시 받지 못하게).
     recordFreeGrantStmt(env.DB, subHash, sub, now),
+    linkFreeGrantStmt(env.DB, subHash, sub),
   ]);
   const row = results[0]?.results[0] as { credits: number } | undefined;
   if (row) return jsonResponse({ linked: true, credits: row.credits } satisfies LinkResult);

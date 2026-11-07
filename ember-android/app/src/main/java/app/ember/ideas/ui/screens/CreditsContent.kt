@@ -77,7 +77,7 @@ fun CreditsBody(st: Settings, error: String?, onOpenTerms: () -> Unit = {}) {
             s.creditsWorth(st.credits.coerceAtLeast(0) / discoveryCredits, st.credits.coerceAtLeast(0) / docCredits),
             style = MaterialTheme.typography.bodyMedium, color = c.textMuted,
         )
-        if (st.paidCredits >= 0 && st.freeCredits >= 0) {
+        if (st.paidCredits >= 0 && st.freeCredits >= 0 && st.credits >= 0) {
             Text(s.creditsSplit(st.paidCredits, st.freeCredits), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
         }
         if (st.expiringCredits > 0 && st.expiringAt > 0) {

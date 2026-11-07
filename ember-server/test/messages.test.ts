@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { call, errorBody, makeEnv, markPaid, register, setCredits, type TestEnv } from "./helpers/env";
-import { SAMPLE_STREAM } from "./helpers/fixtures";
+import { computeCredits } from "../src/billing/pricing";
+import { emptyUsage } from "../src/billing/usage";
+import { SAMPLE_STREAM, TEXT } from "./helpers/fixtures";
 
 const BODY = {
   model: "claude-opus-5-5",
@@ -225,7 +227,7 @@ describe("POST /v1/messages", () => {
     ]);
   });
 
-  it("스트리밍 중 앱이 끊으면 업스트림을 취소하고 예약액 전체를 청구한다", async () => {
+  it("스트리밍 중 앱이 끊으면 업스트림을 취소하고 입력 + 받은 출력 추정(문자 ÷ 3 × 2)만 청구한다", async () => {
     const env = makeEnv();
     const head = SAMPLE_STREAM.slice(0, SAMPLE_STREAM.indexOf("event: content_block_stop"));
     let upstreamCancelled = false;
@@ -256,8 +258,15 @@ describe("POST /v1/messages", () => {
     expect(log).toHaveLength(1);
     expect(log[0]!.estimated).toBe(1);
     expect(log[0]!.input_tokens).toBe(1200);
-    expect(log[0]!.credits).toBe(100 - balance(env)); // 예약액 그대로(환불 없음)
-    expect(log[0]!.credits).toBeGreaterThan(10);
+    const outputEstimate = Math.ceil(TEXT.length / 3) * 2;
+    expect(log[0]!.output_tokens).toBe(outputEstimate);
+    const expected = computeCredits(
+      "claude-sonnet-5-5",
+      { ...emptyUsage(), inputTokens: 1200, cacheReadTokens: 5000, cacheWrite5mTokens: 300, outputTokens: outputEstimate },
+      1.5,
+    ).credits;
+    expect(log[0]!.credits).toBe(expected);
+    expect(100 - balance(env)).toBe(expected); // 예약액의 나머지는 돌려줌
     expect(env.db.rows("SELECT * FROM inflight")).toEqual([]);
   }, 5000);
 });

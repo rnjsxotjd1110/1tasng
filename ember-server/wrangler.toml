@@ -4,7 +4,8 @@ main = "src/index.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 매일(UTC 03:17): 오래된 rate_limits·nonce·처리 중 표시·기록 정리 + 환불된 구매의 크레딧 회수(Voided Purchases API).
+# 매일(UTC 03:17): 오래된 rate_limits(IP 2일)·nonce·처리 중 표시 정리, 유료 크레딧 5년 만료, 보관 기간 정리(README 9장)
+#   + 환불된 구매의 크레딧 회수(Voided Purchases API).
 [triggers]
 crons = ["17 3 * * *"]
 
@@ -34,6 +35,9 @@ MAX_OUTPUT_TOKENS = "64000"
 MAX_BODY_BYTES = "2097152"
 # 상품 ID → 지급 크레딧(JSON)
 PRODUCTS = '{"ember_credits_500":500,"ember_credits_1500":1650,"ember_credits_5000":5750}'
+# 상품 ID → 1개 가격(원, KRW) JSON. Play 확인 응답에 결제 금액이 없을 때 구매 기록·환불 계산(README 6장 "환불·청약철회 처리")에 쓴다.
+# Play Console 의 실제 판매가로 채운다. 예: '{"ember_credits_500":5900,"ember_credits_1500":16500,"ember_credits_5000":55000}'
+PRODUCT_PRICES_KRW = ""
 # IP 당 가입 제한: 창(초)당 횟수. IPv4 는 주소 전체, IPv6 는 /64 단위로 센다.
 REGISTER_LIMIT = "5"
 REGISTER_WINDOW_SECONDS = "3600"

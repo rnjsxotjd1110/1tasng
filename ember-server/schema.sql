@@ -10,21 +10,26 @@ CREATE TABLE IF NOT EXISTS accounts (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   install_id    TEXT    NOT NULL UNIQUE,
   token_hash    TEXT    NOT NULL UNIQUE,
-  credits       INTEGER NOT NULL DEFAULT 0,
-  free_credits  INTEGER NOT NULL DEFAULT 0,   -- 가입 때 받은 무료 크레딧(통계용)
+  credits       INTEGER NOT NULL DEFAULT 0,   -- 지금 쓸 수 있는 잔액 = 무료 + 만료 안 된 유료(처리 중 요청의 예약액은 빠짐). 음수 = 빚
+  free_credits  INTEGER NOT NULL DEFAULT 0,   -- 가입 때 받은 무료 크레딧(통계용. 남은 무료 크레딧은 credits - 유료 묶음 합계)
   disabled      INTEGER NOT NULL DEFAULT 0,   -- 0 정상, 1 차단(운영자가 SQL 로 설정), 2 정산 실패로 자동 차단(로그 확인·정산 후 0 으로)
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
-  google_sub    TEXT                          -- Google ID 토큰의 sub(계정 고유 ID). NULL = 연결 안 된 예전 계정
+  google_sub    TEXT,                         -- Google ID 토큰의 sub(계정 고유 ID). NULL = 연결 안 된 예전 계정
+  last_used_at  INTEGER NOT NULL DEFAULT 0    -- 마지막 사용(가입·로그인·잔액 확인·요청 등 인증된 호출). 보관 기간(1년 미사용) 기준
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_google_sub ON accounts(google_sub);
 
 -- 무료 크레딧을 받은 Google 계정: HMAC-SHA256(sub, SUB_HASH_SECRET) 만 저장한다(원래 sub 는 알 수 없음).
 -- 계정을 지워도 남아서, 같은 Google 계정으로 다시 가입하면 무료 크레딧은 0 이다(남용 방지).
+-- 개인정보처리방침: 계정이 있는 동안 보관, 계정이 삭제·만료되면 그때부터 3년 뒤 지운다(gone_at 기준, cron).
 CREATE TABLE IF NOT EXISTS free_credit_grants (
   sub_hash    TEXT    PRIMARY KEY,
-  created_at  INTEGER NOT NULL
+  created_at  INTEGER NOT NULL,
+  account_id  INTEGER,                        -- 이 기록이 속한 지금 계정(NULL = 계정 없음 또는 0005 이전 기록, cron 이 연결)
+  gone_at     INTEGER                         -- 계정이 삭제·만료된 시각(NULL = 계정이 있음). 3년 뒤 삭제
 );
+CREATE INDEX IF NOT EXISTS idx_free_grants_account ON free_credit_grants(account_id);
 
 -- 탈퇴(DELETE /ember/account) 시각만 남긴다(통계용, 식별 정보 없음).
 CREATE TABLE IF NOT EXISTS account_deletions (
@@ -48,9 +53,22 @@ CREATE TABLE IF NOT EXISTS purchases (
   created_at      INTEGER NOT NULL,
   voided          INTEGER NOT NULL DEFAULT 0, -- 1 이면 환불·취소(일부 환불 포함)되어 크레딧을 회수함(Voided Purchases API, cron)
   voided_at       INTEGER,                    -- 구글이 알려 준 (마지막) 환불·취소 시각
-  voided_quantity INTEGER NOT NULL DEFAULT 0  -- 환불된 수량(quantity 중). 회수 크레딧 = credits × voided_quantity / quantity
+  voided_quantity INTEGER NOT NULL DEFAULT 0, -- 환불된 수량(quantity 중). 회수 크레딧 = credits × voided_quantity / quantity
+  -- 유료 크레딧 묶음(lot): 지급한 구매 하나 = 묶음 하나. 만료 = created_at + 5년(달력 기준).
+  remaining          INTEGER NOT NULL DEFAULT 0, -- 이 구매로 받은 유료 크레딧 중 남은 양(무료 먼저, 그다음 오래된 구매부터 쓴다)
+  expires_at         INTEGER,                    -- 유효기간 끝(NULL = 묶음 아님: 지급 대기·0 크레딧 테스트 구매)
+  lot_closed_at      INTEGER,                    -- 묶음을 닫은 시각(NULL = 열림: 잔액에 들어감)
+  lot_closed_reason  TEXT,                       -- expired / refunded / voided / deleted(탈퇴) / account_expired(계정 만료)
+  lot_closed_credits INTEGER NOT NULL DEFAULT 0, -- 닫을 때 남아 있던(잃은·환불한) 크레딧
+  price_micros       INTEGER,                    -- 결제 금액(전체 수량, 백만분의 1 단위). Play 확인 응답 → 없으면 PRODUCT_PRICES_KRW
+  price_currency     TEXT,                       -- 결제 통화(ISO 4217, 예: KRW)
+  refunded_at        INTEGER,                    -- 운영자 환불(POST /ember/admin/refund) 시각
+  refund_micros      INTEGER,                    -- 운영자 환불 금액(백만분의 1 단위, price_currency)
+  refund_credits     INTEGER NOT NULL DEFAULT 0  -- 운영자 환불로 없앤 크레딧
 );
 CREATE INDEX IF NOT EXISTS idx_purchases_account ON purchases(account_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_order ON purchases(order_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_expires ON purchases(expires_at);
 
 -- 환불 이벤트(회수 1건 = 1행). 같은 이벤트를 여러 번 받아도 한 번만 회수하도록 (purchase_token, event_key) 가 키다.
 -- event_key: 전체 환불 'full', 수량 일부 환불 'q:<voidedTimeMillis>:<voidedQuantity>', 마이그레이션 이전 회수분 'legacy'.
@@ -99,16 +117,16 @@ CREATE TABLE IF NOT EXISTS usage_log (
   cache_write_tokens    INTEGER NOT NULL DEFAULT 0,
   web_search_requests   INTEGER NOT NULL DEFAULT 0,
   credits               INTEGER NOT NULL DEFAULT 0,
-  estimated             INTEGER NOT NULL DEFAULT 0, -- 1 = 최종 usage 를 못 받아(중단 등) 예약액 전체를 청구함
+  estimated             INTEGER NOT NULL DEFAULT 0, -- 1 = 최종 usage 를 못 받아(중단·오류) 추정으로 청구함(README 1장 "끝까지 받지 못한 요청")
   created_at            INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_log(account_id, created_at);
 
--- AI 생성 콘텐츠 신고(구글 플레이 정책 요구사항).
+-- AI 생성 콘텐츠 신고(구글 플레이 정책 요구사항). account_id NULL = 크레딧 계정 없는 익명 신고(POST /ember/report/anon).
 CREATE TABLE IF NOT EXISTS reports (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  account_id   INTEGER NOT NULL,
+  account_id   INTEGER,
   kind         TEXT    NOT NULL,
   reason       TEXT    NOT NULL,
   content      TEXT    NOT NULL,
@@ -118,6 +136,7 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 -- 고정 창(fixed window) 요청 제한 카운터. key 예: 'reg:1.2.3.4', 'reg:2001:db8:0:1::/64', 'msg:42', 'link:42'
+-- IP 가 들어간 키(reg·rereg·nonce·repip·repanon)는 2일 안에 지운다(cron 이 창 시작 1일 지난 행을 매일 삭제).
 -- 하루 합계 카운터도 여기에 둔다: 'free:day'(무료 크레딧 지급 합계), 'rep:day'(신고 수), window_start = UTC 0시.
 CREATE TABLE IF NOT EXISTS rate_limits (
   key           TEXT    NOT NULL,

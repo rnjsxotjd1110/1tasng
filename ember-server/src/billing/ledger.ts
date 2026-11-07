@@ -1,4 +1,5 @@
 // 정산과 사용 기록. 요청 전에 예약(reserved)한 크레딧과 실제 비용(credits)의 차이를 한 batch(트랜잭션)로 반영한다.
+import { refundToLotsStmt, trimLotsStmt } from "./lots";
 import type { Usage } from "./usage";
 
 /** accounts.disabled 값: 정산 기록이 계속 실패해 자동으로 막은 계정(운영자가 로그로 정산한 뒤 0 으로 되돌린다). */
@@ -14,14 +15,17 @@ export interface UsageRecord {
   credits: number;
   /** 요청 전에 미리 뺀 크레딧(예약 없이 기록만 하면 0) */
   reserved: number;
-  /** true = 최종 usage 를 못 받아 예약액 전체를 청구함 */
+  /** true = 최종 usage 를 못 받아(중단·오류) 추정으로 청구함 */
   estimated: boolean;
+  /** 예약 때 유료 묶음에서 뺀 양(돌려줄 때 이만큼까지 유료로 되돌린다). 없으면 0 */
+  paidDrawn?: number;
   now: number;
 }
 
 /**
  * usage_log 에 남기고 잔액을 정산한다: 예약액 - 실제 비용만큼 돌려준다(돌려줄 게 없으면 0).
- * 실제 비용이 예약액보다 크면(입력 추정이 모자랐던 드문 경우) 그 차이를 더 뺀다(잔액이 음수가 될 수 있음).
+ * 돌려주는 양 중 예약 때 유료 묶음에서 뺐던 만큼(paidDrawn)까지는 유료 묶음(최신 구매부터)으로 되돌린다.
+ * 실제 비용이 예약액보다 크면(입력 추정이 모자랐던 드문 경우) 그 차이를 더 뺀다(무료 먼저, 그다음 오래된 유료, 잔액이 음수가 될 수 있음).
  * 정산 후 잔액을 돌려준다.
  */
 export async function recordUsage(db: D1Database, r: UsageRecord): Promise<number | null> {
@@ -54,14 +58,18 @@ export async function recordUsage(db: D1Database, r: UsageRecord): Promise<numbe
   if (extra > 0) {
     console.warn(`실제 비용이 예약액보다 큼: account=${r.accountId} reserved=${r.reserved} actual=${r.credits}`);
   }
-  const results = await db.batch([
+  const toLots = Math.min(refund, Math.max(0, r.paidDrawn ?? 0));
+  const stmts: D1PreparedStatement[] = [
     log,
     db
       .prepare("UPDATE accounts SET credits = credits + ? - ?, updated_at = ? WHERE id = ?")
       .bind(refund, extra, r.now, r.accountId),
-    db.prepare("SELECT credits FROM accounts WHERE id = ?").bind(r.accountId),
-  ]);
-  const row = results[2]?.results[0] as { credits: number } | undefined;
+  ];
+  if (toLots > 0) stmts.push(refundToLotsStmt(db, r.accountId, toLots));
+  if (extra > 0) stmts.push(trimLotsStmt(db, r.accountId));
+  stmts.push(db.prepare("SELECT credits FROM accounts WHERE id = ?").bind(r.accountId));
+  const results = await db.batch(stmts);
+  const row = results[results.length - 1]?.results[0] as { credits: number } | undefined;
   return row?.credits ?? null;
 }
 

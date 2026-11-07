@@ -30,6 +30,7 @@ export interface Env {
   GOOGLE_OAUTH_CLIENT_IDS?: string;
   REQUIRE_GOOGLE_SIGNIN?: string;
   LEGACY_UNLINKED_UNTIL?: string;
+  PRODUCT_PRICES_KRW?: string;
 }
 
 export interface Config {
@@ -63,6 +64,11 @@ export interface Config {
   requireGoogleSignin: boolean;
   /** 이 시각(유닉스 초) 이후로 Google 에 연결하지 않은 예전 계정은 403 google_required. null 이면 계속 쓸 수 있다. */
   legacyUnlinkedUntil: number | null;
+  /**
+   * 상품 ID → 1개 가격(원, KRW). Play 확인 응답에 결제 금액이 없을 때 구매 기록·환불 계산에 쓴다.
+   * 비어 있으면 금액을 모르는 구매의 환불 견적은 금액 없이 나온다(README 6장 "환불·청약철회 처리").
+   */
+  productPricesKrw: Readonly<Record<string, number>>;
 }
 
 /**
@@ -128,6 +134,24 @@ export function parseProducts(raw: string | undefined): Readonly<Record<string, 
   }
 }
 
+/** PRODUCT_PRICES_KRW JSON(상품 ID → 1개 가격, 원)을 읽는다. 비었거나 형식이 틀리면 빈 표(틀리면 오류 로그). */
+export function parseProductPrices(raw: string | undefined): Readonly<Record<string, number>> {
+  if (raw === undefined || raw.trim() === "") return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("not an object");
+    const out: Record<string, number> = {};
+    for (const [id, price] of Object.entries(parsed)) {
+      if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) throw new Error(`invalid price for ${id}`);
+      out[id] = price;
+    }
+    return out;
+  } catch (err) {
+    console.error("PRODUCT_PRICES_KRW 형식 오류, 무시함:", err);
+    return {};
+  }
+}
+
 /** INTEGRITY_MODE 를 읽는다. 비었으면 off, 모르는 값이면 오류를 남기고 off. */
 export function parseIntegrityMode(raw: string | undefined): IntegrityMode {
   const v = raw?.trim().toLowerCase() ?? "";
@@ -188,5 +212,6 @@ export function loadConfig(env: Env): Config {
     googleClientIds: parseClientIds(env.GOOGLE_OAUTH_CLIENT_IDS),
     requireGoogleSignin: parseRequireGoogleSignin(env.REQUIRE_GOOGLE_SIGNIN),
     legacyUnlinkedUntil: parseLegacyUnlinkedUntil(env.LEGACY_UNLINKED_UNTIL),
+    productPricesKrw: parseProductPrices(env.PRODUCT_PRICES_KRW),
   };
 }

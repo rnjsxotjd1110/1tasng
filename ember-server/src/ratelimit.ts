@@ -106,7 +106,14 @@ export function clientIpKey(req: Request): string {
   return ipRateKey(req.headers.get("cf-connecting-ip"));
 }
 
-/** 이틀보다 오래된 카운터 삭제(cron). */
+/**
+ * 창 시작이 하루보다 오래된 카운터 삭제(매일 cron). 개인정보처리방침의 'IP 주소 2일':
+ * IP 가 들어간 키(reg·rereg·nonce·repip·repanon)는 창이 1시간이므로, 하루 1번 실행이면 기록 후 최대 2일 안에 지워진다.
+ * 하루 합계 카운터(free:day, rep:day)는 오늘 것(창 시작 = 오늘 0시)만 쓰므로 함께 지워도 된다.
+ * 창(REGISTER_WINDOW_SECONDS 등)은 하루 이하로 둔다.
+ */
+export const RATE_LIMIT_KEEP_SECONDS = DAY_SECONDS;
+
 export async function purgeOldRateLimits(db: D1Database, now: number): Promise<void> {
-  await db.prepare("DELETE FROM rate_limits WHERE window_start < ?").bind(now - 2 * 86400).run();
+  await db.prepare("DELETE FROM rate_limits WHERE window_start < ?").bind(now - RATE_LIMIT_KEEP_SECONDS).run();
 }

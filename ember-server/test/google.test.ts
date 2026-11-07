@@ -8,7 +8,8 @@ import {
   jwksTtlSeconds,
   verifyGoogleIdToken,
 } from "../src/google/id-token";
-import { PURCHASE_RETENTION_SECONDS, purgeExpired } from "../src/retention";
+import { addYears } from "../src/billing/lots";
+import { PURCHASE_RETENTION_YEARS, purgeExpired } from "../src/retention";
 import { hmacSha256Hex, sha256Hex } from "../src/util";
 import { addUsage, call, errorBody, makeEnv, register, type TestEnv } from "./helpers/env";
 import { idTokenFor, makeIdToken, TEST_CLIENT_ID, testJwks } from "./helpers/google-id";
@@ -379,13 +380,13 @@ describe("DELETE /ember/account", () => {
     const env = makeEnv();
     const { token } = await register(env);
     const now = Math.floor(Date.now() / 1000);
-    const ancient = now - PURCHASE_RETENTION_SECONDS - 10;
+    const ancient = addYears(now, -PURCHASE_RETENTION_YEARS) - 10;
     env.db.sqlite.exec(
       `INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, voided, created_at)
          VALUES ('old-tok', 1, 'p', 5, 1, 1, ${ancient}), ('new-tok', 1, 'p', 5, 1, 1, ${now})`,
     );
     expect((await del(env, token)).status).toBe(200);
-    env.db.sqlite.exec(`UPDATE accounts SET updated_at = 0`);
+    env.db.sqlite.exec(`UPDATE accounts SET updated_at = 0, last_used_at = 0`);
     await purgeExpired(env.DB, now);
     expect(env.db.rows("SELECT install_id FROM accounts")).toEqual([{ install_id: DELETED_TOMBSTONE }]);
     expect(env.db.rows("SELECT purchase_token FROM purchases")).toEqual([{ purchase_token: await hashedPurchaseToken("new-tok") }]);
@@ -395,7 +396,7 @@ describe("DELETE /ember/account", () => {
     const env = makeEnv();
     await register(env);
     env.db.sqlite.exec(
-      `INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, voided, created_at) VALUES ('kept', 1, 'p', 5, 1, 1, 0);
+      `INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, voided, created_at) VALUES ('kept', 1, 'p', 5, 1, 1, ${Math.floor(Date.now() / 1000)});
        INSERT INTO voided_events (purchase_token, event_key) VALUES ('kept', 'full'), ('gone', 'full');`,
     );
     await purgeExpired(env.DB, Math.floor(Date.now() / 1000));
@@ -409,7 +410,7 @@ describe("보관 정리와 Google 연결", () => {
     const { token } = await register(env, "install-expire-g-01", "google-sub-expire");
     const now = Math.floor(Date.now() / 1000);
     env.db.sqlite.exec(
-      `UPDATE accounts SET credits = 0, updated_at = 0;
+      `UPDATE accounts SET credits = 0, updated_at = 0, last_used_at = 0;
        INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, voided, created_at) VALUES ('v', 1, 'p', 5, 1, 1, ${now});`,
     );
     await purgeExpired(env.DB, now);
@@ -423,7 +424,7 @@ describe("보관 정리와 Google 연결", () => {
     await register(env, "install-pending-exp1");
     const now = Math.floor(Date.now() / 1000);
     env.db.sqlite.exec(
-      `UPDATE accounts SET credits = 0, updated_at = 0;
+      `UPDATE accounts SET credits = 0, updated_at = 0, last_used_at = 0;
        INSERT INTO purchases (purchase_token, account_id, product_id, credits, credited, created_at) VALUES ('pend', 1, 'p', 5, 0, ${now});`,
     );
     await purgeExpired(env.DB, now);

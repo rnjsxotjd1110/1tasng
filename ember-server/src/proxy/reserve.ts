@@ -10,6 +10,7 @@ import {
   reservationCredits,
   type ReservationPlan,
 } from "../billing/pricing";
+import { paidSumStmt, trimLotsStmt } from "../billing/lots";
 import { ApiError, isRecord } from "../http";
 import type { ValidatedRequest } from "./validate";
 
@@ -76,13 +77,29 @@ export function worstCase(v: ValidatedRequest): WorstCase {
   };
 }
 
-/** credits 를 잔액에서 원자적으로 뺀다. 잔액이 credits 보다 적으면 빼지 않고 false. */
-export async function tryReserve(db: D1Database, accountId: number, credits: number, now: number): Promise<boolean> {
-  const row = await db
-    .prepare("UPDATE accounts SET credits = credits - ?, updated_at = ? WHERE id = ? AND credits >= ? RETURNING credits")
-    .bind(credits, now, accountId, credits)
-    .first<{ credits: number }>();
-  return row !== null;
+/**
+ * credits 를 잔액에서 원자적으로 뺀다. 잔액이 credits 보다 적으면 빼지 않고 null.
+ * 같은 트랜잭션에서 무료 먼저·오래된 유료 묶음부터 쓰도록 유료 묶음을 깎고(trimLotsStmt),
+ * 그중 유료에서 뺀 양(paidDrawn)을 돌려준다. 정산 때 돌려줄 것이 있으면 이만큼까지는 유료로 되돌린다.
+ */
+export async function tryReserve(
+  db: D1Database,
+  accountId: number,
+  credits: number,
+  now: number,
+): Promise<{ paidDrawn: number } | null> {
+  const results = await db.batch([
+    paidSumStmt(db, accountId),
+    db
+      .prepare("UPDATE accounts SET credits = credits - ?, updated_at = ? WHERE id = ? AND credits >= ? RETURNING credits")
+      .bind(credits, now, accountId, credits),
+    trimLotsStmt(db, accountId),
+    paidSumStmt(db, accountId),
+  ]);
+  if ((results[1]?.results.length ?? 0) === 0) return null;
+  const before = (results[0]?.results[0] as { paid: number } | undefined)?.paid ?? 0;
+  const after = (results[3]?.results[0] as { paid: number } | undefined)?.paid ?? 0;
+  return { paidDrawn: Math.max(0, before - after) };
 }
 
 export interface Reservation {
@@ -92,6 +109,8 @@ export interface Reservation {
   request: ValidatedRequest;
   /** 잔액이 모자라 max_tokens 를 줄였으면 true */
   reduced: boolean;
+  /** 예약액 중 유료 묶음에서 뺀 양(정산 때 돌려줄 것이 있으면 이만큼까지 유료로 되돌린다) */
+  paidDrawn: number;
 }
 
 function insufficient(): ApiError {
@@ -124,7 +143,8 @@ export async function reserveForRequest(
   const { plan } = worstCase(v);
   const requested = v.body["max_tokens"] as number;
   const full = reservationCredits(plan, requested, markup);
-  if (await tryReserve(db, accountId, full, now)) return { credits: full, request: v, reduced: false };
+  const first = await tryReserve(db, accountId, full, now);
+  if (first) return { credits: full, request: v, reduced: false, paidDrawn: first.paidDrawn };
 
   const row = await db.prepare("SELECT credits FROM accounts WHERE id = ?").bind(accountId).first<{ credits: number }>();
   const balance = row?.credits ?? 0;
@@ -134,8 +154,9 @@ export async function reserveForRequest(
   if (!reducedRequest) throw insufficient();
   const credits = reservationCredits(plan, affordable, markup);
   // 그 사이 다른 요청이 잔액을 썼으면 실패할 수 있다(다시 시도하지 않고 402).
-  if (!(await tryReserve(db, accountId, credits, now))) throw insufficient();
-  return { credits, request: reducedRequest, reduced: affordable < requested };
+  const second = await tryReserve(db, accountId, credits, now);
+  if (!second) throw insufficient();
+  return { credits, request: reducedRequest, reduced: affordable < requested, paidDrawn: second.paidDrawn };
 }
 
 /**
@@ -181,7 +202,10 @@ export async function releaseSlot(db: D1Database, slotId: number): Promise<void>
   }
 }
 
-/** 오래된 inflight 행 정리(cron). 남은 행은 워커가 중간에 죽은 요청이며, 예약액은 그대로 청구된 상태다. */
+/**
+ * 오래된 inflight 행 정리(cron). 남은 행은 워커가 중간에 죽은 요청이며, 예약액은 그대로 청구된 상태다
+ * (예약 때 무료·유료 묶음에서 이미 뺐으므로 따로 할 일은 없다).
+ */
 export async function purgeStaleInflight(db: D1Database, now: number, staleSeconds: number): Promise<void> {
   const { results } = await db
     .prepare("SELECT id, account_id, reserved, started_at FROM inflight WHERE started_at <= ?")

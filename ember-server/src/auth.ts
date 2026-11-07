@@ -1,4 +1,5 @@
 // 기기 토큰 인증. 토큰 원문은 저장하지 않고 SHA-256 해시로만 찾는다.
+import { expireLots, openLot } from "./billing/lots";
 import { parseLegacyUnlinkedUntil, type Env } from "./env";
 import { ApiError } from "./http";
 import { nowSeconds, sha256Hex } from "./util";
@@ -36,6 +37,11 @@ export function googleRequiredError(): ApiError {
 }
 
 const MAX_TOKEN_LENGTH = 256;
+/**
+ * 마지막 사용 시각(last_used_at)을 이 간격(초)보다 자주 쓰지 않는다(요청마다 쓰기 1번을 아끼기 위해).
+ * 보관 기간(1년 미사용) 계산에는 1시간 오차가 문제 되지 않는다.
+ */
+export const LAST_USED_GRANULARITY_SECONDS = 3600;
 
 /** x-api-key 또는 Authorization: Bearer 에서 토큰을 꺼낸다. */
 export function extractToken(req: Request): string | null {
@@ -54,15 +60,26 @@ export async function authenticate(env: Env, req: Request, opts: AuthOptions = {
   if (!token) throw new ApiError(401, "authentication_error", "missing x-api-key header");
   if (token.length > MAX_TOKEN_LENGTH) throw new ApiError(401, "authentication_error", "invalid x-api-key");
   const hash = await sha256Hex(token);
+  const now = nowSeconds();
   const row = await env.DB.prepare(
-    `SELECT id, credits, disabled, google_sub, free_credits,
+    `SELECT id, credits, disabled, google_sub, free_credits, last_used_at,
        (EXISTS (SELECT 1 FROM purchases p
                 WHERE p.account_id = accounts.id AND p.credited = 1 AND p.voided = 0 AND p.credits > 0)
-        AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.account_id = accounts.id AND p.voided = 1)) AS paid
+        AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.account_id = accounts.id AND p.voided = 1)) AS paid,
+       EXISTS (SELECT 1 FROM purchases p WHERE p.account_id = accounts.id AND ${openLot("p")} AND p.expires_at <= ?) AS lot_due
      FROM accounts WHERE token_hash = ?`,
   )
-    .bind(hash)
-    .first<{ id: number; credits: number; disabled: number; paid: number; google_sub: string | null; free_credits: number }>();
+    .bind(now, hash)
+    .first<{
+      id: number;
+      credits: number;
+      disabled: number;
+      paid: number;
+      google_sub: string | null;
+      free_credits: number;
+      last_used_at: number;
+      lot_due: number;
+    }>();
   if (!row) throw new ApiError(401, "authentication_error", "invalid x-api-key");
   if (row.disabled === 2) {
     // 정산 기록 실패로 자동 차단(billing/ledger.ts). 운영자가 정산한 뒤 풀어 준다.
@@ -70,9 +87,24 @@ export async function authenticate(env: Env, req: Request, opts: AuthOptions = {
   }
   if (row.disabled) throw new ApiError(403, "permission_error", "this account has been disabled");
   if (row.google_sub === null && !opts.allowUnlinked && legacyUnlinkedExpired(env)) throw googleRequiredError();
+
+  let credits = row.credits;
+  if (row.lot_due) {
+    // 유효기간(5년)이 지난 유료 크레딧은 cron 을 기다리지 않고 바로 뺀다(잔액 표시·사용 모두 만료 기준).
+    await expireLots(env.DB, now, row.id);
+    const again = await env.DB.prepare("SELECT credits FROM accounts WHERE id = ?").bind(row.id).first<{ credits: number }>();
+    credits = again?.credits ?? credits;
+  }
+  if (row.last_used_at <= now - LAST_USED_GRANULARITY_SECONDS) {
+    // 마지막 사용 시각(보관 기간 기준). 실패해도 요청은 계속한다.
+    await env.DB.prepare("UPDATE accounts SET last_used_at = ? WHERE id = ?")
+      .bind(now, row.id)
+      .run()
+      .catch((err: unknown) => console.error(`last_used_at 기록 실패: account=${row.id}`, err));
+  }
   return {
     id: row.id,
-    credits: row.credits,
+    credits,
     paid: row.paid === 1,
     googleSub: row.google_sub,
     freeCredits: row.free_credits,

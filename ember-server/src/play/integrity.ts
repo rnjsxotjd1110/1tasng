@@ -9,6 +9,7 @@ import { ApiError, isRecord, jsonResponse } from "../http";
 import { clientIpKey, enforceRateLimit } from "../ratelimit";
 import { base64UrlEncode, nowSeconds } from "../util";
 import { googleFetch, PLAY_INTEGRITY_SCOPE } from "./google-auth";
+import { googleErrorType } from "./verify";
 
 export const NONCE_BYTES = 24;
 export const NONCE_TTL_SECONDS = 300;
@@ -82,11 +83,11 @@ export async function decodeIntegrityToken(
     body: JSON.stringify({ integrity_token: integrityToken }),
   });
   if (res.status === 400) {
-    console.warn("Play Integrity 토큰 거절:", await res.text().catch(() => ""));
+    console.warn("Play Integrity 토큰 거절:", res.status, googleErrorType(await res.text().catch(() => "")));
     return { kind: "invalid", status: res.status };
   }
   if (!res.ok) {
-    console.error("Play Integrity 해독 실패:", res.status, await res.text().catch(() => ""));
+    console.error("Play Integrity 해독 실패:", res.status, googleErrorType(await res.text().catch(() => "")));
     return { kind: "error", status: res.status };
   }
   const data: unknown = await res.json().catch(() => null);

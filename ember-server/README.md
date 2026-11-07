@@ -6,8 +6,12 @@ Ember 안드로이드 앱의 **"API 키 없이 쓰기"(유료 크레딧)** 백�
 - 서버는 Anthropic Messages API 와 똑같이 동작하는 **투명 프록시**입니다. 기기 토큰을 확인한 뒤 서버의 진짜 Anthropic 키로 바꿔서 전달합니다. 보내기 **전에** 최악의 비용을 잔액에서 미리 빼 두고(예약), 응답의 `usage`(토큰 수)로 실제 비용을 계산해 남는 만큼 돌려줍니다(정산).
 - **크레딧 모드는 Google 로그인(Sign in with Google)이 필수**입니다. 앱이 Android Credential Manager 로 받은 Google ID 토큰을 가입 때 보내면, 서버는 그 안의 `sub`(구글 계정 고유 ID)로 계정을 찾습니다. 앱을 다시 깔거나 폰을 바꿔도 같은 Google 계정으로 로그인하면 **같은 계정(잔액·구매)이 돌아옵니다.** 이메일·이름은 저장하지 않습니다.
 - 크레딧은 Google Play 인앱 상품으로 판매하고, 새 계정에는 무료 크레딧(기본 40)을 **Google 계정당 평생 한 번** 줍니다(탈퇴 후 다시 가입해도 다시 받지 못함). **결제한 적 없는 계정은 Opus 요청도 Sonnet 으로 처리**합니다.
+- **유료 크레딧과 무료 크레딧을 따로 셉니다**(이용약관 5·6·7장). 유료는 구매 한 건마다 "묶음(lot)" 으로 남은 양과 유효기간(구매 + 5년)을 기록하고, **무료 먼저, 그다음 유료를 오래된 구매부터** 씁니다(1장).
+- 청약철회·환불은 운영자가 `GET /ember/admin/refund-quote` 로 금액을 계산하고 `POST /ember/admin/refund` 로 크레딧을 없앤 뒤 **Play Console 에서 돈을 돌려줍니다**(6장 "환불·청약철회 처리").
 - 앱에서 **계정 삭제**(`DELETE /ember/account`)를 할 수 있습니다. 구매 기록만 법정 보관을 위해 계정과 연결을 끊은 채 남깁니다(9장 데이터 목록).
-- 환불·취소된 구매는 매일 cron 이 Google Play Voided Purchases API 로 찾아 크레딧을 회수합니다.
+- 환불·취소된 구매는 매일 cron 이 Google Play Voided Purchases API 로 찾아 크레딧을 회수합니다(그 구매의 묶음에서 먼저).
+- 보관 기간은 개인정보처리방침과 같습니다: 사용 기록·신고 1년, IP 2일, 무료 크레딧만 있는 계정은 마지막 사용 후 1년, 유료가 남은 계정은 마지막 구매 후 5년, 구매·환불 기록 5년, 무료 크레딧 중복 방지 기록은 계정이 없어진 뒤 3년(9장).
+- 크레딧 계정이 없는 사용자(내 API 키·체험 모드)도 `POST /ember/report/anon` 으로 AI 결과를 익명 신고할 수 있습니다.
 - 가입 때 Play Integrity 로 진짜 Play 설치 앱·정상 기기인지 확인합니다(`wrangler.toml` 의 `INTEGRITY_MODE = "grant"`). **배포 전에 Play Integrity 를 설정해야 합니다(4-5).** 설정하지 않으면 가입은 되지만 새 계정의 무료 크레딧이 0 입니다.
 - 데이터는 Cloudflare D1(SQLite)에 저장합니다. 서버 비용은 소규모라면 Cloudflare 무료 플랜 안에서 해결됩니다.
 
@@ -15,9 +19,10 @@ Ember 안드로이드 앱의 **"API 키 없이 쓰기"(유료 크레딧)** 백�
 앱 (Anthropic SDK, x-api-key = 기기 토큰)
    │  POST /v1/messages (스트리밍 SSE 포함), GET /v1/models/{id}
    │  GET /ember/nonce · POST /ember/register · POST /ember/link-google · DELETE /ember/account
-   │  GET /ember/balance · POST /ember/purchase · POST /ember/report
+   │  GET /ember/balance · POST /ember/purchase · POST /ember/report · POST /ember/report/anon(인증 없음)
    ▼
-Ember 서버 (Cloudflare Worker + D1)            매일 cron: 정리 + 환불 회수
+Ember 서버 (Cloudflare Worker + D1)            매일 cron: 정리·유효기간·보관 기간 + 환불 회수
+   │  (운영자) GET /ember/admin/refund-quote · POST /ember/admin/refund · GET /ember/admin/stats·reports
    │  x-api-key = 서버의 ANTHROPIC_API_KEY
    ▼
 api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불 목록)
@@ -43,15 +48,36 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
 - 예) Opus 로 입력 1,000 + 출력 500 토큰 → $0.014 → 0.014×100×1.5 = 2.1 → **3 크레딧**.
 - 상품: `ember_credits_500` → 500, `ember_credits_1500` → 1650, `ember_credits_5000` → 5750 크레딧 (`PRODUCTS` 로 변경 가능).
 - **예약과 정산**(잔액을 넘겨 쓰지 못하게):
-  1. 업스트림을 부르기 **전에** 최악의 비용을 크레딧으로 계산해 `UPDATE accounts SET credits = credits - 예약액 WHERE id = ? AND credits >= 예약액` 으로 원자적으로 뺍니다.
+  1. 업스트림을 부르기 **전에** 최악의 비용을 크레딧으로 계산해 `UPDATE accounts SET credits = credits - 예약액 WHERE id = ? AND credits >= 예약액` 으로 원자적으로 뺍니다. 같은 트랜잭션에서 무료로 모자라는 만큼은 오래된 유료 묶음에서 잠시 빼 둡니다(아래 "유료 크레딧과 무료 크레딧").
      - 최악의 비용 = `max_tokens × 출력 단가` + `입력 추정 × 입력 단가` + `웹 검색 max_uses 합 × $0.01`.
      - 입력 추정 = 본문 UTF-8 바이트 ÷ 3 토큰(이미지 base64 는 바이트 대신 장당 5,000 토큰) + 웹 검색 1회당 결과 8,000 토큰. 본문에 `cache_control` 이 있으면 입력 단가 ×1.25(`ttl: "1h"` 가 보이면 ×2), Haiku 는 추정이 10만 토큰을 넘으면 ×5.
      - `fallbacks: "default"` 를 쓰면 응답 모델이 바뀔 수 있으므로 **아는 단가 중 가장 비싼 값**(입력 $5 / 출력 $25)으로 예약합니다.
   2. 잔액이 예약액보다 적으면 `max_tokens` 를 잔액이 감당하는 만큼 **줄여서** 보냅니다(하한 1,024, 요청한 값이 더 작으면 그 값. `thinking.budget_tokens` 가 새 `max_tokens` 이상이면 함께 줄임). 그래도 안 되면 **402**.
-  3. 응답이 끝나면 `예약액 − 실제 비용` 을 돌려줍니다(0 미만이면 돌려주지 않음). 입력 추정이 모자라 실제 비용이 예약액보다 큰 드문 경우에는 차이를 더 빼므로 잔액이 조금 음수가 될 수 있습니다(로그에 `실제 비용이 예약액보다 큼`).
+  3. 응답이 끝나면 `예약액 − 실제 비용` 을 돌려줍니다(0 미만이면 돌려주지 않음). 예약 때 유료 묶음에서 뺐던 양까지는 유료 묶음(최신 구매부터)으로 되돌리고, 나머지는 무료로 돌아갑니다. 입력 추정이 모자라 실제 비용이 예약액보다 큰 드문 경우에는 차이를 더 빼므로(무료 → 오래된 유료 순) 잔액이 조금 음수가 될 수 있습니다(로그에 `실제 비용이 예약액보다 큼`).
   - 그래서 잔액을 넘는 동시 요청·긴 출력으로 크레딧을 넘겨 쓸 수 없습니다. 같은 계정의 동시 처리는 **2개**까지입니다(`MAX_CONCURRENT_REQUESTS`, 넘으면 429).
 - 업스트림(Anthropic) 오류 응답·연결 실패는 비용 0(예약액 전부 환불)입니다.
-- **최종 usage 를 받지 못한 경우는 예약액 전체를 청구**합니다(환불 없음): 스트리밍 중 앱이 끊음, 업스트림 스트림이 `message_delta` 없이 끝남, 스트림 중간 `error` 이벤트, 비스트리밍 응답의 본문·usage 를 읽지 못함. 화면에 안 보이는 사고 토큰(`display: "omitted"`)·웹 검색도 예약액(`max_tokens`·`max_uses` 기준)에 들어 있어 빠져나가지 못합니다. 단, `message_start` 전에 `error` 이벤트로 끝나면(생성 없음) 0 입니다.
+- **끝까지 받지 못한 요청**(최종 usage = `message_delta` 를 받기 전에 끝남, 이용약관 5장, 운영자 결정, `src/billing/interrupted.ts`). 모두 `usage_log.estimated = 1` 로 남고, **예약액을 넘지 않습니다**.
+
+  | 상황 | 청구 |
+  |---|---|
+  | 앱이 '중지'를 누르거나 연결이 끊김(스트리밍) | **입력 토큰**(`message_start` 의 usage: 입력·캐시 읽기·캐시 쓰기) **+ 출력 추정 = 올림(받은 출력 문자 수 ÷ 3) × 2 토큰**. 출력 문자 = `content_block_delta` 의 `text`·`thinking`·`partial_json` 문자 수. ×2 는 화면에 보이지 않는 생각(thinking) 분량을 덮기 위한 것. 웹 검색은 청구하지 않음 |
+  | Anthropic 쪽 오류: 스트림 중간 `error` 이벤트, 업스트림 연결이 끊김, `message_delta` 없이 스트림이 끝남 | **입력 토큰만** |
+  | 이 서버 쪽 오류(스트림 처리 중 예외) | **입력 토큰만** |
+  | 비스트리밍 응답의 본문·usage 를 읽지 못함(업스트림 쪽 문제) | **입력 토큰만**. 비스트리밍은 `message_start` 가 없으므로 본문 크기로 추정한 입력 토큰(바이트 ÷ 3, 이미지 장당 5,000)을 씀 |
+  | `message_start` 를 받기 전에 끝남(생성 시작 전) | 0 |
+  | 업스트림 오류 응답(HTTP 4xx·5xx)·연결 실패 | 0 |
+
+  - 예) Sonnet, 입력 10,000 토큰, 사고 1,200자 + 본문 1,800자를 받은 뒤 중지 → 출력 추정 = 3,000 ÷ 3 × 2 = 2,000 토큰 → $0.02 + $0.02 = $0.04 × 1.5 = **6 크레딧**.
+  - 워커가 중간에 죽어 정산하지 못한 요청(처리 중 표시가 30분 넘게 남음)만 예전처럼 예약액이 그대로 청구된 상태로 남습니다(6장).
+- **유료 크레딧과 무료 크레딧**(`src/billing/lots.ts`):
+  - `accounts.credits` 는 지금 쓸 수 있는 잔액 전체(무료 + 만료 안 된 유료, 처리 중 요청의 예약액은 빠진 값, 음수 = 빚)입니다. 예전 앱이 보는 `credits` 도 이 값입니다.
+  - **유료 크레딧** = 지급한 구매마다 하나씩인 "묶음"(`purchases.remaining`, `expires_at`, `lot_closed_*`)의 남은 양 합계. **무료 크레딧** = `credits − 유료`. 무료 크레딧은 가입 때 받은 것(그리고 정산 때 묶음으로 돌아가지 못한 소량)입니다.
+  - **쓰는 순서**: 무료 먼저, 그다음 유료를 오래된 구매부터. 서버는 잔액이 줄어드는 모든 곳(예약·정산·환불 회수)에서 "유료 합계 ≤ max(0, credits)" 가 되도록 오래된 묶음부터 깎습니다. 그래서 유료가 남아 있는 동안 무료는 0 이상이고, 빚(음수)은 유료가 0 일 때만 생깁니다. 빚이 있는 계정이 사면 새 묶음에서 빚을 먼저 갚습니다.
+  - **유효기간**: 구매 기록 시각 + 달력 5년(2월 29일 구매는 5년 뒤 3월 1일). 지나면 그 계정의 다음 요청(잔액 확인 포함) 때 또는 매일 cron 이 묶음을 닫고(`lot_closed_reason = 'expired'`) 남은 양을 잔액에서 뺍니다. 30일 안에 만료되는 양은 `GET /ember/balance` 의 `expiringSoon` 으로 알려 주므로 앱이 안내합니다(약관 6장).
+  - **환불 회수**(Google 환불·취소): 그 구매의 묶음에 남은 양에서 먼저 빼고, 모자라면 나머지 잔액(무료 → 다른 오래된 묶음)에서 빼며, 그래도 모자라면 음수가 됩니다(예전과 같음). 전체 환불이면 묶음을 닫습니다(`voided`).
+  - **운영자 환불**(`POST /ember/admin/refund`)은 그 묶음의 남은 양을 0 으로 만들고 잔액에서 뺍니다. 그 뒤 Google 이 알려 주는 같은 구매의 환불은 다시 빼지 않습니다.
+  - **탈퇴**하면 남은 묶음을 닫습니다(`deleted`, 크레딧 소멸, 약관 12장). **계정 만료**(1년 미사용 + 유료 없음) 때 남은 무료 크레딧도 사라집니다.
+  - 기존 잔액(0005 이전)은 마이그레이션이 나눕니다: 유료 = min(잔액, 환불 안 된 지급 구매 크레딧 합계)를 **최신 구매부터** 채우고(오래된 것부터 썼다고 보므로), 나머지는 무료. 환불(일부 포함)된 구매·탈퇴·만료 계정의 구매는 닫힌 묶음(남은 양 0)이 됩니다. 0 이하 잔액이면 유료 0.
 - **무료 계정 모델 제한**: 지급 완료되고 환불되지 않은 구매가 하나도 없는 계정(= 무료 크레딧만 쓰는 계정)이 `claude-opus-5-5` 를 요청하면, 서버가 `model` 을 `claude-sonnet-5-5` 로 바꿔 보내고 **Sonnet 단가로 과금**합니다. Haiku·Sonnet 요청은 그대로입니다. 한 번이라도 구매하면 바로 Opus 를 쓸 수 있고, 그 구매가 환불되면 다시 Sonnet 으로 돌아갑니다. 실제로 보낸 모델은 응답 헤더 `ember-model` 로 알 수 있습니다.
 - 서버측 거절 대체(`server-side-fallback`)로 다른 모델이 응답하면, 그 모델의 단가표가 있으면 그 단가로(예: `claude-opus-5` $5/$25), **단가표에 없는 모델이면 아는 단가 중 가장 비싼 값**(입력 $5 / 출력 $25 / 캐시 읽기 $0.5)으로 계산합니다(요청한 모델 단가가 아님).
 
@@ -68,13 +94,16 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
 | `POST /ember/register` | 없음 | `{"installId": "8~64자 [A-Za-z0-9_-]", "idToken": "<Google ID 토큰>", "integrityToken"?, "nonce"?}` | `{"token","credits","freeGranted","restored"}` + `INTEGRITY_MODE` 가 켜져 있으면 `"integrity"` |
 | `POST /ember/link-google` | 토큰 | `{"idToken"}` | `{"linked":true,"credits"}` |
 | `DELETE /ember/account` | 토큰 | – | `{"deleted":true}` |
-| `GET /ember/balance` | 토큰 | – | `{"credits"}` |
+| `GET /ember/balance` | 토큰 | – | `{"credits","freeCredits","paidCredits","expiringSoon"}` (아래 "잔액") |
 | `POST /ember/purchase` | 토큰 | `{"productId","purchaseToken"}` | `{"credits","granted"}` (+ 운영에서 테스트 구매면 `"testPurchase": true`) |
 | `POST /ember/report` | 토큰 | `{"kind":"question"\|"idea"\|"document"\|"other","reason","content"(≤20000자),"note"(≤2000),"appVersion"(≤64)}` | `{"ok":true,"id"}` |
+| `POST /ember/report/anon` | **없음** | `/ember/report` 와 같음 | `{"ok":true,"id"}` (크레딧 계정 없는 사용자의 익명 신고, 아래 "신고") |
 | `POST /v1/messages` | 토큰 | Anthropic Messages API(허용 필드만) | Anthropic 응답 그대로(스트리밍 포함) + 헤더 `ember-model` |
 | `GET /v1/models/{id}` | 토큰 | – | `{"type":"model","id","display_name","created_at"}` 또는 404 |
 | `GET /ember/admin/reports?limit=50&before=<id>` | `x-admin-key` | – | `{"reports":[...],"nextBefore"}` |
-| `GET /ember/admin/stats` | `x-admin-key` | – | 계정 수, Google 연결 계정 수, 탈퇴 수, 지급/사용 크레딧, 24시간 요청 수 등 |
+| `GET /ember/admin/stats` | `x-admin-key` | – | 계정 수, Google 연결 계정 수, 탈퇴 수, 지급/사용 크레딧, 유료 잔액, 24시간 요청 수 등 |
+| `GET /ember/admin/refund-quote?orderId=GPA...[&waiveFee=1][&paid=5900&currency=KRW]` | `x-admin-key` | – | 환불 견적(금액·비율·묶음 상태, 바꾸는 것 없음). 6장 |
+| `POST /ember/admin/refund` | `x-admin-key` | `{"orderId", "waiveFee"?, "paid"?, "currency"?}` | `{"refunded":true,"orderId","credits","amountMicros","amount","currency","quote"}`. 6장 |
 
 그 밖의 경로는 모두 404 `not_found_error`.
 
@@ -90,6 +119,23 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
 | 502 | `api_error` | Google 공개키(JWKS)를 받지 못함 | 잠시 뒤 다시 |
 | 500 | `api_error` | 서버 설정 누락(`GOOGLE_OAUTH_CLIENT_IDS`·`SUB_HASH_SECRET`), 메시지 `Google sign-in is not configured` | 운영자 설정 확인 |
 | 401 | `authentication_error` | 토큰이 없거나 틀림(탈퇴한 계정의 토큰 포함) | 다시 가입(Google 로그인) |
+
+**잔액**(`GET /ember/balance`, 응답 형식이 바뀜 — 예전 앱은 `credits` 만 읽으면 그대로 동작)
+```json
+{"credits": 2050, "freeCredits": 100, "paidCredits": 1950, "expiringSoon": {"credits": 200, "at": 1893456000}}
+```
+- `credits`: 지금 쓸 수 있는 잔액 전체(무료 + 만료 안 된 유료). **예전 앱 호환을 위해 그대로 둡니다.** 음수면 빚(환불 회수 등).
+- `freeCredits`: 무료 크레딧(= `credits − paidCredits`). 빚이 있으면 음수(그때 `paidCredits` 는 0).
+- `paidCredits`: 만료 안 된 유료 크레딧(구매별 남은 양의 합).
+- `expiringSoon`: 30일 안에 만료되는 유료 크레딧이 있으면 `{"credits": 그 합계, "at": 가장 이른 만료 시각(유닉스 초, UTC)}`, 없으면 `null`. 앱은 "N 크레딧이 YYYY-MM-DD 에 만료돼요" 로 안내합니다(약관 6장: 만료 30일 전 안내).
+- 처리 중인 요청이 있으면 예약액만큼 줄어든 값입니다(끝나면 정산되어 돌아옴).
+- 잔액 확인도 "마지막 사용" 으로 칩니다(계정 보관 기간 1년 기준, 9장).
+
+**신고**
+- `POST /ember/report`(토큰): AI 응답을 한 번이라도 받은 계정만(아니면 403). 계정당·IP(/64)당 시간당 30회.
+- `POST /ember/report/anon`(**인증 없음**): 크레딧 계정이 없는 사용자(내 API 키·체험 모드)용. 본문·응답·검증은 `/ember/report` 와 같고, `account_id = NULL` 로 저장합니다(토큰을 보내도 계정과 연결하지 않음). **IP(IPv4 주소 / IPv6 /64)당 시간당 10회**(넘으면 429 `rate_limit_error`).
+- 하루 전체 상한 `REPORTS_DAILY_CAP`(기본 500)은 두 경로를 **합쳐서** 셉니다(넘으면 429, 메시지에 `today`).
+- 신고는 1년 보관합니다. IP 는 요청 제한 카운터에만 쓰고(2일) 신고에는 저장하지 않습니다.
 
 **등록(Google 로그인, 기본)**
 - 요청: `{"installId", "idToken", "integrityToken"?, "nonce"?}`. `idToken` 은 Credential Manager 가 준 Google ID 토큰(JWT) 문자열 그대로.
@@ -175,7 +221,7 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
 - 웹 검색 도구의 `max_uses` 는 **5 이하로 강제**합니다(없거나 5 보다 크면 5).
 - `anthropic-beta` 는 **허용 목록에 있는 값만** 전달합니다: `server-side-fallback-2026-07-01`(앱이 보내는 유일한 베타). 다른 값은 조용히 뺍니다.
 - 비스트리밍 응답에는 `ember-credits-remaining` 헤더가 붙습니다. **정산 후 DB 에서 다시 읽은 잔액**입니다(정산 기록이 실패하면 헤더가 없음).
-- 스트리밍(`"stream": true`)은 바이트를 바꾸지 않고 그대로 흘려보내며, 스트림이 끝나면 정산합니다(최종 usage 가 없으면 예약액 전체 청구).
+- 스트리밍(`"stream": true`)은 바이트를 바꾸지 않고 그대로 흘려보내며, 스트림이 끝나면 정산합니다(최종 usage 가 없으면 1장 "끝까지 받지 못한 요청" 규칙: 중지는 입력 + 받은 출력 × 2 추정, 오류는 입력만).
 - 서버의 Anthropic 키가 잘못되어 업스트림이 401/403 을 주면, 앱이 "기기 토큰이 틀렸다"고 오해하지 않도록 **500 `api_error`** 로 바꿔서 돌려줍니다.
 
 ### 앱 연동
@@ -217,8 +263,10 @@ api.anthropic.com      androidpublisher.googleapis.com (영수증 확인·환불
    - 429 중 메시지에 `concurrent` 가 있으면 같은 계정의 요청 2개가 처리 중인 것입니다. 잠시 뒤(`retry-after`) 다시 보내세요(SDK 의 자동 재시도로 충분).
    - 앱이 보내는 베타·필드는 이 서버의 허용 목록과 맞춰 두어야 합니다. 새 베타·최상위 필드를 쓰려면 서버(`src/proxy/validate.ts`)를 먼저 고쳐 배포하세요.
 3. **구매**: 서버가 소비까지 하므로 앱의 `consumePurchase` 는 없어도 됩니다(있어도 되고, 실패는 무시). 응답에 `"testPurchase": true` 가 있으면 운영 서버가 테스트 구매에 크레딧을 주지 않은 것입니다. 500/502 를 받은 구매는 같은 `productId`·`purchaseToken` 으로 나중에 다시 보내면 지급됩니다(지급 복구).
-4. **환불**: 구글에서 환불된 구매의 크레딧은 다음 날 cron 에서 회수되어 잔액이 음수가 될 수 있습니다. 음수면 `/v1/messages` 는 402 이므로 앱은 기존 "크레딧 부족" 화면을 그대로 쓰면 됩니다.
-5. **신고**: `POST /ember/report` 는 AI 응답을 한 번이라도 받은 계정만 쓸 수 있습니다(아니면 403).
+4. **환불**: 구글에서 환불된 구매의 크레딧은 다음 날 cron 에서 회수되어 잔액이 음수가 될 수 있습니다. 음수면 `/v1/messages` 는 402 이므로 앱은 기존 "크레딧 부족" 화면을 그대로 쓰면 됩니다. 7일 지난 환불·부분 환불은 앱이 아니라 이메일(주문번호 GPA.…)로 받아 운영자가 처리합니다(6장).
+5. **잔액 화면**: `GET /ember/balance` 의 `freeCredits`·`paidCredits` 를 나눠 보여 주고, `expiringSoon` 이 있으면 만료 안내를 띄웁니다. 예전 앱은 `credits` 만 읽어도 됩니다.
+6. **신고**: 크레딧 계정이 있으면 `POST /ember/report`(AI 응답을 한 번이라도 받은 계정만, 아니면 403), 없으면(내 API 키·체험 모드) `POST /ember/report/anon`(인증 헤더 없이). 429 면 잠시 뒤 다시.
+7. **중지 버튼**: 스트리밍 중 연결을 끊으면 서버가 입력 + 받은 출력(× 2) 만큼만 청구하고 나머지 예약액을 돌려줍니다. 끊은 뒤 `GET /ember/balance` 로 잔액을 다시 읽으세요(정산은 끊은 직후 끝납니다).
 
 ---
 
@@ -382,7 +430,8 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
 | `MAX_OUTPUT_TOKENS` | 변수 | `64000` | `max_tokens` 상한 |
 | `MAX_BODY_BYTES` | 변수 | `2097152` | 요청 본문 최대 크기(2 MB) |
 | `PRODUCTS` | 변수 | `{"ember_credits_500":500,"ember_credits_1500":1650,"ember_credits_5000":5750}` | 상품 ID → 크레딧(JSON). 형식이 틀리면 기본값 사용 |
-| `REGISTER_LIMIT` / `REGISTER_WINDOW_SECONDS` | 변수 | `5` / `3600` | IP(IPv4 주소 / IPv6 /64)당 새 가입 제한 |
+| `PRODUCT_PRICES_KRW` | 변수 | 비어 있음 | 상품 ID → **1개 가격(원)** JSON(예 `{"ember_credits_500":5900}`). Play 확인 응답에 결제 금액이 없으면(보통 없음) 구매 기록에 `가격 × 수량` 을 남기고, 금액이 기록되지 않은 구매의 환불 견적에도 씀. Play Console 의 실제 판매가와 같게 유지. 형식이 틀리면 무시(로그) |
+| `REGISTER_LIMIT` / `REGISTER_WINDOW_SECONDS` | 변수 | `5` / `3600` | IP(IPv4 주소 / IPv6 /64)당 새 가입 제한. 창은 **하루 이하**로(IP 카운터를 2일 안에 지우기 위해) |
 | `REREGISTER_LIMIT` | 변수 | `30` | IP 당 재등록(토큰 재발급)·`/ember/nonce` 제한(창은 `REGISTER_WINDOW_SECONDS`) |
 | `MESSAGES_LIMIT` / `MESSAGES_WINDOW_SECONDS` | 변수 | `30` / `600` | 토큰 당 `/v1/messages` 제한 |
 | `MAX_CONCURRENT_REQUESTS` | 변수 | `2` | 계정당 동시 처리 중인 `/v1/messages` 수 |
@@ -398,15 +447,17 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
   - `accounts`: 계정 수(탈퇴 계정의 구매가 옮겨 간 묘비 계정 제외, 만료 계정 포함), `googleLinkedAccounts`: Google 에 연결된 계정 수
   - `deletedAccounts`: `{"total", "last30d"}` 탈퇴 수
   - `pendingPurchases`: 지급 대기 구매(소비 후 지급 실패 등). 오래 남아 있으면 아래 "지급 대기 구매" 참고
+  - `paidCreditsOutstanding`: 만료 안 된 유료 크레딧 합계(`creditsOutstanding` 중 유료), `paidCreditsExpired`: 유효기간이 지나 사라진 유료 크레딧, `adminRefunds`: 운영자 환불 `{"purchases","credits"}`
 - **지급 대기 구매**: 같은 계정이 다시 보내면 자동 지급됩니다. 사용자가 다시 보내지 않으면 운영자가 수동 지급할 수 있습니다:
   ```bash
   npx wrangler d1 execute ember --remote --command "SELECT id, account_id, product_id, order_id, credits, datetime(created_at,'unixepoch') FROM purchases WHERE credited = 0"
   # Play Console 에서 주문(order_id)이 결제 완료·환불 안 됨인지 확인한 뒤:
-  npx wrangler d1 execute ember --remote --command "UPDATE accounts SET credits = credits + 500 WHERE id = 42; UPDATE purchases SET credited = 1 WHERE id = 7 AND credited = 0"
+  npx wrangler d1 execute ember --remote --command "UPDATE accounts SET credits = credits + 500 WHERE id = 42; UPDATE purchases SET credited = 1, remaining = credits, expires_at = CAST(strftime('%s', created_at, 'unixepoch', '+5 years') AS INTEGER) WHERE id = 7 AND credited = 0"
   ```
+  (`remaining`·`expires_at` 을 함께 넣어야 유료 크레딧 묶음이 됩니다. 빼면 그 500 은 무료 크레딧으로 잡힙니다.)
 - **계정 삭제 요청(앱 밖, 예: 이메일·차단된 계정)**: 계정 id 를 확인한 뒤(예: 사용자가 알려 준 주문번호로 `SELECT account_id FROM purchases WHERE order_id = 'GPA....'`) 아래를 **한 번에** 실행합니다. 앱의 삭제와 같지만, SQL 로는 SHA-256 을 계산할 수 없어 구매의 `purchase_token` 은 원문 그대로 묘비 계정으로 옮깁니다(같은 영수증 재지급 방지는 그대로 됨). 차단을 잠시 풀어(`disabled = 0`) 사용자가 앱에서 지우게 하면 토큰까지 해시됩니다.
   ```bash
-  npx wrangler d1 execute ember --remote --command "INSERT INTO accounts (install_id, token_hash, credits, free_credits, disabled, created_at, updated_at) VALUES ('deleted:tombstone', 'deleted:tombstone', 0, 0, 1, unixepoch(), unixepoch()) ON CONFLICT (install_id) DO NOTHING; UPDATE purchases SET account_id = (SELECT id FROM accounts WHERE install_id = 'deleted:tombstone') WHERE account_id = 42; DELETE FROM usage_log WHERE account_id = 42; DELETE FROM inflight WHERE account_id = 42; DELETE FROM reports WHERE account_id = 42; DELETE FROM rate_limits WHERE key IN ('msg:42','rep:42','link:42'); DELETE FROM accounts WHERE id = 42; INSERT INTO account_deletions (deleted_at) VALUES (unixepoch())"
+  npx wrangler d1 execute ember --remote --command "UPDATE purchases SET lot_closed_at = unixepoch(), lot_closed_reason = 'deleted', lot_closed_credits = remaining, remaining = 0 WHERE account_id = 42 AND expires_at IS NOT NULL AND lot_closed_at IS NULL; UPDATE free_credit_grants SET account_id = NULL, gone_at = unixepoch() WHERE account_id = 42; INSERT INTO accounts (install_id, token_hash, credits, free_credits, disabled, created_at, updated_at) VALUES ('deleted:tombstone', 'deleted:tombstone', 0, 0, 1, unixepoch(), unixepoch()) ON CONFLICT (install_id) DO NOTHING; UPDATE purchases SET account_id = (SELECT id FROM accounts WHERE install_id = 'deleted:tombstone') WHERE account_id = 42; DELETE FROM usage_log WHERE account_id = 42; DELETE FROM inflight WHERE account_id = 42; DELETE FROM reports WHERE account_id = 42; DELETE FROM rate_limits WHERE key IN ('msg:42','rep:42','link:42'); DELETE FROM accounts WHERE id = 42; INSERT INTO account_deletions (deleted_at) VALUES (unixepoch())"
   ```
 - **신고 목록**: `GET /ember/admin/reports?limit=50`, 다음 페이지는 응답의 `nextBefore` 를 `before=` 로.
 - **계정 차단**:
@@ -420,15 +471,57 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
      npx wrangler d1 execute ember --remote --command "UPDATE accounts SET credits = credits + <reserved-actual>, disabled = 0 WHERE id = 42 AND disabled = 2"
      ```
   - `GET /ember/admin/stats` 의 `billingDisabledAccounts` 로 개수를, `inflightRequests` 로 처리 중(예약 중) 요청 수를 볼 수 있습니다.
-- **처리 중 표시(`inflight`)**: 요청이 끝나면 지워집니다. 워커가 중간에 죽어 남은 행은 `INFLIGHT_STALE_SECONDS`(30분) 뒤 무시되고 cron 이 로그(`정산되지 않은 요청 정리`)를 남기고 지웁니다. 이 경우 예약액은 그대로 청구된 상태입니다.
-- **크레딧 수동 지급(환불·보상)**:
+- **처리 중 표시(`inflight`)**: 요청이 끝나면 지워집니다. 워커가 중간에 죽어 남은 행은 `INFLIGHT_STALE_SECONDS`(30분) 뒤 무시되고 cron 이 로그(`정산되지 않은 요청 정리`)를 남기고 지웁니다. 이 경우 예약액은 그대로 청구된 상태입니다(필요하면 아래 "크레딧 수동 지급" 으로 돌려줌).
+- **크레딧 수동 지급(보상)**: 아래처럼 잔액만 올리면 **무료 크레딧**으로 잡힙니다(유효기간 없음, 1년 미사용 시 계정과 함께 소멸, 환불 대상 아님).
   ```bash
   npx wrangler d1 execute ember --remote --command "UPDATE accounts SET credits = credits + 500 WHERE id = 42"
   ```
+
+### 환불·청약철회 처리(운영자)
+이용약관 7장: 구매 후 **7일 이내**면 그 구매의 남은 유료 크레딧 비율만큼 **수수료 없이**(쓰지 않았으면 전액 = 청약철회), **7일이 지나면** 같은 금액에서 **10% 를 빼고** 환불합니다. 금액 = `결제 금액 × (그 구매의 남은 유료 크레딧 ÷ 그 구매로 받은 크레딧)`(내림). 무료 크레딧은 환불하지 않습니다. 회사는 요청을 받은 날부터 3영업일 안에 처리합니다.
+
+- 사용자가 **구매 후 48시간 안에 Google Play 에서** 환불을 요청해 Google 이 환불하면 이 절차는 필요 없습니다(다음 날 cron 이 회수: 그 구매의 묶음 먼저, 모자라면 나머지 잔액, 음수 가능).
+- 그 밖의 요청(이메일로 주문번호 `GPA.…`)은 아래 순서로 처리합니다.
+  1. **견적**(아무것도 바꾸지 않음):
+     ```bash
+     curl -s "https://<워커 주소>/ember/admin/refund-quote?orderId=GPA.1234-5678-9012-34567" -H "x-admin-key: $ADMIN_KEY"
+     ```
+     응답 예:
+     ```json
+     {"orderId":"GPA.1234-5678-9012-34567","productId":"ember_credits_500","quantity":1,
+      "purchasedAt":1762500000,"expiresAt":1920266400,"daysSincePurchase":2,
+      "lot":{"state":"open","credits":500,"remaining":300,"closedAt":null,"closedCredits":0},
+      "price":{"amountMicros":5900000000,"amount":5900,"currency":"KRW","source":"purchase"},
+      "withinWithdrawalPeriod":true,"feeRate":0,"ratio":0.6,
+      "refundable":{"amountMicros":3540000000,"amount":3540,"currency":"KRW"},
+      "refundableNow":true,"refunded":null}
+     ```
+     - `lot.state`: `open`(환불 가능) / `expired`(유효기간 지남) / `refunded`(이미 운영자 환불) / `voided`(Google 환불) / `deleted`(탈퇴, 약관 12장: 삭제 전에 요청해야 함) / `account_expired` / `pending`(지급 전) / `no_credits`(크레딧 0 인 테스트 구매).
+     - `price.source`: `purchase`(구매 때 기록한 금액) / `config`(`PRODUCT_PRICES_KRW`) / `override`(요청의 `paid`). 금액을 모르면 `price`·`refundable` 이 `null` 이고 `refundableNow: false` 입니다. 그때는 Play Console 주문 화면의 결제 금액을 `&paid=5900&currency=KRW` 로 넘깁니다.
+     - 서비스 종료(약관 11장)처럼 수수료 없이 돌려줄 때는 `&waiveFee=1`.
+     - Google 이 수량 일부를 이미 환불한 구매는 남은 수량 기준으로 크레딧·금액을 계산합니다.
+  2. **크레딧 없애기·기록**(견적과 같은 계산, 같은 옵션):
+     ```bash
+     curl -s -X POST "https://<워커 주소>/ember/admin/refund" -H "x-admin-key: $ADMIN_KEY" \
+       -H "content-type: application/json" -d '{"orderId":"GPA.1234-5678-9012-34567"}'
+     ```
+     그 구매의 남은 유료 크레딧을 0 으로 만들고(잔액에서 빼고, 묶음 `refunded` 로 닫음) `refunded_at`·`refund_micros`·`refund_credits` 를 기록합니다. 그 사이 사용자가 크레딧을 써서 묶음이 바뀌었으면 **409**(다시 견적), 이미 환불했거나 환불할 크레딧이 없으면 **409**, 모르는 주문은 404.
+  3. **돈 돌려주기**: Play Console → 주문 관리 → 그 주문 → **환불** 에서 응답의 `amount`(통화 `currency`)만큼 **부분 환불**합니다(전액이면 전체 환불). 소비형 상품이므로 "권한 취소(revoke)" 는 의미가 없습니다.
+  - Google 이 이 환불을 Voided Purchases 로 알려 줘도 cron 은 **크레딧을 다시 빼지 않습니다**(이미 2번에서 없앰, 이벤트만 기록).
+  - 순서를 지키세요: 2번(크레딧 없애기) 전에 3번(돈)을 하면, 그 사이 사용자가 크레딧을 쓸 수 있고 cron 이 구매 전체를 회수해 잔액이 음수가 될 수 있습니다.
+  - 미성년자 취소처럼 결제 전액을 돌려줘야 하면 2번을 한 뒤 Play Console 에서 **전체 금액**을 환불합니다(이미 쓴 크레딧은 회수할 수 없으므로 서버 쪽은 2번으로 충분).
+  - 기록 조회: `SELECT order_id, refund_credits, refund_micros, price_currency, datetime(refunded_at,'unixepoch') FROM purchases WHERE refunded_at IS NOT NULL`.
 - 매일 03:17(UTC) cron 이 하는 일(하나가 실패해도 나머지는 계속하고, 마지막에 실패로 기록):
-  1. 오래된 요청 제한 카운터·만료된 nonce·오래된 처리 중 표시 삭제, 보관 기간 지난 기록 정리
-     - 보관 정리: 1년 지난 `usage_log`·`reports` 삭제. 1년 동안 쓰지 않은 계정 중 **잔액이 0 이하이고 지급된·환불되지 않은 구매가 없는 계정만** 정리합니다(구매 기록이 없으면 삭제, 환불된(또는 지급 대기) 구매 기록만 있으면 토큰·installId·Google 연결을 무효로 하고 남김). **잔액이 남아 있거나 환불되지 않은 구매가 있는 계정은 절대 만료하지 않습니다.** 5년 지난 구매 기록은 만료된 계정과 탈퇴한 계정(묘비) 것만 지웁니다. `free_credit_grants`·`account_deletions` 는 지우지 않습니다.
-  2. **환불 회수**: Voided Purchases API(`type=0` 일회성 상품, `includeQuantityBasedPartialRefund=true`, 1000개씩 페이지 넘김)로 환불·취소 목록을 받아, 지급한 구매면 환불된 수량만큼 잔액에서 빼고(**음수 가능 → 402 로 사용 차단**) `purchases.voided = 1, voided_quantity, voided_at = 환불 시각` 으로 표시합니다.
+  1. 요청 제한 카운터(창 시작 1일 지난 것 → IP 는 2일 안에 삭제)·만료된 nonce·오래된 처리 중 표시 삭제
+  2. **무료 크레딧 기록 연결**(0005 이전 기록이 있을 때만): `SUB_HASH_SECRET` 으로 지금 계정의 Google sub 의 HMAC 을 계산해 `free_credit_grants.account_id` 를 채우고, 맞는 계정이 없으면 그날을 `gone_at`(계정 없어진 시각)으로 둡니다. 배포 후 첫 실행에서 끝나고 그 뒤로는 할 일이 없습니다.
+  3. **보관 기간 정리**(`src/retention.ts`, 9장 표와 같음):
+     - 유효기간(구매 + 5년) 지난 유료 묶음을 닫고 잔액에서 뺌.
+     - 1년 지난 `usage_log`·`reports`(익명 포함) 삭제.
+     - 구매 + 5년 지난 구매·환불 기록(`purchases`·`voided_events`)은 **계정 상태와 관계없이** 삭제(닫힌 묶음만).
+     - **마지막 사용(`last_used_at`) 후 1년** 지났고 **만료 안 된 유료 크레딧이 없는** 계정을 만료: 남은 무료 크레딧·빚은 사라짐. 구매 기록이 없으면 계정 행 삭제, 있으면 토큰·installId·Google 연결·잔액을 지운 자리 표시(`expired-<id>`)만 남기고 구매 기록이 지워진 뒤 삭제. **유료 크레딧이 남은 계정은 묶음이 만료될 때까지(= 마지막 구매 + 5년) 남습니다.** 마지막 사용은 가입·로그인·잔액 확인·요청·구매·신고 등 인증된 모든 호출(1시간 단위로 기록).
+     - `free_credit_grants`: 그 기록의 계정이 삭제·만료된 때(`gone_at`)부터 **3년** 지나면 삭제. 계정이 있는 동안은 남습니다. 탈퇴 뒤 같은 Google 계정으로 다시 가입하면 기록이 새 계정에 다시 묶입니다(3년은 새 계정이 없어진 때부터).
+     - `account_deletions` 는 지우지 않습니다(식별 정보 없음).
+  4. **환불 회수**: Voided Purchases API(`type=0` 일회성 상품, `includeQuantityBasedPartialRefund=true`, 1000개씩 페이지 넘김)로 환불·취소 목록을 받아, 지급한 구매면 환불된 수량만큼 잔액에서 빼고(그 구매의 유료 묶음 먼저, 모자라면 나머지 잔액. **음수 가능 → 402 로 사용 차단**) `purchases.voided = 1, voided_quantity, voided_at = 환불 시각` 으로 표시합니다. 운영자가 이미 `POST /ember/admin/refund` 로 처리한 구매는 크레딧을 다시 빼지 않습니다.
      - **수량 일부 환불**(`voidedQuantity` 가 있음): `credits × voidedQuantity / quantity` 만 회수합니다(누적 기준으로 나눠, 전부 환불되면 정확히 전액). `voidedQuantity` 가 없으면 전체 환불로 보고 아직 회수하지 않은 나머지 수량을 전부 회수합니다.
      - 같은 환불 이벤트(전체 환불 / 일부 환불은 시각·수량)는 `voided_events` 표로 **한 번만** 뺍니다.
      - 일부 환불만 있어도 그 계정은 결제 계정에서 빠집니다(Opus → Sonnet).
@@ -444,7 +537,25 @@ npx wrangler deploy          # 코드나 wrangler.toml 을 고친 뒤 다시 배
 ### DB 업그레이드
 운영 중인 DB 에는 **새 코드를 배포하기 전에** 아직 적용하지 않은 마이그레이션을 순서대로 한 번씩 실행합니다(새 표·컬럼 없이 새 코드를 배포하면 쿼리가 실패합니다).
 
-**이번 버전(0004: Google 로그인·계정 삭제·지급 복구)** — 0003 까지 적용된 DB, **새 코드를 배포하기 전에**:
+**이번 버전(0005: 유료/무료 크레딧 분리·환불 계산·익명 신고·보관 기간)** — 0004 까지 적용된 DB, **새 코드를 배포하기 직전에**:
+```bash
+npx wrangler d1 execute ember --remote --file=./migrations/0005_credit_lots_retention.sql
+```
+내용:
+- `accounts.last_used_at`(마지막 사용, 기존 `updated_at` 으로 채움).
+- `purchases` 에 유료 묶음(`remaining`, `expires_at`, `lot_closed_at`, `lot_closed_reason`, `lot_closed_credits`), 결제 금액(`price_micros`, `price_currency`), 운영자 환불(`refunded_at`, `refund_micros`, `refund_credits`) 컬럼과 `idx_purchases_order`·`idx_purchases_expires` 인덱스.
+- `free_credit_grants.account_id`·`gone_at`(+ 인덱스). 기존 기록은 배포 후 첫 cron 이 계정과 연결합니다(6장 cron 2번, `SUB_HASH_SECRET` 필요).
+- `reports` 를 다시 만들어 `account_id` 를 NULL 허용으로(익명 신고). 기존 행·번호는 그대로.
+- **기존 잔액 나누기**: 지급 완료 구매마다 묶음(만료 = 구매 + 5년)을 만들고, 유료 = min(잔액, 환불 안 된 지급 구매 크레딧 합계)를 최신 구매부터 채웁니다. 나머지 잔액은 무료. 환불(일부 포함)된 구매와 탈퇴·만료 계정의 구매는 닫힌 묶음(남은 양 0). 기존 구매에는 결제 금액이 없으므로, 환불 견적은 `PRODUCT_PRICES_KRW`(또는 `paid` 지정)를 씁니다.
+- SQLite 3.35 이상 기능(`UPDATE … FROM`, `WITH … MATERIALIZED`, 창 함수)을 씁니다. D1 은 해당합니다.
+
+배포 순서: ① 0005 실행 → ② `wrangler.toml` 의 `PRODUCT_PRICES_KRW` 를 Play Console 판매가로 채우기 → ③ `npx wrangler deploy`. 0005 를 실행했는데 예전 코드가 도는 짧은 사이에는 새 구매가 묶음 없이(= 무료로) 잡힐 수 있으므로 ①과 ③ 사이를 짧게 두세요. 그 사이 구매가 있었다면 배포 뒤 아래로 묶음을 열어 줍니다(그 구매만큼 유료로 옮김):
+```bash
+npx wrangler d1 execute ember --remote --command "UPDATE purchases SET remaining = credits, expires_at = CAST(strftime('%s', created_at, 'unixepoch', '+5 years') AS INTEGER) WHERE credited = 1 AND credits > 0 AND expires_at IS NULL AND voided = 0"
+```
+새 앱은 `GET /ember/balance` 의 새 필드와 `POST /ember/report/anon` 을 쓰고, 예전 앱은 그대로 동작합니다(`credits` 유지).
+
+**이전 버전(0004: Google 로그인·계정 삭제·지급 복구)** — 0003 까지 적용된 DB, **새 코드를 배포하기 전에**:
 ```bash
 npx wrangler d1 execute ember --remote --file=./migrations/0004_google_signin.sql
 ```
@@ -477,11 +588,11 @@ npx wrangler d1 execute ember --remote --file=./migrations/0002_voided_integrity
 2. **Google 에 연결된 계정은 installId 로 토큰을 받을 수 없습니다**(그 Google 계정의 유효한 ID 토큰이 있어야 함). **연결 안 된 예전 계정은 installId 가 사실상 비밀번호**입니다: installId 를 아는 사람은 재등록으로 새 토큰을 받거나, 자기 Google 계정으로 가입하면서 그 계정을 자기 Google 계정에 연결할 수 있습니다. 앱은 installId 를 외부에 노출하지 마세요. 예전 계정을 없애려면 새 앱 보급 후 `LEGACY_UNLINKED_UNTIL` 을 설정하세요.
    - 같은 기기(installId)에서 Google 계정을 바꿔 로그인하면 새 계정이 생깁니다(무료 크레딧은 그 Google 계정이 처음일 때만). 이전 계정은 그 Google 계정으로 다시 로그인하면 돌아옵니다.
 3. **환불 후 사용**: 매일 cron 이 **Voided Purchases API** 로 환불된 구매의 크레딧을 회수합니다(잔액 음수 → 402, 수량 일부 환불은 비율만큼). 다만 환불 직후부터 다음 cron 까지(최대 약 하루)는 남은 크레딧을 쓸 수 있고, 이미 써 버린 만큼은 음수 잔액으로만 남습니다(다음 구매에서 메워짐).
-4. **중단 시 과금**: 앱이 스트리밍 도중 연결을 끊거나 최종 사용량(`message_delta`)을 받지 못하면 서버는 업스트림을 취소하고 **예약액 전체**(최악의 비용)를 청구합니다. 사용자에게는 불리할 수 있지만, 화면에 안 보이는 사고 토큰·웹 검색으로 과금을 피하는 것을 막습니다.
+4. **중단 시 과금**(이용약관 5장): 앱이 중지하면 입력 + 받은 출력 문자 ÷ 3 × 2 토큰, 업스트림·서버 오류면 입력만 청구합니다(1장). 추정이므로 실제 원가와 다를 수 있습니다: 화면에 보이지 않는 사고(`display: "omitted"`)가 길거나 웹 검색 도중에 끊으면 원가보다 적게 받고(검색 비용은 청구하지 않음), 반대로 짧은 사고면 더 받습니다. 사용자가 일부러 "사고·검색만 시키고 끊기" 를 반복하면 원가를 다 받지 못하므로, `usage_log.estimated = 1` 비율을 SQL 로 지켜보세요. `message_start` 를 받기 전에 끊으면 0 입니다.
 5. **예약 추정의 한계**: 입력 토큰은 본문 크기로, 웹 검색 결과는 1회 8,000 토큰으로 추정합니다. 실제가 더 크면 정산 때 차이를 더 빼므로 잔액이 조금 음수가 될 수 있습니다(그 뒤 402). 서버측 거절 대체(`fallbacks`)가 두 모델의 출력을 합쳐 청구하는 경우도 같은 방식으로 처리됩니다.
 6. **요청 제한은 D1 고정 창 방식**이라 창 경계에서 잠깐 두 배까지 허용될 수 있습니다. 엄격한 제한이 필요하면 Durable Objects 로 바꾸세요. 동시 요청 제한(계정당 2개)과 하루 상한은 한 SQL 문으로 처리해 정확합니다.
 7. 도구는 `web_search_*` 만 허용하고, 도구마다 `max_uses` 를 5 이하로 강제합니다. 웹 검색은 1회당 $0.01 이 추가됩니다.
-8. **신고 남용**: `POST /ember/report` 는 AI 응답 기록이 있는 계정만, 계정당·IP(/64)당 시간당 30회, 하루 전체 `REPORTS_DAILY_CAP`(500)회로 제한합니다.
+8. **신고 남용**: `POST /ember/report` 는 AI 응답 기록이 있는 계정만, 계정당·IP(/64)당 시간당 30회. 인증 없는 `POST /ember/report/anon` 은 IP(/64)당 시간당 10회. 하루 전체 `REPORTS_DAILY_CAP`(500)회는 둘을 합쳐 세므로, 익명 신고로 상한을 채우면 그날 로그인 신고도 막힙니다(피해 상한은 하루 500행 × 최대 약 22 KB).
 
 ---
 
@@ -514,9 +625,10 @@ src/
   google/identity.ts  Google 로그인 설정 확인·sub HMAC·무료 크레딧 기록
   models.ts           허용 모델, /v1/models/:id
   purchase.ts         /ember/purchase (지급 대기 기록 → 서버 소비 → 멱등 지급, 지급 복구, 테스트 구매 처리)
-  retention.ts        보관 기간 지난 기록·계정 정리(cron)
+  retention.ts        보관 기간 지난 기록·계정 정리, 0005 이전 무료 크레딧 기록 연결(cron)
+  refund.ts           환불 계산(7일 이내 무수수료 / 이후 10%), /ember/admin/refund-quote, /ember/admin/refund
   play/google-auth.ts 서비스 계정 RS256 JWT → OAuth 토큰(범위별 캐시), googleFetch(401 재시도)
-  play/verify.ts      Play Developer API 영수증 확인·소비(consume)
+  play/verify.ts      Play Developer API 영수증 확인·소비(consume), Google 오류 종류만 뽑기(로그용)
   play/voided.ts      Voided Purchases API → 환불 크레딧 회수(일부 환불 포함, cron)
   play/integrity.ts   /ember/nonce, Play Integrity 토큰 해독·판정
   proxy/validate.ts   최상위 필드·모델·도구·max_tokens 검증, anthropic-version/beta 허용 목록
@@ -525,8 +637,10 @@ src/
   proxy/messages.ts   /v1/messages 프록시(비스트리밍·스트리밍), 무료 계정 Opus→Sonnet, ember-model 헤더
   billing/usage.ts    usage 정규화
   billing/pricing.ts  단가표·크레딧 계산·예약 계산
-  billing/ledger.ts   정산(예약 − 실제 환불) + usage_log, 실패 시 재시도·계정 차단
-  reports.ts          /ember/report
+  billing/ledger.ts   정산(예약 − 실제 환불, 유료 묶음으로 되돌림) + usage_log, 실패 시 재시도·계정 차단
+  billing/lots.ts     유료 크레딧 묶음: 쓰는 순서(오래된 것부터 깎기), 되돌리기, 5년 만료, 잔액 내역
+  billing/interrupted.ts 끝까지 받지 못한 요청의 과금(중지: 입력 + 출력 추정 ×2, 오류: 입력만)
+  reports.ts          /ember/report, /ember/report/anon(익명)
   admin.ts            관리자 API
 test/                 vitest 테스트(가짜 D1 = node:sqlite, 가짜 fetch, 가짜 Google = test/helpers/google.ts,
                       가짜 Google ID 토큰·JWKS = test/helpers/google-id.ts)
@@ -542,28 +656,30 @@ migrations/           이미 운영 중인 DB 용 변경 SQL
 
 | 표 | 항목(컬럼) | 왜 | 보관 기간 |
 |---|---|---|---|
-| `accounts` | `id` | 내부 계정 번호(다른 표와 연결) | 탈퇴 시 즉시 삭제. 1년 미사용 + 잔액 0 이하 + 지급된 미환불 구매 없음이면 자동 삭제(환불·지급 대기 구매 기록만 있으면 아래 값을 지운 행만 남음) |
+| `accounts` | `id` | 내부 계정 번호(다른 표와 연결) | 탈퇴 시 즉시 삭제. **무료 크레딧만 있는 계정은 마지막 사용 후 1년**, **유료 크레딧이 남은 계정은 유료가 모두 만료될 때까지(= 마지막 구매 + 5년)**, 그 뒤 1년 미사용이면 자동 삭제(구매 기록이 남아 있으면 아래 값을 지운 자리 표시 행만 구매 기록이 지워질 때까지 남음) |
 | | `google_sub` | Google 계정 고유 ID(ID 토큰의 `sub`). 재설치·기기 변경 시 같은 계정 복원 | 〃(만료 시 NULL 로 지움) |
 | | `install_id` | 앱 설치마다 앱이 만든 무작위 ID. 예전 계정 식별·Google 계정 전환 처리 | 〃(만료 시 `expired-<id>`) |
 | | `token_hash` | 기기 토큰의 SHA-256(원문 저장 안 함). 요청 인증 | 〃 |
-| | `credits`, `free_credits` | 잔액, 가입 때 받은 무료 크레딧(통계) | 〃 |
+| | `credits`, `free_credits` | 잔액(무료 + 유료), 가입 때 받은 무료 크레딧(통계) | 〃(만료 시 0) |
 | | `disabled` | 차단 여부(남용·정산 실패) | 〃 |
-| | `created_at`, `updated_at` | 가입·마지막 사용 시각(1년 미사용 판단) | 〃 |
-| `purchases` | `purchase_token` | Google Play 영수증 토큰. 영수증 확인·중복 지급 방지·환불 회수 | 결제일로부터 **5년**(전자상거래법: 대금결제 및 재화 공급 기록). 탈퇴 시 `sha256:<해시>` 로 바꿈 |
+| | `created_at`, `updated_at`, `last_used_at` | 가입·마지막 변경·**마지막 사용**(가입·로그인·잔액 확인·요청 등, 1년 미사용 판단) | 〃 |
+| `purchases` | `purchase_token` | Google Play 영수증 토큰. 영수증 확인·중복 지급 방지·환불 회수 | 결제일로부터 **5년**(전자상거래법: 대금결제 및 재화 공급 기록), 계정 상태(탈퇴·만료)와 관계없이 5년 뒤 삭제. 탈퇴 시 `sha256:<해시>` 로 바꿈 |
 | | `account_id` | 구매한 계정 | 탈퇴 시 공용 묘비 계정(`deleted:tombstone`)으로 바꿔 계정과의 연결을 끊음 |
 | | `product_id`, `order_id`, `quantity`, `credits`, `purchase_type` | 상품·주문번호(GPA.…)·수량·지급 크레딧·테스트 구매 여부. 법정 거래 기록·환불 문의 대응 | 5년(탈퇴해도 유지) |
 | | `credited`, `created_at`, `voided`, `voided_at`, `voided_quantity` | 지급 상태·결제 시각·환불 여부/시각/수량 | 5년 |
+| | `remaining`, `expires_at`, `lot_closed_at`, `lot_closed_reason`, `lot_closed_credits` | 유료 크레딧 묶음: 남은 양·유효기간(구매 + 5년)·닫힘(만료·환불·탈퇴) | 5년 |
+| | `price_micros`, `price_currency`, `refunded_at`, `refund_micros`, `refund_credits` | 결제 금액(환불 계산), 운영자 환불 기록(청약철회·환불 처리) | 5년 |
 | `voided_events` | `purchase_token`(탈퇴 시 해시), `event_key`, `quantity`, `credits`, `applied`, `voided_at` | 환불 회수를 한 번만 하기 위한 기록 | 해당 구매 기록과 같음(구매 기록이 지워지면 함께 삭제) |
 | `usage_log` | `account_id`, `model`, `status`, `streamed`, 토큰 수(입력·출력·캐시), `web_search_requests`, `credits`, `estimated`, `created_at` | 과금 근거·잔액 문의 대응·남용 탐지. **내용은 저장 안 함** | **1년**, 탈퇴 시 즉시 삭제 |
-| `reports` | `account_id`, `kind`, `reason`, `content`(신고한 AI 응답 원문), `note`, `app_version`, `created_at` | 생성형 AI 콘텐츠 신고 처리(구글 플레이 정책) | **1년**, 탈퇴 시 즉시 삭제 |
+| `reports` | `account_id`(익명 신고는 NULL), `kind`, `reason`, `content`(신고한 AI 응답 원문), `note`, `app_version`, `created_at` | 생성형 AI 콘텐츠 신고 처리(구글 플레이 정책) | **1년**, 탈퇴 시 그 계정의 신고는 즉시 삭제. 익명 신고에는 IP 를 저장하지 않음 |
 | `inflight` | `account_id`, `reserved`, `started_at` | 처리 중인 요청(동시 요청 제한·예약) | 요청이 끝나면 삭제(늦어도 30분 + 하루) |
-| `rate_limits` | `key`(**IP 주소**: IPv4 전체 또는 IPv6 /64 접두사, 또는 계정 번호), `window_start`, `count` | 가입·신고·요청 횟수 제한(남용 방지) | **2일**. 계정 번호 키는 탈퇴 시 즉시 삭제 |
+| `rate_limits` | `key`(**IP 주소**: IPv4 전체 또는 IPv6 /64 접두사 — `reg:`·`rereg:`·`nonce:`·`repip:`·`repanon:`, 또는 계정 번호), `window_start`, `count` | 가입·신고·익명 신고·요청 횟수 제한(남용 방지) | **2일 안**(창 시작 1일 지난 행을 매일 cron 이 삭제). 계정 번호 키는 탈퇴 시 즉시 삭제 |
 | `nonces` | `nonce`, `expires_at` | Play Integrity 일회용 값(사람과 연결 안 됨) | 5분(하루 1회 정리) |
-| `free_credit_grants` | `sub_hash` = HMAC-SHA256(Google sub, 서버 비밀키), `created_at` | 무료 크레딧을 Google 계정당 한 번만 주기 위함(남용 방지). 비밀키 없이는 원래 sub 를 알 수 없음 | **서비스 운영 기간 동안**(탈퇴해도 유지). 서비스 종료 시 파기 |
+| `free_credit_grants` | `sub_hash` = HMAC-SHA256(Google sub, 서버 비밀키), `created_at`, `account_id`(지금 계정), `gone_at`(계정이 삭제·만료된 시각) | 무료 크레딧을 Google 계정당 한 번만 주기 위함(남용 방지). 비밀키 없이는 원래 sub 를 알 수 없음 | 계정이 있는 동안 + **계정 삭제·만료 후 3년**(그 뒤 cron 이 삭제). 같은 Google 계정으로 다시 가입하면 새 계정에 다시 묶임 |
 | `account_deletions` | `deleted_at` | 탈퇴 수 통계. 식별 정보 없음 | 제한 없음 |
 | `meta` | `voided_purchases_end_ms` 등 | 서버 작업 위치. 개인정보 아님 | – |
 
 처리 위탁·제3자 제공(개인정보처리방침에 적을 것):
 - **Cloudflare**(서버·DB 호스팅, 접속 IP 처리), **Anthropic**(AI 요청 내용 처리, 서버는 저장 안 함), **Google**(로그인 ID 토큰 발급·검증용 공개키, Play 결제 확인·환불 목록, Play Integrity 판정).
-- Cloudflare Workers 로그(`wrangler tail`, 대시보드)에는 계정 번호·주문번호·오류가 남을 수 있습니다(이메일·sub·토큰 원문은 남기지 않음).
+- Cloudflare Workers 로그(`wrangler tail`, 대시보드)에는 계정 번호·주문번호·오류가 남을 수 있습니다. **기기 토큰·구매 토큰·무결성 토큰·ID 토큰·Google sub·IP 주소·이메일은 콘솔에 남기지 않고**, Google API(영수증 확인·소비·무결성·환불 목록) 오류는 **상태 코드와 오류 종류**(예 `403 PERMISSION_DENIED`)만 남깁니다(응답 본문 없음). Cloudflare 자체의 요청 로그(대시보드의 Workers 관찰 기능)는 이 코드와 별개이므로 켜려면 개인정보처리방침과 맞는지 확인하세요.
 - Play Integrity 판정은 가입 때 확인만 하고 저장하지 않습니다.

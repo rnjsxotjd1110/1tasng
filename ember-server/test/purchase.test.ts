@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { addYears } from "../src/billing/lots";
 import { clearGoogleTokenCache } from "../src/play/google-auth";
 import { base64Decode, base64UrlEncode } from "../src/util";
 import { call, errorBody, makeEnv, register, type TestEnv } from "./helpers/env";
@@ -21,6 +22,11 @@ interface FakeGoogle {
   consumeFailBody: string;
   /** 소비된 purchaseToken */
   consumed: Set<string>;
+  /** 있으면 확인 응답에 가격을 넣는다(priceAmountMicros 는 int64 문자열) */
+  price?: { priceAmountMicros: string; priceCurrencyCode: string };
+  /** 0 이 아니면 확인 요청이 이 상태 코드와 verifyFailBody 로 실패 */
+  verifyFailStatus?: number;
+  verifyFailBody?: string;
 }
 
 function pem(der: ArrayBuffer): string {
@@ -100,6 +106,7 @@ async function fakeGoogle(): Promise<FakeGoogle> {
         if (decodeURIComponent(token!) === "missing-token") {
           return Response.json({ error: { code: 404 } }, { status: 404 });
         }
+        if (g.verifyFailStatus) return new Response(g.verifyFailBody ?? "{}", { status: g.verifyFailStatus });
         return Response.json({
           kind: "androidpublisher#productPurchase",
           purchaseState: g.purchaseState,
@@ -109,6 +116,7 @@ async function fakeGoogle(): Promise<FakeGoogle> {
           productId: decodeURIComponent(productId!),
           quantity: g.quantity,
           acknowledgementState: 0,
+          ...(g.price ?? {}),
         });
       }
       throw new Error(`unexpected fetch ${req.url}`);
@@ -387,6 +395,71 @@ describe("구매: 지급 복구·탈퇴 계정 영수증", () => {
     expect(g.verifyRequests).toHaveLength(verifies);
     // 'sha256:' 로 시작하는 토큰은 받지 않는다
     expect((await buy(env, again.token, "ember_credits_500", "sha256:abc")).status).toBe(400);
+  });
+});
+
+describe("구매 → 유료 크레딧 묶음·결제 금액", () => {
+  it("지급하면 묶음이 열리고(남은 양 = 지급량, 만료 = 기록 시각 + 5년) 잔액 내역에 유료로 보인다. 금액은 PRODUCT_PRICES_KRW × 수량", async () => {
+    const g = await fakeGoogle();
+    g.quantity = 2;
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson, PRODUCT_PRICES_KRW: '{"ember_credits_500":5900}' });
+    const { token } = await register(env);
+    expect(await (await buy(env, token, "ember_credits_500", "tok-lot")).json()).toEqual({ credits: 1100, granted: 1000 });
+    const row = env.db.rows<{ remaining: number; expires_at: number; created_at: number; price_micros: number; price_currency: string; order_id: string }>(
+      "SELECT remaining, expires_at, created_at, price_micros, price_currency, order_id FROM purchases",
+    )[0]!;
+    expect(row).toMatchObject({ remaining: 1000, price_micros: 2 * 5900 * 1_000_000, price_currency: "KRW", order_id: "GPA.1234-5678" });
+    expect(row.expires_at).toBe(addYears(row.created_at, 5));
+    const bal = await call(env, "/ember/balance", { headers: { "x-api-key": token } });
+    expect(await bal.res.json()).toEqual({ credits: 1100, freeCredits: 100, paidCredits: 1000, expiringSoon: null });
+  });
+
+  it("Play 확인 응답에 가격이 있으면 그 값을 기록한다(설정표보다 우선)", async () => {
+    const g = await fakeGoogle();
+    g.price = { priceAmountMicros: "4990000", priceCurrencyCode: "USD" };
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson, PRODUCT_PRICES_KRW: '{"ember_credits_500":5900}' });
+    const { token } = await register(env);
+    await buy(env, token, "ember_credits_500", "tok-usd");
+    expect(env.db.rows("SELECT price_micros, price_currency FROM purchases")).toEqual([{ price_micros: 4_990_000, price_currency: "USD" }]);
+  });
+
+  it("가격을 모르면 금액 없이 기록한다(환불 견적 때 다시 찾는다). 잘못된 PRODUCT_PRICES_KRW 는 무시", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson, PRODUCT_PRICES_KRW: '{"ember_credits_500":"free"}' });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { token } = await register(env);
+    await buy(env, token, "ember_credits_500", "tok-noprice");
+    errors.mockRestore();
+    expect(env.db.rows("SELECT price_micros, price_currency, remaining FROM purchases")).toEqual([{ price_micros: null, price_currency: null, remaining: 500 }]);
+  });
+});
+
+describe("로그에 Google 응답 본문·토큰을 남기지 않는다", () => {
+  const SECRET = "SECRET-BODY-a1b2c3";
+
+  function logged(spies: { mock: { calls: unknown[][] } }[]): string {
+    return spies.flatMap((s) => s.mock.calls.map((c) => c.map((x) => (x instanceof Error ? x.message : String(x))).join(" "))).join("\n");
+  }
+
+  it("확인·소비 실패는 상태 코드와 오류 종류만, 구매 토큰은 남기지 않는다", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    const spies = [vi.spyOn(console, "error").mockImplementation(() => undefined), vi.spyOn(console, "warn").mockImplementation(() => undefined), vi.spyOn(console, "log").mockImplementation(() => undefined)];
+    g.verifyFailStatus = 403;
+    g.verifyFailBody = JSON.stringify({ error: { code: 403, status: "PERMISSION_DENIED", message: `user ${SECRET}` } });
+    expect((await buy(env, token, "ember_credits_500", "purchase-token-XYZ")).status).toBe(502);
+    g.verifyFailStatus = 0;
+    g.consumeFailStatus = 500;
+    g.consumeFailBody = JSON.stringify({ error: { code: 500, message: SECRET, errors: [{ reason: "backendError" }] } });
+    expect((await buy(env, token, "ember_credits_500", "purchase-token-XYZ")).status).toBe(502);
+    const text = logged(spies);
+    spies.forEach((s) => s.mockRestore());
+    expect(text).toContain("403 PERMISSION_DENIED");
+    expect(text).toContain("500 backendError");
+    expect(text).not.toContain(SECRET);
+    expect(text).not.toContain("purchase-token-XYZ");
+    expect(text).not.toContain(token);
   });
 });
 

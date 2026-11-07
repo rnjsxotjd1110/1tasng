@@ -9,7 +9,8 @@ import { handleGetModel } from "./models";
 import { handleNonce } from "./play/integrity";
 import { handleMessages } from "./proxy/messages";
 import { handlePurchase } from "./purchase";
-import { handleReport } from "./reports";
+import { handleRefund, handleRefundQuote } from "./refund";
+import { handleAnonReport, handleReport } from "./reports";
 
 export async function route(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const cfg = loadConfig(env);
@@ -27,6 +28,10 @@ export async function route(req: Request, env: Env, ctx: ExecutionContext): Prom
           return await handlePurchase(req, env, cfg);
         case "/ember/report":
           return await handleReport(req, env, cfg);
+        case "/ember/report/anon":
+          return await handleAnonReport(req, env, cfg);
+        case "/ember/admin/refund":
+          return await handleRefund(req, env, cfg);
         case "/ember/link-google":
           return await handleLinkGoogle(req, env, cfg);
       }
@@ -42,6 +47,8 @@ export async function route(req: Request, env: Env, ctx: ExecutionContext): Prom
           return await handleAdminReports(req, env);
         case "/ember/admin/stats":
           return await handleAdminStats(req, env);
+        case "/ember/admin/refund-quote":
+          return await handleRefundQuote(req, env, cfg);
       }
       const m = /^\/v1\/models\/([^/]+)$/.exec(pathname);
       if (m?.[1]) {

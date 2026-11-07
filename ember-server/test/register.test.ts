@@ -74,7 +74,7 @@ describe("POST /ember/register (Google 로그인, 기본)", () => {
       { install_id: "phone-new-install-02", google_sub: "google-sub-restore" },
     ]);
     // 새 토큰은 되고 옛 토큰은 401
-    expect(await (await balance(env, second.token)).json()).toEqual({ credits: 7 });
+    expect(await (await balance(env, second.token)).json()).toEqual({ credits: 7, freeCredits: 7, paidCredits: 0, expiringSoon: null });
     expect((await balance(env, first.token)).status).toBe(401);
     // 같은 기기에서 다시 로그인해도 같은 계정
     expect(await regBody(env, "phone-new-install-02", "2.2.2.2", "google-sub-restore")).toMatchObject({ credits: 7, restored: true });
@@ -85,7 +85,7 @@ describe("POST /ember/register (Google 로그인, 기본)", () => {
     const env = makeEnv();
     const { token } = await regBody(env, INSTALL);
     const { res } = await call(env, "/ember/balance", { headers: { authorization: `Bearer ${token}` } });
-    expect(await res.json()).toEqual({ credits: 100 });
+    expect(await res.json()).toEqual({ credits: 100, freeCredits: 100, paidCredits: 0, expiringSoon: null });
   });
 
   it("idToken 이 없으면 400 google_required 이고 계정을 만들지 않는다", async () => {
@@ -284,7 +284,7 @@ describe("POST /ember/register (예전 방식, REQUIRE_GOOGLE_SIGNIN=false)", ()
     expect(second.token).not.toBe(first.token);
     expect(env.db.rows("SELECT google_sub FROM accounts")).toEqual([{ google_sub: null }]);
     expect(env.db.rows("SELECT * FROM free_credit_grants")).toEqual([]);
-    expect(await (await balance(env, second.token)).json()).toEqual({ credits: 7 });
+    expect(await (await balance(env, second.token)).json()).toEqual({ credits: 7, freeCredits: 7, paidCredits: 0, expiringSoon: null });
     expect((await balance(env, first.token)).status).toBe(401);
   });
 

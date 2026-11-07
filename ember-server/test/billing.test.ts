@@ -9,6 +9,7 @@ import {
   reservationCredits,
 } from "../src/billing/pricing";
 import { emptyUsage } from "../src/billing/usage";
+import { estimateOutputTokens, interruptedCharge } from "../src/billing/interrupted";
 import { estimateInputTokens, IMAGE_TOKEN_ALLOWANCE, worstCase } from "../src/proxy/reserve";
 import { validateMessagesBody } from "../src/proxy/validate";
 import { call, errorBody, makeEnv, markPaid, register, setCredits, type TestEnv } from "./helpers/env";
@@ -143,14 +144,19 @@ describe("예약(사전 차감)과 정산", () => {
     expect(inflight(env)).toEqual([]);
   });
 
-  it("비스트리밍 응답에서 usage 를 읽지 못하면 예약액 전체를 청구", async () => {
+  it("비스트리밍 응답에서 usage 를 읽지 못하면(업스트림 문제) 본문으로 추정한 입력 비용만 청구", async () => {
     const env = makeEnv();
     const { token } = await register(env);
-    const reserve = expectedReservation(BODY);
+    const { max_tokens: _max, ...withoutMax } = BODY;
+    const inputTokens = estimateInputTokens(withoutMax);
+    const expected = computeCredits("claude-sonnet-5-5", { ...emptyUsage(), inputTokens }, 1.5).credits;
     stub(() => new Response("not json", { headers: { "content-type": "application/json" } }));
     expect((await send(env, token)).res.status).toBe(200);
-    expect(balance(env)).toBe(100 - reserve);
-    expect(env.db.rows("SELECT credits, estimated FROM usage_log")).toEqual([{ credits: reserve, estimated: 1 }]);
+    expect(expected).toBeLessThan(expectedReservation(BODY));
+    expect(balance(env)).toBe(100 - expected);
+    expect(env.db.rows("SELECT credits, estimated, input_tokens, output_tokens FROM usage_log")).toEqual([
+      { credits: expected, estimated: 1, input_tokens: inputTokens, output_tokens: 0 },
+    ]);
   });
 
   it("thinking.budget_tokens 가 줄인 max_tokens 이상이면 함께 줄인다", async () => {
@@ -267,20 +273,118 @@ describe("계정당 동시 요청 제한", () => {
 });
 
 describe("스트림 중단 과금", () => {
-  it("최종 usage 없이 업스트림이 끝나면 예약액 전체를 청구", async () => {
+  it("최종 usage 없이 업스트림이 끝나면(업스트림 문제) 입력 토큰만 청구", async () => {
     const env = makeEnv();
     const { token } = await register(env);
-    const reserve = expectedReservation({ ...BODY, stream: true });
     const head = SAMPLE_STREAM.slice(0, SAMPLE_STREAM.indexOf("event: message_delta"));
     stub(() => sseResponse(head).res);
     const { res, ctx } = await send(env, token, { ...BODY, stream: true });
     expect(await res.text()).toBe(head);
     await ctx.settle();
-    expect(balance(env)).toBe(100 - reserve);
-    expect(env.db.rows("SELECT credits, estimated FROM usage_log")).toEqual([{ credits: reserve, estimated: 1 }]);
+    // message_start: 입력 1200 + 캐시 쓰기 300 + 캐시 읽기 5000, 출력은 청구하지 않음
+    const expected = computeCredits(
+      "claude-sonnet-5-5",
+      { ...emptyUsage(), inputTokens: 1200, cacheWrite5mTokens: 300, cacheReadTokens: 5000 },
+      1.5,
+    ).credits;
+    expect(balance(env)).toBe(100 - expected);
+    expect(env.db.rows("SELECT credits, estimated, output_tokens FROM usage_log")).toEqual([
+      { credits: expected, estimated: 1, output_tokens: 0 },
+    ]);
   });
 
-  it("화면에 안 보이는 사고(display omitted)·웹 검색 중에 끊어도 예약액 전체(max_tokens·max_uses 기준)를 청구", async () => {
+  it("message_start 뒤 error 이벤트(업스트림 오류)면 입력 토큰만 청구", async () => {
+    const env = makeEnv();
+    const { token } = await register(env);
+    const text =
+      ev("message_start", { type: "message_start", message: { model: "claude-sonnet-5-5", usage: { input_tokens: 30000, output_tokens: 1 } } }) +
+      ev("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "가".repeat(3000) } }) +
+      ev("error", { type: "error", error: { type: "overloaded_error", message: "Overloaded" } });
+    stub(() => sseResponse(text).res);
+    const { res, ctx } = await send(env, token, { ...BODY, max_tokens: 60000, stream: true });
+    await res.text();
+    await ctx.settle();
+    const expected = computeCredits("claude-sonnet-5-5", { ...emptyUsage(), inputTokens: 30000 }, 1.5).credits;
+    expect(expected).toBe(9); // $0.06 × 1.5
+    expect(balance(env)).toBe(100 - expected);
+    expect(env.db.rows("SELECT credits, estimated, input_tokens, output_tokens FROM usage_log")).toEqual([
+      { credits: expected, estimated: 1, input_tokens: 30000, output_tokens: 0 },
+    ]);
+  });
+
+  it("업스트림 연결이 중간에 끊기면(읽기 오류) 입력 토큰만 청구", async () => {
+    const env = makeEnv();
+    const { token } = await register(env);
+    const head = ev("message_start", { type: "message_start", message: { model: "claude-sonnet-5-5", usage: { input_tokens: 30000, output_tokens: 1 } } });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    stub(() => {
+      let sent = false;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(c) {
+          if (!sent) {
+            sent = true;
+            c.enqueue(new TextEncoder().encode(head));
+          } else c.error(new Error("connection reset"));
+        },
+      });
+      return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+    });
+    const { res, ctx } = await send(env, token, { ...BODY, max_tokens: 60000, stream: true });
+    await res.text().catch(() => "");
+    await ctx.settle();
+    errors.mockRestore();
+    expect(balance(env)).toBe(100 - 9);
+    expect(env.db.rows("SELECT credits, estimated FROM usage_log")).toEqual([{ credits: 9, estimated: 1 }]);
+  });
+
+  it("앱이 중지하면 입력 + ceil(받은 출력 문자 ÷ 3) × 2 토큰(보이지 않는 생각 포함)을 청구한다", async () => {
+    const env = makeEnv();
+    const { token } = await register(env);
+    const thinking = "생각".repeat(600); // 1200자
+    const visible = "a".repeat(1800); // 1800자
+    const head =
+      ev("message_start", { type: "message_start", message: { model: "claude-sonnet-5-5", usage: { input_tokens: 10000, output_tokens: 1 } } }) +
+      ev("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking } }) +
+      ev("content_block_delta", { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: visible } });
+    stub(() => sseResponse(head, true).res);
+    const { res, ctx } = await send(env, token, { ...BODY, stream: true });
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await ctx.settle();
+    const outputTokens = estimateOutputTokens(3000);
+    expect(outputTokens).toBe(2000); // 3000자 ÷ 3 × 2
+    // 입력 10000 × $2/M + 출력 2000 × $10/M = $0.04 → × 1.5 = 6 크레딧
+    expect(env.db.rows("SELECT credits, estimated, input_tokens, output_tokens FROM usage_log")).toEqual([
+      { credits: 6, estimated: 1, input_tokens: 10000, output_tokens: 2000 },
+    ]);
+    expect(balance(env)).toBe(94);
+  });
+
+  it("중지 추정액은 예약액을 넘지 않는다", () => {
+    const usage = { ...emptyUsage(), inputTokens: 1000 };
+    const big = interruptedCharge({
+      model: "claude-sonnet-5-5",
+      sawMessageStart: true,
+      usage,
+      outputChars: 3_000_000,
+      end: "client_gone",
+      markup: 1.5,
+      reserved: 17,
+    });
+    expect(big).toMatchObject({ credits: 17, estimated: true });
+    expect(big.usage.outputTokens).toBe(2_000_000);
+    const err = interruptedCharge({ model: "claude-sonnet-5-5", sawMessageStart: true, usage, outputChars: 3_000_000, end: "upstream_error", markup: 1.5, reserved: 17 });
+    expect(err.usage.outputTokens).toBe(0);
+    expect(err.credits).toBe(computeCredits("claude-sonnet-5-5", usage, 1.5).credits);
+    const server = interruptedCharge({ model: "claude-sonnet-5-5", sawMessageStart: true, usage, outputChars: 99, end: "server_error", markup: 1.5, reserved: 17 });
+    expect(server.usage.outputTokens).toBe(0);
+    // message_start 전이면 무엇이든 0
+    expect(interruptedCharge({ model: "claude-sonnet-5-5", sawMessageStart: false, usage, outputChars: 99, end: "client_gone", markup: 1.5, reserved: 17 }))
+      .toEqual({ credits: 0, usage: emptyUsage(), estimated: false });
+  });
+
+  it("사고(display omitted)·웹 검색 중에 앱이 끊으면 보인 출력이 없으므로 입력만 청구(예약액 전체가 아님)", async () => {
     const env = makeEnv();
     const { token } = await register(env);
     const body = {
@@ -299,8 +403,8 @@ describe("스트림 중단 과금", () => {
     await reader.read();
     await reader.cancel();
     await ctx.settle();
-    expect(reserve).toBeGreaterThan(3); // 검색 5회만 해도 $0.05 → 8 크레딧 이상
-    expect(balance(env)).toBe(100 - reserve);
+    expect(reserve).toBeGreaterThan(3);
+    expect(balance(env)).toBe(99); // 입력 10 토큰 → 최소 1 크레딧(올림)
   });
 
   it("최종 usage 를 받은 뒤 끊긴 경우는 실제 비용", async () => {

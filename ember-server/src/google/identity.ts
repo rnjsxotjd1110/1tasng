@@ -42,11 +42,25 @@ export async function subHashOf(env: Env, sub: string): Promise<string> {
 export function recordFreeGrantStmt(db: D1Database, subHash: string, sub: string, now: number): D1PreparedStatement {
   return db
     .prepare(
-      `INSERT INTO free_credit_grants (sub_hash, created_at)
-       SELECT ?, ? WHERE EXISTS (SELECT 1 FROM accounts WHERE google_sub = ? AND free_credits > 0)
+      `INSERT INTO free_credit_grants (sub_hash, created_at, account_id)
+       SELECT ?, ?, id FROM accounts WHERE google_sub = ? AND free_credits > 0
        ON CONFLICT (sub_hash) DO NOTHING`,
     )
     .bind(subHash, now, sub);
+}
+
+/**
+ * 이 Google 계정의 무료 크레딧 기록(있으면)을 sub 에 연결된 지금 계정에 묶는다(gone_at 을 지운다).
+ * 기록은 묶인 계정이 있는 동안 남고, 그 계정이 삭제·만료되면 3년 뒤 지운다(retention.ts).
+ * 탈퇴 후 같은 Google 계정으로 다시 가입하면 기록은 새 계정에 다시 묶인다(보관 3년은 새 계정이 없어진 때부터).
+ */
+export function linkFreeGrantStmt(db: D1Database, subHash: string, sub: string): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE free_credit_grants SET account_id = (SELECT id FROM accounts WHERE google_sub = ?1), gone_at = NULL
+       WHERE sub_hash = ?2 AND EXISTS (SELECT 1 FROM accounts WHERE google_sub = ?1)`,
+    )
+    .bind(sub, subHash);
 }
 
 /**

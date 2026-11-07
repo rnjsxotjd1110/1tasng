@@ -62,30 +62,24 @@ describe("SSE usage 파서", () => {
     expect(r.sawMessageStop).toBe(true);
   });
 
-  it("message_delta 전에 끊기면 출력 토큰을 델타 문자 수로 추정한다", () => {
+  it("message_delta 전에 끊기면 입력 usage 와 받은 델타 문자 수가 남는다(중단 과금 재료)", () => {
     const cut = SAMPLE_STREAM.slice(0, SAMPLE_STREAM.indexOf("event: message_delta"));
     const p = new SseUsageParser();
     p.push(new TextEncoder().encode(cut));
-    p.finish();
-    const { usage, estimated } = p.billableUsage();
-    expect(estimated).toBe(true);
-    expect(usage.inputTokens).toBe(1200);
-    expect(usage.outputTokens).toBe(Math.ceil(TEXT.length / 3));
+    const r = p.finish();
+    expect(r.sawMessageStart).toBe(true);
+    expect(r.sawMessageDelta).toBe(false);
+    expect(r.usage.inputTokens).toBe(1200);
+    expect(r.deltaChars).toBe(TEXT.length);
   });
 
-  it("끝까지 받았으면 추정하지 않는다", () => {
-    const p = new SseUsageParser();
-    p.push(bytes);
-    p.finish();
-    expect(p.billableUsage()).toEqual({ usage: EXPECTED, estimated: false });
-  });
-
-  it("message_start 이전 오류면 0", () => {
+  it("message_start 이전 오류면 usage 는 비어 있다", () => {
     const p = new SseUsageParser();
     p.push(new TextEncoder().encode(ev("error", { type: "error", error: { type: "overloaded_error", message: "x" } })));
     const r = p.finish();
     expect(r.sawError).toBe(true);
-    expect(p.billableUsage()).toEqual({ usage: { ...EXPECTED, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWrite5mTokens: 0, webSearchRequests: 0 }, estimated: false });
+    expect(r.sawMessageStart).toBe(false);
+    expect(r.usage).toEqual({ ...EXPECTED, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWrite5mTokens: 0, webSearchRequests: 0 });
   });
 
   it("여러 줄 data 와 깨진 JSON 은 무시하고 계속한다", () => {

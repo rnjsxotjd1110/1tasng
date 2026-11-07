@@ -1,9 +1,11 @@
 // 환불·취소된 구매 회수(cron). Google Play Voided Purchases API 로 목록을 받아,
 // 이미 크레딧을 지급한 구매면 환불된 수량만큼(voidedQuantity / quantity) 잔액에서 빼고(음수 가능) voided 로 표시한다.
 // 같은 환불 이벤트는 voided_events 표로 한 번만 뺀다.
+import { trimLotsStmt } from "../billing/lots";
 import type { Config, Env } from "../env";
 import { isRecord } from "../http";
 import { ANDROID_PUBLISHER_SCOPE, googleFetch } from "./google-auth";
+import { googleErrorType } from "./verify";
 
 /** meta 표에 저장하는 "마지막으로 처리한 시각(ms)" 키 */
 export const VOIDED_CURSOR_KEY = "voided_purchases_end_ms";
@@ -105,8 +107,9 @@ export async function listVoidedPurchases(
       voidedPurchasesUrl(packageName, startTimeMs, pageToken),
     );
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(`voided purchases request failed (${res.status}): ${detail.slice(0, 500)}`);
+      // 응답 본문은 남기지 않는다(상태 코드와 오류 종류만).
+      const type = googleErrorType(await res.text().catch(() => ""));
+      throw new Error(`voided purchases request failed (${res.status} ${type})`);
     }
     const { items, nextPageToken } = parseVoidedPage(await res.json().catch(() => null));
     all.push(...items);
@@ -124,6 +127,9 @@ export function voidedEventKey(item: Pick<VoidedPurchase, "voidedQuantity" | "vo
 /**
  * 구매 하나의 환불 이벤트를 회수한다. 지급된(credited = 1) 구매만 대상이다.
  * - 전체 환불: 아직 회수하지 않은 수량 전부. 일부 환불(voidedQuantity): 그 수량만큼(credits × 수량 / quantity).
+ * - 회수는 그 구매의 유료 묶음에 남은 양에서 먼저 빼고, 모자라면 나머지 잔액(무료 먼저, 그다음 오래된 유료)에서 뺀다.
+ *   잔액이 모자라면 음수가 된다. 전체 환불이면 묶음을 닫는다('voided').
+ * - 운영자가 이미 환불 처리(POST /ember/admin/refund)한 구매는 그때 크레딧을 없앴으므로 다시 빼지 않는다(이벤트만 기록).
  * - 한 트랜잭션에서 이벤트 기록·잔액 차감·구매 표시를 같이 하고, 같은 이벤트 키는 한 번만 반영한다.
  * 회수한 크레딧 수(대상이 아니거나 이미 반영했으면 0)를 돌려준다.
  */
@@ -133,9 +139,18 @@ export async function clawBackPurchase(
   voidedAt: number,
 ): Promise<number> {
   const p = await db
-    .prepare("SELECT account_id, credits, quantity, voided_quantity, credited FROM purchases WHERE purchase_token = ?")
+    .prepare(
+      "SELECT account_id, credits, quantity, voided_quantity, credited, refunded_at FROM purchases WHERE purchase_token = ?",
+    )
     .bind(item.purchaseToken)
-    .first<{ account_id: number; credits: number; quantity: number; voided_quantity: number; credited: number }>();
+    .first<{
+      account_id: number;
+      credits: number;
+      quantity: number;
+      voided_quantity: number;
+      credited: number;
+      refunded_at: number | null;
+    }>();
   if (!p || p.credited !== 1) return 0;
 
   const quantity = Math.max(1, item.quantity ?? p.quantity);
@@ -143,7 +158,9 @@ export async function clawBackPurchase(
   const add = Math.min(quantity - already, item.voidedQuantity ?? quantity);
   const after = already + add;
   // 누적 기준으로 나눠 반올림 오차가 쌓이지 않게 한다(전부 환불되면 정확히 credits).
-  const credits = Math.floor((p.credits * after) / quantity) - Math.floor((p.credits * already) / quantity);
+  const share = Math.floor((p.credits * after) / quantity) - Math.floor((p.credits * already) / quantity);
+  // 운영자 환불로 이미 크레딧을 없앤 구매는 다시 빼지 않는다.
+  const credits = p.refunded_at === null ? share : 0;
   const key = voidedEventKey(item);
 
   const pending = "EXISTS (SELECT 1 FROM voided_events WHERE purchase_token = ? AND event_key = ? AND applied = 0)";
@@ -160,15 +177,27 @@ export async function clawBackPurchase(
     db
       .prepare(
         `UPDATE accounts SET credits = credits - ? WHERE id = ? AND ${pending}
-           AND EXISTS (SELECT 1 FROM purchases WHERE purchase_token = ? AND voided_quantity = ?)`,
+           AND EXISTS (SELECT 1 FROM purchases WHERE purchase_token = ? AND voided_quantity = ? AND refunded_at IS NULL)`,
       )
       .bind(credits, p.account_id, item.purchaseToken, key, item.purchaseToken, p.voided_quantity),
     db
+      // 그 구매의 묶음에서 먼저 뺀다. 전체 수량이 환불되면 묶음을 닫는다(남은 것이 있으면 기록).
       .prepare(
-        `UPDATE purchases SET voided = 1, voided_at = ?, voided_quantity = ?
-         WHERE purchase_token = ? AND voided_quantity = ? AND ${pending}`,
+        `UPDATE purchases SET voided = 1, voided_at = ?1, voided_quantity = ?2,
+           remaining = CASE WHEN ?2 >= quantity AND expires_at IS NOT NULL AND lot_closed_at IS NULL THEN 0
+                            ELSE MAX(0, remaining - ?6) END,
+           lot_closed_credits = CASE WHEN ?2 >= quantity AND expires_at IS NOT NULL AND lot_closed_at IS NULL
+                                     THEN MAX(0, remaining - ?6) ELSE lot_closed_credits END,
+           lot_closed_reason = CASE WHEN ?2 >= quantity AND expires_at IS NOT NULL AND lot_closed_at IS NULL
+                                    THEN 'voided' ELSE lot_closed_reason END,
+           lot_closed_at = CASE WHEN ?2 >= quantity AND expires_at IS NOT NULL AND lot_closed_at IS NULL
+                                THEN ?1 ELSE lot_closed_at END
+         WHERE purchase_token = ?3 AND voided_quantity = ?4
+           AND EXISTS (SELECT 1 FROM voided_events WHERE purchase_token = ?3 AND event_key = ?5 AND applied = 0)`,
       )
-      .bind(voidedAt, after, item.purchaseToken, p.voided_quantity, item.purchaseToken, key),
+      .bind(voidedAt, after, item.purchaseToken, p.voided_quantity, key, credits),
+    // 그 묶음으로 모자랐던 만큼은 나머지 잔액에서: 유료 합계 ≤ max(0, 잔액)이 되도록 오래된 묶음부터 깎는다.
+    trimLotsStmt(db, p.account_id),
     db
       // 구매 표시가 실제로 바뀐 경우에만 반영 완료로 둔다(그 사이 다른 처리로 수량이 바뀌었으면 다음 실행에서 다시).
       .prepare(

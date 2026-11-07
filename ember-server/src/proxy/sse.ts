@@ -3,9 +3,6 @@
 import { applyUsage, emptyUsage, type Usage } from "../billing/usage";
 import { isRecord } from "../http";
 
-/** 참고용 출력 토큰 추정(델타 문자 수 / 이 값). 과금에는 쓰지 않는다: 최종 usage 가 없으면 예약액 전체를 청구한다(messages.ts). */
-export const CHARS_PER_TOKEN_ESTIMATE = 3;
-
 export interface SseUsageResult {
   usage: Usage;
   /** message_start 의 message.model (대체 모델이면 요청과 다를 수 있다) */
@@ -14,7 +11,7 @@ export interface SseUsageResult {
   sawMessageDelta: boolean;
   sawMessageStop: boolean;
   sawError: boolean;
-  /** 받은 델타(text/thinking/partial_json) 문자 수 */
+  /** 받은 델타(text/thinking/partial_json) 문자 수(중단 과금의 출력 추정에 쓴다, billing/interrupted.ts) */
   deltaChars: number;
 }
 
@@ -50,18 +47,6 @@ export class SseUsageParser {
 
   result(): SseUsageResult {
     return { ...this.state, usage: { ...this.state.usage } };
-  }
-
-  /**
-   * 참고용: message_delta 가 없었으면 출력 토큰을 델타 문자 수로 추정한 usage.
-   * 화면에 안 보이는 사고 토큰·웹 검색을 놓치므로 과금에는 쓰지 않는다.
-   */
-  billableUsage(): { usage: Usage; estimated: boolean } {
-    const usage = { ...this.state.usage };
-    if (this.state.sawMessageDelta || !this.state.sawMessageStart) return { usage, estimated: false };
-    const estimate = Math.ceil(this.state.deltaChars / CHARS_PER_TOKEN_ESTIMATE);
-    usage.outputTokens = Math.max(usage.outputTokens, estimate);
-    return { usage, estimated: true };
   }
 
   private drainLines(): void {

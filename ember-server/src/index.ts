@@ -4,7 +4,7 @@ import { purgeExpiredNonces } from "./play/integrity";
 import { processVoidedPurchases } from "./play/voided";
 import { purgeStaleInflight } from "./proxy/reserve";
 import { purgeOldRateLimits } from "./ratelimit";
-import { purgeExpired } from "./retention";
+import { linkLegacyFreeGrants, purgeExpired } from "./retention";
 import { route } from "./router";
 
 export type { Env } from "./env";
@@ -17,6 +17,7 @@ export async function runDailyJobs(env: Env, nowMs: number = Date.now()): Promis
     ["rate_limits 정리", () => purgeOldRateLimits(env.DB, now)],
     ["nonce 정리", () => purgeExpiredNonces(env.DB, now)],
     ["처리 중 표시 정리", () => purgeStaleInflight(env.DB, now, cfg.inflightStaleSeconds)],
+    ["무료 크레딧 기록 연결", () => linkLegacyFreeGrants(env, now)],
     ["보관 기간 정리", () => purgeExpired(env.DB, now)],
     ["환불 회수", () => processVoidedPurchases(env, cfg, nowMs)],
   ];

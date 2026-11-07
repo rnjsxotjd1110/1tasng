@@ -8,7 +8,8 @@
 // - 예전 방식(idToken 없음, REQUIRE_GOOGLE_SIGNIN = "false" 일 때만): installId 로 찾거나 만든다.
 import { authenticate, googleRequiredError, legacyUnlinkedExpired } from "./auth";
 import type { Config, Env } from "./env";
-import { detachInstallStmt, recordFreeGrantStmt, subHashOf, verifyGoogleSignIn } from "./google/identity";
+import { balanceBreakdown } from "./billing/lots";
+import { detachInstallStmt, linkFreeGrantStmt, recordFreeGrantStmt, subHashOf, verifyGoogleSignIn } from "./google/identity";
 import { ApiError, jsonResponse, readJsonObject } from "./http";
 import { verifyRegistrationIntegrity, type IntegrityOutcome } from "./play/integrity";
 import { clientIpKey, enforceRateLimit, subtractDaily, tryAddDaily } from "./ratelimit";
@@ -106,7 +107,7 @@ async function googleRegister(
 
   if (bySub) {
     if (bySub.disabled) throw new ApiError(403, "permission_error", "this account has been disabled");
-    return withIntegrity(await restoreBySub(env.DB, sub, installId, now), integrity);
+    return withIntegrity(await restoreBySub(env.DB, sub, subHash, installId, now), integrity);
   }
   if (linkLegacy) {
     if (byInstall!.disabled) throw new ApiError(403, "permission_error", "this account has been disabled");
@@ -137,20 +138,27 @@ async function googleRegister(
 }
 
 /** sub 에 연결된 계정에 새 토큰을 준다. installId 는 다른 예전 계정이 쓰고 있지 않으면 새 값으로 바꾼다. */
-async function restoreBySub(db: D1Database, sub: string, installId: string, now: number): Promise<RegisterResult> {
+async function restoreBySub(
+  db: D1Database,
+  sub: string,
+  subHash: string,
+  installId: string,
+  now: number,
+): Promise<RegisterResult> {
   const token = randomToken();
   const tokenHash = await sha256Hex(token);
   const results = await db.batch([
     detachInstallStmt(db, installId, sub),
     db
       .prepare(
-        `UPDATE accounts SET token_hash = ?, updated_at = ?,
+        `UPDATE accounts SET token_hash = ?, updated_at = ?, last_used_at = ?,
            install_id = CASE WHEN EXISTS (SELECT 1 FROM accounts o WHERE o.install_id = ? AND o.id <> accounts.id)
                              THEN install_id ELSE ? END
          WHERE google_sub = ? AND disabled = 0
          RETURNING credits`,
       )
-      .bind(tokenHash, now, installId, installId, sub),
+      .bind(tokenHash, now, now, installId, installId, sub),
+    linkFreeGrantStmt(db, subHash, sub),
   ]);
   const row = results[1]?.results[0] as { credits: number } | undefined;
   if (!row) throw new ApiError(403, "permission_error", "this account has been disabled");
@@ -170,13 +178,14 @@ async function linkLegacyByInstall(
   const results = await db.batch([
     db
       .prepare(
-        `UPDATE accounts SET google_sub = ?, token_hash = ?, updated_at = ?
+        `UPDATE accounts SET google_sub = ?, token_hash = ?, updated_at = ?, last_used_at = ?
          WHERE install_id = ? AND google_sub IS NULL AND disabled = 0
            AND NOT EXISTS (SELECT 1 FROM accounts o WHERE o.google_sub = ?)
          RETURNING credits`,
       )
-      .bind(sub, tokenHash, now, installId, sub),
+      .bind(sub, tokenHash, now, now, installId, sub),
     recordFreeGrantStmt(db, subHash, sub, now),
+    linkFreeGrantStmt(db, subHash, sub),
   ]);
   const row = results[0]?.results[0] as { credits: number } | undefined;
   if (!row) throw new ApiError(500, "api_error", "could not register this install, please retry");
@@ -201,22 +210,23 @@ async function createGoogleAccount(
     detachInstallStmt(db, installId, sub),
     db
       .prepare(
-        `INSERT INTO accounts (install_id, token_hash, credits, free_credits, google_sub, created_at, updated_at)
-         SELECT ?, ?, c, c, ?, ?, ?
+        `INSERT INTO accounts (install_id, token_hash, credits, free_credits, google_sub, created_at, updated_at, last_used_at)
+         SELECT ?, ?, c, c, ?, ?, ?, ?
          FROM (SELECT CASE WHEN EXISTS (SELECT 1 FROM free_credit_grants WHERE sub_hash = ?) THEN 0 ELSE ? END AS c)
          WHERE 1
          ON CONFLICT DO NOTHING
          RETURNING credits, free_credits`,
       )
-      .bind(installId, tokenHash, sub, now, now, subHash, freeCredits),
+      .bind(installId, tokenHash, sub, now, now, now, subHash, freeCredits),
     recordFreeGrantStmt(db, subHash, sub, now),
+    linkFreeGrantStmt(db, subHash, sub),
   ]);
   const row = results[1]?.results[0] as { credits: number; free_credits: number } | undefined;
   if (row) return { token, credits: row.credits, freeGranted: row.free_credits > 0, restored: false };
 
   // 동시에 같은 sub(또는 installId)로 계정이 생겼다. sub 의 계정이면 복원한다.
   const again = await db.prepare("SELECT disabled FROM accounts WHERE google_sub = ?").bind(sub).first<{ disabled: number }>();
-  if (again && !again.disabled) return restoreBySub(db, sub, installId, now);
+  if (again && !again.disabled) return restoreBySub(db, sub, subHash, installId, now);
   throw new ApiError(500, "api_error", "could not register this install, please retry");
 }
 
@@ -283,28 +293,32 @@ export async function registerInstall(
 
   const inserted = await db
     .prepare(
-      `INSERT INTO accounts (install_id, token_hash, credits, free_credits, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO accounts (install_id, token_hash, credits, free_credits, created_at, updated_at, last_used_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (install_id) DO NOTHING
        RETURNING credits`,
     )
-    .bind(installId, tokenHash, freeCredits, freeCredits, now, now)
+    .bind(installId, tokenHash, freeCredits, freeCredits, now, now, now)
     .first<{ credits: number }>();
   if (inserted) return { token, credits: inserted.credits, freeGranted: freeCredits > 0, restored: false };
 
   const updated = await db
     .prepare(
-      `UPDATE accounts SET token_hash = ?, updated_at = ? WHERE install_id = ? AND google_sub IS NULL
+      `UPDATE accounts SET token_hash = ?, updated_at = ?, last_used_at = ? WHERE install_id = ? AND google_sub IS NULL
        RETURNING credits, disabled`,
     )
-    .bind(tokenHash, now, installId)
+    .bind(tokenHash, now, now, installId)
     .first<{ credits: number; disabled: number }>();
   if (!updated) throw new ApiError(400, "google_required", "this account is linked to Google: idToken is required");
   if (updated.disabled) throw new ApiError(403, "permission_error", "this account has been disabled");
   return { token, credits: updated.credits, freeGranted: false, restored: true };
 }
 
+/**
+ * GET /ember/balance → { credits, freeCredits, paidCredits, expiringSoon: { credits, at } | null }
+ * credits(전체)는 예전 앱 호환용으로 그대로 둔다. at 은 유닉스 초. 인증하면서 마지막 사용 시각이 갱신된다.
+ */
 export async function handleBalance(req: Request, env: Env): Promise<Response> {
   const account = await authenticate(env, req);
-  return jsonResponse({ credits: account.credits });
+  return jsonResponse(await balanceBreakdown(env.DB, account.id, nowSeconds()));
 }

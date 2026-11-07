@@ -186,6 +186,8 @@ fun EmberNavHost(nav: NavHostController, start: String) {
                     if (fromOnboarding) nav.navigate("main") { popUpTo(0) { inclusive = true } } else nav.popBackStack()
                 },
                 onBack = if (fromOnboarding) null else ({ nav.popBackStack() }),
+                onOpenTerms = { nav.navigate("terms") },
+                onOpenPrivacy = { nav.navigate("privacy") },
             )
         }
         composable("main") {
@@ -209,7 +211,8 @@ fun EmberNavHost(nav: NavHostController, start: String) {
             ProjectScreen(id, onBack = { nav.popBackStack() }, onFixKey = { nav.navigate("key?from=settings") })
         }
         composable("profile") { ProfileScreen { nav.popBackStack() } }
-        composable("about") { AboutScreen(onBack = { nav.popBackStack() }, onOpenPrivacy = { nav.navigate("privacy") }) }
+        composable("about") { AboutScreen(onBack = { nav.popBackStack() }, onOpenPrivacy = { nav.navigate("privacy") }, onOpenTerms = { nav.navigate("terms") }) }
+        composable("terms") { app.ember.ideas.ui.screens.TermsScreen { nav.popBackStack() } }
         composable("privacy") { app.ember.ideas.ui.screens.PrivacyScreen { nav.popBackStack() } }
     }
 }

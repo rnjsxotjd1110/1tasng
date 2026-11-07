@@ -186,9 +186,16 @@ fun HomeScreen(
 
     val onFire = projects.filter { !it.isSample }.take(6)
 
+    var pendingStart by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     fun start(quick: Boolean = false, overrideSeed: String? = null, concept: Boolean = false, overrideKind: ProjectKind? = null) {
         val k = overrideKind ?: kind ?: ProjectKind.ANY
         if (!settings.ready) { onNeedKey(); return }
+        // 처음 AI 에 보내기 전에 국외 이전을 한 번 알린다(개인정보 보호법 제28조의8).
+        if (!settings.transferNoticeSeen) {
+            pendingStart = { start(quick, overrideSeed, concept, overrideKind) }
+            return
+        }
         focus.clearFocus()
         val presets = mold?.let { MoldCatalog.presets(it, s.isKorean) }.orEmpty()
         val p = container.engine.createProject(
@@ -339,6 +346,11 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             )
+                            // 내 API 키로 쓰면 금액은 추정치라는 것을 함께 알린다(크레딧 모드는 크레딧으로 표시).
+                            if (!settings.usingCredits) Text(
+                                s.costEstimateShort, style = MaterialTheme.typography.labelSmall, color = c.textFaint, textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                            )
                             Spacer(Modifier.height(4.dp))
                             GhostButton(s.quickIdeas, { start(quick = true) }, icon = Icons.Rounded.FastForward, color = c.textMuted, modifier = Modifier.align(Alignment.CenterHorizontally))
                         } else {
@@ -439,6 +451,13 @@ fun HomeScreen(
     ) { k, text ->
         conceptSheet = false
         start(overrideSeed = text, concept = true, overrideKind = k)
+    }
+    pendingStart?.let { go ->
+        app.ember.ideas.ui.screens.project.EmberDialog(s.transferTitle, s.transferBody, s.transferAgree, {
+            container.settings.setTransferNoticeSeen()
+            pendingStart = null
+            go()
+        }, { pendingStart = null })
     }
     if (memoSheet) QuickMemoSheet { memoSheet = false }
     if (pickMemo) MemoPickerSheet(memos, onDismiss = { pickMemo = false }) { m ->

@@ -384,7 +384,7 @@ object KoStrings : Strings() {
     override val deleteAllBody = "이 기기의 모든 프로젝트를 지워요. 되돌릴 수 없어요."
     override val deletedAll = "모든 프로젝트를 삭제했어요"
     override val about = "Ember 정보"
-    override val privacyNote = "API 키와 프로젝트는 이 기기에만 저장돼요. 질문과 답변은 Claude를 부를 때만 Anthropic API로 전송돼요."
+    override val privacyNote = "API 키와 프로젝트는 이 기기에 저장돼요(Android 백업을 켜면 프로젝트가 Google 계정 백업에 들어가요). 질문과 답변은 Claude를 부를 때만 Anthropic(미국)으로 전송돼요."
     override val aboutBody = "Ember는 질문 카드로 나에게 맞는 게임·앱 아이디어를 찾고, 개발에 바로 쓸 설계서로 다듬어 Claude에서 이어갈 수 있게 돕는 설계 스튜디오예요."
     override val licenses = "오픈소스 라이선스"
     override val trademarkNote = "Claude와 Anthropic은 Anthropic PBC의 상표예요. Ember는 Anthropic의 공식 앱이 아니에요."
@@ -471,7 +471,7 @@ object KoStrings : Strings() {
     override val easiest = "가장 쉬움"
     override val exportClaudeMdBody = "PC의 Claude Code가 저장소에서 바로 읽는 설계 파일이에요"
     override val monthlyBudget = "월 예산"
-    override val budgetBody = "이번 달 예상 비용이 예산에 닿으면 요청을 멈추고 알려 드려요."
+    override val budgetBody = "이번 달 예상 비용이 예산에 닿으면 요청을 멈추고 알려 드려요. 예상 비용은 추정치라 실제 청구액이 예산을 조금 넘을 수 있어요."
     override val budgetOptionsUsd = listOf(0.0, 5000 / 1400.0, 10000 / 1400.0, 30000 / 1400.0)
     override fun budgetLabel(usd: Double) = if (usd <= 0) "없음" else money(usd)
     override fun thisMonth(used: String, budget: String?) = if (budget == null) "이번 달 $used" else "이번 달 $used / 예산 $budget"
@@ -500,7 +500,7 @@ object KoStrings : Strings() {
 
     override val accessTabCredits = "Ember 크레딧"
     override val accessTabKey = "내 API 키"
-    override val creditsHeadline = "가입 없이 바로 시작해요"
+    override val creditsHeadline = "Google 계정으로 바로 시작해요"
     override fun creditsBody(free: Int, discoveries: Int) = "처음 ${free}크레딧을 무료로 드려요. 아이디어 탐색을 약 ${discoveries}번 할 수 있어요. 다 쓰면 Google Play 결제로 충전해요."
     override val creditsStart = "Google 계정으로 시작"
     override val creditsContinue = "시작하기"
@@ -536,8 +536,6 @@ object KoStrings : Strings() {
     override val reportSent = "신고를 보냈어요. 확인한 뒤 개선에 반영할게요."
     override val reportByEmail = "메일 앱이 열리면 내용을 확인하고 보내 주세요."
     override val privacyPolicy = "개인정보처리방침"
-    override val privacyUpdated = "시행일 2026년 11월 5일"
-    override val privacySections = KoPolicy.sections
 
     override val contactUs = "문의 메일 보내기"
 
@@ -597,7 +595,7 @@ object KoStrings : Strings() {
     override val importFailed = "Ember 백업 파일이 아니에요. '모든 프로젝트 내보내기'로 만든 파일을 골라 주세요."
     override val backupNote = "Android 백업을 켜 두면 프로젝트와 설정이 Google 계정에 함께 백업돼요. API 키와 토큰은 백업하지 않아요."
     override val eraseAll = "모든 데이터 지우기"
-    override val eraseAllBody = "프로젝트, 설정, API 키, GitHub 토큰, 참고 이미지, 오류 기록을 이 휴대폰에서 모두 지우고 처음 화면으로 돌아가요. 되돌릴 수 없어요."
+    override val eraseAllBody = "이 휴대폰의 프로젝트, 설정, API 키, 토큰, 참고 이미지, 오류 기록을 지우고 처음 화면으로 돌아가요. 되돌릴 수 없어요. 서버의 크레딧 계정과 기록은 Claude 연결 화면의 크레딧 계정 삭제로 따로 지우고, Google 백업에 남은 사본은 Google 계정 설정에서 지울 수 있어요."
 
     override val showChanges = "바뀐 부분"
     override fun diffTitle(from: Int, to: Int) = "v$from → v$to 바뀐 부분"
@@ -796,6 +794,21 @@ object KoStrings : Strings() {
     override fun deleteAccountBody(credits: Int) = "서버의 크레딧 계정과 사용 기록을 지워요. 남은 ${credits}크레딧은 되살릴 수 없고 환불되지 않아요. 결제 기록은 전자상거래법에 따라 개인을 알 수 없는 형태로 5년간 보관해요. 이 기기의 프로젝트는 지워지지 않아요."
     override val accountDeleted = "크레딧 계정을 삭제했어요"
     override val packsNeedGoogle = "Google 계정을 연결해야 충전할 수 있어요."
+
+    override val termsOfService = "이용약관"
+    override val businessInfo = "사업자 정보"
+
+    override val purchaseNoticeTitle = "구매 전에 꼭 확인해 주세요"
+    override val purchaseNotice = listOf("구매일로부터 7일 이내이고 그 구매로 받은 크레딧을 쓰지 않았다면 전액 청약철회(환불)할 수 있어요. 일부를 썼다면 쓰지 않은 유료 크레딧만큼 환불돼요.", "7일이 지난 뒤에도 남은 유료 크레딧은 환불을 요청할 수 있어요. 이때 남은 금액의 10%를 결제 수수료 등으로 빼요.", "무료 크레딧을 먼저 쓰고, 무료 크레딧은 환불되지 않아요.", "유료 크레딧의 유효기간은 구매일로부터 5년이에요.", "환불은 Google Play(구매 후 48시간 이내) 또는 앱 정보의 이메일로 Google Play 주문번호(GPA.로 시작)를 보내 요청해 주세요.", "미성년자가 법정대리인의 동의 없이 결제했다면 본인이나 법정대리인이 취소할 수 있어요.", "크레딧은 Google 계정에 연결되며 현금으로 바꾸거나 다른 사람에게 넘길 수 없어요.")
+    override val consentAgeTerms = "만 14세 이상이며 이용약관과 개인정보 처리방침(국외 이전 포함)을 확인하고 동의해요"
+    override val readTerms = "이용약관 보기"
+    override val readPrivacy = "개인정보 처리방침 보기"
+    override val transferTitle = "AI 생성을 위해 입력 내용이 미국으로 전송돼요"
+    override val transferBody = "아이디어와 설계서를 만들 때 질문 답변, 입력한 문장, 첨부 이미지, 개발자 프로필이 Anthropic(미국)의 Claude로 전송돼요. Ember 크레딧을 쓰면 Ember 중계 서버(Cloudflare)를 거쳐요. 답은 AI가 만들어서 틀릴 수 있어요. 원하지 않으면 체험 모드만 쓸 수 있어요."
+    override val transferAgree = "확인했어요"
+    override val aiGeneratedLabel = "이 문서에는 Claude(Anthropic)의 AI가 생성한 내용이 포함되어 있어요."
+
+    override val costEstimateShort = "공개 단가와 1달러=1,400원으로 계산한 추정치예요. 실제 청구는 Anthropic이 달러로 하며 다를 수 있어요."
 
     override val tabHome = "화로"
     override val tabLibrary = "도면함"

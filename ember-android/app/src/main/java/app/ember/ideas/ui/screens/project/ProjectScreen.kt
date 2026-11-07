@@ -169,7 +169,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
             ) {
                 if (stage == ProjectStage.DOCUMENT && project.design?.latest != null && !busy) {
                     IconCircleButton(Icons.Rounded.Share, s.share, {
-                        val md = project.design.latest!!.markdown
+                        val md = Handoff.aiLabeled(project.design.latest!!.markdown, korean)
                         Handoff.shareMarkdown(ctx, documentTitleOf(project), md, s.share)
                     }, filled = false)
                 }
@@ -190,7 +190,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
                             if (!busy) MenuItem(s.editDocument, Icons.Rounded.DriveFileRenameOutline) { menu = false; sheet = Sheet.EditDoc }
                             MenuItem(s.copyDocument, Icons.Rounded.ContentCopy) {
                                 menu = false
-                                Handoff.copy(ctx, project.title, project.design.latest!!.markdown)
+                                Handoff.copy(ctx, project.title, Handoff.aiLabeled(project.design.latest!!.markdown, korean))
                                 Toast.makeText(ctx, s.copied, Toast.LENGTH_SHORT).show()
                             }
                             if ((project.design.versions.size) > 1) MenuItem(s.versionsTitle, Icons.Rounded.History) { menu = false; sheet = Sheet.Versions }
@@ -379,7 +379,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
             onGitHub = { sheet = Sheet.GitHub },
             onShareFile = {
                 sheet = null
-                project.design?.latest?.markdown?.let { Handoff.shareMarkdown(ctx, documentTitleOf(project), it, s.share) }
+                project.design?.latest?.markdown?.let { Handoff.shareMarkdown(ctx, documentTitleOf(project), Handoff.aiLabeled(it, korean), s.share) }
             },
         )
         is Sheet.IdeaDetail -> project.idea(sh.ideaId)?.let { idea ->

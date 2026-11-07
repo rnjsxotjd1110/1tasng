@@ -282,8 +282,6 @@ abstract class Strings {
     abstract val reportSent: String
     abstract val reportByEmail: String
     abstract val privacyPolicy: String
-    abstract val privacyUpdated: String
-    abstract val privacySections: List<Pair<String, String>>
 
     abstract val contactUs: String
 
@@ -542,6 +540,21 @@ abstract class Strings {
     abstract fun deleteAccountBody(credits: Int): String
     abstract val accountDeleted: String
     abstract val packsNeedGoogle: String
+
+    abstract val termsOfService: String
+    abstract val businessInfo: String
+
+    abstract val purchaseNoticeTitle: String
+    abstract val purchaseNotice: List<String>
+    abstract val consentAgeTerms: String
+    abstract val readTerms: String
+    abstract val readPrivacy: String
+    abstract val transferTitle: String
+    abstract val transferBody: String
+    abstract val transferAgree: String
+    abstract val aiGeneratedLabel: String
+
+    abstract val costEstimateShort: String
 
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String

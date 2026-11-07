@@ -74,7 +74,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)?, startOnCredits: Boolean = true) {
+fun ApiKeyScreen(
+    fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)?, startOnCredits: Boolean = true,
+    onOpenTerms: () -> Unit = {}, onOpenPrivacy: () -> Unit = {},
+) {
     val s = LocalStrings.current
     val c = Ember.colors
     val ctx = LocalContext.current
@@ -158,7 +161,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                     .padding(horizontal = 20.dp),
             ) {
                 if (creditsTab) {
-                    CreditsBody(current, creditError)
+                    CreditsBody(current, creditError, onOpenTerms)
                 } else {
                 Icon(Icons.Rounded.Lock, null, tint = c.ember, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.height(16.dp))
@@ -247,7 +250,22 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
                 if (creditsTab) {
                     if (!current.creditsReady) {
                         Text(s.googleWhy, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(bottom = 6.dp))
-                        PrimaryButton(s.creditsStart, ::connectCredits, Modifier.fillMaxWidth(), loading = connecting)
+                        // 연령과 약관·방침 동의를 받은 뒤에만 Google 로그인으로 계정을 만든다.
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Checkbox) { settings.setTermsAccepted(!current.termsAccepted) }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            app.ember.ideas.ui.components.SelectMark(current.termsAccepted, multi = true)
+                            Spacer(Modifier.width(10.dp))
+                            Text(s.consentAgeTerms, style = MaterialTheme.typography.bodySmall, color = c.text, modifier = Modifier.weight(1f))
+                        }
+                        Row {
+                            GhostButton(s.readTerms, onOpenTerms, color = c.textMuted)
+                            GhostButton(s.readPrivacy, onOpenPrivacy, color = c.textMuted)
+                        }
+                        PrimaryButton(s.creditsStart, ::connectCredits, Modifier.fillMaxWidth(), loading = connecting, enabled = current.termsAccepted)
                     } else if (!fromSettings) {
                         PrimaryButton(s.creditsContinue, onDone, Modifier.fillMaxWidth())
                     }

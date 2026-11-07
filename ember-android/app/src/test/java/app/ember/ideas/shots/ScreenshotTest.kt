@@ -9,6 +9,7 @@ import app.ember.ideas.data.Mold
 import app.ember.ideas.data.DepthMode
 import app.ember.ideas.data.PresetAnswer
 import app.ember.ideas.ui.screens.MoldScreen
+import app.ember.ideas.ui.screens.TermsScreen
 import app.ember.ideas.account.ServerConfig
 import app.ember.ideas.data.Reference
 import app.ember.ideas.SharedSeed
@@ -622,6 +623,24 @@ class ScreenshotTest {
         setContent(auto = true) { MainTabs({}, {}, {}, {}) }
         click("컨셉 적고 바로 받기")
         shot("51_concept_sheet", 1500)
+    }
+
+    @Test fun s52_transfer_notice() {
+        withKey()
+        setContent(auto = true) { MainTabs({}, {}, {}, {}) }
+        click("게임")
+        rule.onAllNodes(androidx.compose.ui.test.hasScrollToNodeAction()).onFirst().performScrollToNode(hasPlainText("질문 받으며 시작"))
+        rule.waitForIdle()
+        click("질문 받으며 시작")
+        rule.onAllNodes(hasPlainText("미국으로 전송돼요"), useUnmergedTree = true).onFirst().assertExists()
+        shot("52_transfer_notice", 1500)
+        // 확인하기 전에는 프로젝트를 만들지 않는다.
+        assertEquals(0, c.store.projects.value.count { !it.isSample })
+    }
+
+    @Test fun s53_terms() {
+        setContent { TermsScreen {} }
+        shot("53_terms")
     }
 
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))

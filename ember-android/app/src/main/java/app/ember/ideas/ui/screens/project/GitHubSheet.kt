@@ -246,7 +246,7 @@ fun GitHubSheet(project: Project, onDismiss: () -> Unit) {
                         val files = listOf(
                             RepoFile("README.md", readmeFor(project, s.isKorean)),
                             RepoFile("CLAUDE.md", Handoff.buildClaudeMd(project, idea, settings.profile, s.isKorean)),
-                            RepoFile("docs/DESIGN.md", doc),
+                            RepoFile("docs/DESIGN.md", Handoff.aiLabeled(doc, s.isKorean)),
                         )
                         run { t -> GitHubClient().createRepo(t, name, idea?.logline ?: project.title, private, files) }
                     }, Modifier.fillMaxWidth(), enabled = name.isNotBlank() && doc.isNotBlank(), loading = busy)

@@ -1,5 +1,7 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.Description
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.CloudUpload
@@ -363,7 +365,7 @@ private fun Label(t: String) {
 // ------------------------------------------------------------------ 정보
 
 @Composable
-fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}) {
+fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}, onOpenTerms: () -> Unit = {}) {
     val s = LocalStrings.current
     val c = Ember.colors
     EmberBackground {
@@ -376,6 +378,7 @@ fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}) {
                 Text(s.aboutBody, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
                 Spacer(Modifier.height(16.dp))
                 NavRow(s.privacyPolicy, null, onOpenPrivacy, icon = Icons.Rounded.Lock)
+                NavRow(s.termsOfService, null, onOpenTerms, icon = Icons.Rounded.Description)
                 val email = app.ember.ideas.account.ServerConfig.values.reportEmail
                 if (email.isNotBlank()) {
                     val ctx = LocalContext.current
@@ -401,6 +404,16 @@ fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}) {
                         Text(lic, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
                     }
                 }
+                // 전자상거래법에 따른 사업자 정보 표시.
+                Spacer(Modifier.height(20.dp))
+                Text(s.businessInfo, style = MaterialTheme.typography.titleMedium, color = c.text)
+                Spacer(Modifier.height(8.dp))
+                app.ember.ideas.ui.strings.Legal.businessLines(s.isKorean).forEach { (k, v) ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        Text(k, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.width(120.dp))
+                        Text(v, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.weight(1f))
+                    }
+                }
                 Spacer(Modifier.height(24.dp))
                 Text(s.trademarkNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
                 Spacer(Modifier.height(40.dp))
@@ -413,20 +426,25 @@ fun AboutScreen(onBack: () -> Unit, onOpenPrivacy: () -> Unit = {}) {
 // ------------------------------------------------------------------ 개인정보처리방침
 
 @Composable
-fun PrivacyScreen(onBack: () -> Unit) {
+fun PrivacyScreen(onBack: () -> Unit) = LegalScreen(app.ember.ideas.ui.strings.Legal.Doc.PRIVACY, onBack)
+
+@Composable
+fun TermsScreen(onBack: () -> Unit) = LegalScreen(app.ember.ideas.ui.strings.Legal.Doc.TERMS, onBack)
+
+/** 약관·방침 화면. assets/legal 의 Markdown 을 그대로 보여 준다(표 포함). */
+@Composable
+private fun LegalScreen(doc: app.ember.ideas.ui.strings.Legal.Doc, onBack: () -> Unit) {
     val s = LocalStrings.current
-    val c = Ember.colors
+    val ctx = LocalContext.current
+    val blocks = remember(doc, s.isKorean) {
+        app.ember.ideas.ui.markdown.MarkdownParser.parse(app.ember.ideas.ui.strings.Legal.load(ctx, doc, s.isKorean))
+            .let { b -> if (b.firstOrNull() is app.ember.ideas.ui.markdown.MdBlock.Heading) b.drop(1) else b }
+    }
     EmberBackground {
         Column(Modifier.fillMaxSize()) {
-            EmberTopBar(s.privacyPolicy, onBack)
+            EmberTopBar(if (doc == app.ember.ideas.ui.strings.Legal.Doc.PRIVACY) s.privacyPolicy else s.termsOfService, onBack)
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-                Text(s.privacyUpdated, style = MaterialTheme.typography.labelMedium, color = c.textFaint)
-                s.privacySections.forEach { (title, body) ->
-                    Spacer(Modifier.height(20.dp))
-                    Text(title, style = MaterialTheme.typography.titleMedium, color = c.text)
-                    Spacer(Modifier.height(6.dp))
-                    Text(body, style = MaterialTheme.typography.bodyMedium, color = c.textMuted)
-                }
+                blocks.forEach { app.ember.ideas.ui.markdown.MarkdownBlockView(it) }
                 Spacer(Modifier.height(40.dp))
             }
         }

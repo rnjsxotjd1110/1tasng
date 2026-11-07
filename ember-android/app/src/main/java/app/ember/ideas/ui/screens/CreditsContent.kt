@@ -51,7 +51,7 @@ private val docCredits get() = ServerConfig.creditsFor(CostEstimate.design(Claud
 
 /** 크레딧 탭의 본문: 소개 또는 잔액, 충전 상품, 결제 상태. */
 @Composable
-fun CreditsBody(st: Settings, error: String?) {
+fun CreditsBody(st: Settings, error: String?, onOpenTerms: () -> Unit = {}) {
     val s = LocalStrings.current
     val c = Ember.colors
     val ctx = LocalContext.current
@@ -66,6 +66,8 @@ fun CreditsBody(st: Settings, error: String?) {
         Text(s.creditsBody(ServerConfig.values.freeCredits, ServerConfig.values.freeCredits / discoveryCredits), style = MaterialTheme.typography.bodyLarge, color = c.textMuted)
         Spacer(Modifier.height(12.dp))
         Text(s.creditsUnit(discoveryCredits, docCredits), style = MaterialTheme.typography.bodySmall, color = c.textFaint)
+        Spacer(Modifier.height(8.dp))
+        Text(s.freeSonnetNote, style = MaterialTheme.typography.bodySmall, color = c.textFaint)
     } else {
         // 잔액은 이 화면의 주인공이라 크게 보여 준다.
         Text(s.creditsBalance, style = MaterialTheme.typography.titleSmall, color = c.textMuted)
@@ -92,6 +94,19 @@ fun CreditsBody(st: Settings, error: String?) {
             packs.forEach { pack -> PackRow(pack, enabled = linked && purchase !is PurchaseState.Working) { ctx.findActivity()?.let { billing.buy(it, pack.productId) } } }
         }
         if (!linked) Text(s.packsNeedGoogle, style = MaterialTheme.typography.bodySmall, color = c.gold, modifier = Modifier.padding(top = 8.dp))
+        // 전자상거래법·콘텐츠이용자보호지침: 구매 화면에 청약철회·환불·유효기간·미성년자 취소권을 미리 알린다.
+        Spacer(Modifier.height(14.dp))
+        Column(Modifier.fillMaxWidth().clip(EmberShape.panel).background(c.surface).padding(14.dp)) {
+            Text(s.purchaseNoticeTitle, style = MaterialTheme.typography.titleSmall, color = c.text)
+            Spacer(Modifier.height(6.dp))
+            s.purchaseNotice.forEach { line ->
+                Row(Modifier.padding(vertical = 2.dp)) {
+                    Text("·", style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.width(12.dp))
+                    Text(line, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.weight(1f))
+                }
+            }
+            app.ember.ideas.ui.components.GhostButton(s.readTerms, onOpenTerms, color = c.ember, modifier = Modifier.offset(x = (-14).dp))
+        }
         val message = when (val p = purchase) {
             PurchaseState.Pending -> s.creditsPending to c.gold
             is PurchaseState.Done -> s.creditsAdded(p.credits) to c.success

@@ -382,7 +382,7 @@ object EnStrings : Strings() {
     override val deleteAllBody = "Removes every project on this device. This can't be undone."
     override val deletedAll = "All projects deleted"
     override val about = "About Ember"
-    override val privacyNote = "Your key and projects stay on this device. Questions and answers are sent to the Anthropic API only when Claude is called."
+    override val privacyNote = "Your API key and projects are stored on this device (with Android backup on, projects are included in your Google backup). Answers are sent to Anthropic (USA) only when Claude is called."
     override val aboutBody = "Ember is a design studio that finds game and app ideas that fit you through question cards, shapes them into build-ready design docs, and hands them to Claude."
     override val licenses = "Open-source licenses"
     override val trademarkNote = "Claude and Anthropic are trademarks of Anthropic PBC. Ember is not an official Anthropic app."
@@ -462,7 +462,7 @@ object EnStrings : Strings() {
     override val easiest = "Easiest"
     override val exportClaudeMdBody = "A design file Claude Code on your PC reads from the repo"
     override val monthlyBudget = "Monthly budget"
-    override val budgetBody = "Requests pause and you're told when this month's estimated cost reaches the budget."
+    override val budgetBody = "Requests pause and you're told when this month's estimated cost reaches the budget. Costs are estimates, so actual charges can slightly exceed the budget."
     override val budgetOptionsUsd = listOf(0.0, 5.0, 10.0, 25.0)
     override fun budgetLabel(usd: Double) = if (usd <= 0) "None" else money(usd)
     override fun thisMonth(used: String, budget: String?) = if (budget == null) "This month $used" else "This month $used of $budget"
@@ -491,7 +491,7 @@ object EnStrings : Strings() {
 
     override val accessTabCredits = "Ember credits"
     override val accessTabKey = "My API key"
-    override val creditsHeadline = "Start now, no sign-up"
+    override val creditsHeadline = "Start right away with Google"
     override fun creditsBody(free: Int, discoveries: Int) = "You get $free free credits, enough for about $discoveries idea sessions. When they run out, top up with Google Play."
     override val creditsStart = "Continue with Google"
     override val creditsContinue = "Get started"
@@ -527,8 +527,6 @@ object EnStrings : Strings() {
     override val reportSent = "Report sent. We'll review it and fix what we can."
     override val reportByEmail = "Your email app will open. Check the message and send it."
     override val privacyPolicy = "Privacy policy"
-    override val privacyUpdated = "Effective November 5, 2026"
-    override val privacySections = EnPolicy.sections
 
     override val contactUs = "Email support"
 
@@ -588,7 +586,7 @@ object EnStrings : Strings() {
     override val importFailed = "That's not an Ember backup. Pick a file made with Export all projects."
     override val backupNote = "With Android backup on, projects and settings are backed up to your Google account. Keys and tokens are never included."
     override val eraseAll = "Erase all data"
-    override val eraseAllBody = "Deletes projects, settings, API key, GitHub token, reference images, and crash logs from this phone, then starts over. This can't be undone."
+    override val eraseAllBody = "Deletes projects, settings, API keys, tokens, reference images and crash logs on this phone and returns to the start. This can't be undone. Your credit account and its server records are deleted separately with Delete credit account, and copies in Google backup from your Google account settings."
 
     override val showChanges = "Changes"
     override fun diffTitle(from: Int, to: Int) = "Changes from v$from to v$to"
@@ -787,6 +785,21 @@ object EnStrings : Strings() {
     override fun deleteAccountBody(credits: Int) = "This deletes your credit account and usage history on the server. Your remaining $credits credits can't be restored or refunded. Purchase records are kept for 5 years in de-identified form as required by Korean e-commerce law. Projects on this device are not deleted."
     override val accountDeleted = "Credit account deleted"
     override val packsNeedGoogle = "Connect a Google account to buy credits."
+
+    override val termsOfService = "Terms of Service"
+    override val businessInfo = "Business information"
+
+    override val purchaseNoticeTitle = "Before you buy"
+    override val purchaseNotice = listOf("Within 7 days of purchase, if you haven't used the credits from that purchase, you can withdraw for a full refund. If you used some, unused paid credits are refunded.", "After 7 days you can still request a refund of remaining paid credits, minus 10% for payment fees.", "Free credits are used first and are not refundable.", "Paid credits are valid for 5 years from purchase.", "Request refunds through Google Play (within 48 hours) or by emailing your Google Play order number (starts with GPA.) to the address in About.", "If a minor paid without a guardian's consent, the minor or guardian can cancel it.", "Credits belong to your Google account and can't be exchanged for cash or transferred.")
+    override val consentAgeTerms = "I'm 14 or older and agree to the Terms of Service and Privacy Policy (including overseas transfer)"
+    override val readTerms = "Read terms"
+    override val readPrivacy = "Read privacy policy"
+    override val transferTitle = "Your input is sent to the USA for AI generation"
+    override val transferBody = "When Ember makes ideas and design docs, your answers, text, attached images and developer profile are sent to Claude by Anthropic (USA). With Ember credits they pass through the Ember relay server (Cloudflare). Answers are AI-generated and may be wrong. If you don't want this, you can use demo mode only."
+    override val transferAgree = "Got it"
+    override val aiGeneratedLabel = "This document contains content generated by AI (Claude by Anthropic)."
+
+    override val costEstimateShort = "Estimated from public prices. Anthropic bills in USD and the actual amount may differ."
 
     override val tabHome = "Forge"
     override val tabLibrary = "Blueprints"

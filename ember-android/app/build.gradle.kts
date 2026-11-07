@@ -31,6 +31,13 @@ android {
         buildConfigField("boolean", "WORKBENCH_ENABLED", prop("ember.workbench").ifEmpty { "false" })
         // Google 로그인용 OAuth 웹 클라이언트 ID(서버의 GOOGLE_OAUTH_CLIENT_IDS 와 같은 값).
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${prop("ember.googleWebClientId")}\"")
+        // 사업자·법적 고지(약관·방침·정보 화면). 비어 있으면 [미입력]으로 보인다.
+        listOf("name", "ceo", "regNo", "salesNo", "address", "phone", "email", "privacyOfficer", "dbRegion").forEach { k ->
+            buildConfigField("String", "BIZ_" + k.replace(Regex("([A-Z])"), "_$1").uppercase(), "\"${prop("ember.biz.$k").replace("\"", "")}\"")
+        }
+        buildConfigField("String", "TERMS_URL", "\"${prop("ember.termsUrl")}\"")
+        buildConfigField("String", "DELETE_URL", "\"${prop("ember.deleteUrl")}\"")
+        buildConfigField("String", "LEGAL_EFFECTIVE", "\"${prop("ember.legalEffective")}\"")
     }
 
     // 서명 정보는 저장소에 넣지 않는다. keystore.properties(무시 목록)가 있으면 그 키로 서명한다.
@@ -127,11 +134,18 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
 
-// Play 에 올리는 번들(bundleRelease)은 출시 키가 없으면 만들지 않는다(디버그 키로 서명된 번들은 Play 가 거절한다).
+// Play 에 올리는 번들(bundleRelease)은 출시 키나 법적 고지에 필요한 값이 비어 있으면 만들지 않는다.
 tasks.matching { it.name == "bundleRelease" }.configureEach {
     doFirst {
         if (android.signingConfigs.findByName("release") == null) {
             throw GradleException("출시 서명 키가 없어요. 프로젝트 루트에 keystore.properties 를 두세요(README '빌드' 참고).")
         }
+        val required = listOf(
+            "ember.serverUrl", "ember.privacyUrl", "ember.termsUrl", "ember.deleteUrl", "ember.legalEffective", "ember.googleWebClientId",
+            "ember.biz.name", "ember.biz.ceo", "ember.biz.regNo", "ember.biz.salesNo", "ember.biz.address", "ember.biz.phone",
+            "ember.biz.email", "ember.biz.privacyOfficer", "ember.biz.dbRegion",
+        )
+        val missing = required.filter { (project.findProperty(it) as String?).isNullOrBlank() }
+        if (missing.isNotEmpty()) throw GradleException("출시 전에 gradle.properties 에 채워야 해요: " + missing.joinToString(", "))
     }
 }

@@ -1,5 +1,6 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -129,6 +130,7 @@ fun HomeScreen(
     var sparkOffset by rememberSaveable { mutableIntStateOf(0) }
     var memoSheet by remember { mutableStateOf(false) }
     var pickMemo by remember { mutableStateOf(false) }
+    var conceptSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     // 화로 위 목록에서 꾹 눌러 고른 프로젝트 id. 하나라도 있으면 고르기 상태.
     var picked by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -184,14 +186,14 @@ fun HomeScreen(
 
     val onFire = projects.filter { !it.isSample }.take(6)
 
-    fun start(quick: Boolean = false, overrideSeed: String? = null) {
-        val k = kind ?: ProjectKind.ANY
+    fun start(quick: Boolean = false, overrideSeed: String? = null, concept: Boolean = false, overrideKind: ProjectKind? = null) {
+        val k = overrideKind ?: kind ?: ProjectKind.ANY
         if (!settings.ready) { onNeedKey(); return }
         focus.clearFocus()
         val presets = mold?.let { MoldCatalog.presets(it, s.isKorean) }.orEmpty()
         val p = container.engine.createProject(
             k, overrideSeed ?: seed, s.defaultProjectTitle(k), quick, images,
-            presets = presets, moldName = mold?.name.orEmpty(), depth = depth, memoId = memoId,
+            presets = presets, moldName = mold?.name.orEmpty(), depth = depth, memoId = memoId, concept = concept,
         )
         mold?.let { m -> container.molds.update(m.id) { it.copy(usedCount = it.usedCount + 1) } }
         memoId?.let { id -> container.memos.update(id) { it.copy(projectIds = it.projectIds + p.id) } }
@@ -321,6 +323,8 @@ fun HomeScreen(
                     Text(s.imageHint, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(top = 8.dp))
                 }
 
+                Spacer(Modifier.height(8.dp))
+                ConceptEntry { if (!settings.ready) onNeedKey() else conceptSheet = true }
                 AnimatedVisibility(kind != null || mold != null || seed.isNotBlank(), enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                     Column {
                         Spacer(Modifier.height(14.dp))
@@ -425,6 +429,16 @@ fun HomeScreen(
             picked = emptyList()
             if (gone.isNotEmpty()) onDeletedMany(gone)
         }, { confirmDelete = false }, danger = true)
+    }
+    if (conceptSheet) ConceptSheet(
+        initialKind = kind,
+        initialText = seed,
+        moldName = mold?.name,
+        costLine = s.costPerDiscovery(s.estimate(app.ember.ideas.ai.CostEstimate.discovery(settings.model)), s.modelShort(settings.model)),
+        onDismiss = { conceptSheet = false },
+    ) { k, text ->
+        conceptSheet = false
+        start(overrideSeed = text, concept = true, overrideKind = k)
     }
     if (memoSheet) QuickMemoSheet { memoSheet = false }
     if (pickMemo) MemoPickerSheet(memos, onDismiss = { pickMemo = false }) { m ->
@@ -653,3 +667,66 @@ fun ImageThumb(path: String, removeLabel: String?, size: androidx.compose.ui.uni
         }
     }
 }
+
+
+/** 화로의 '컨셉 적고 바로 받기' 줄. 종류를 고르지 않아도 늘 보인다. */
+@Composable
+private fun ConceptEntry(onClick: () -> Unit) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    Row(
+        Modifier.fillMaxWidth().clip(EmberShape.control).border(1.dp, c.ember.copy(alpha = 0.6f), EmberShape.control)
+            .clickable(role = Role.Button, onClick = onClick).heightIn(min = 60.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.FastForward, null, tint = c.ember, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(s.conceptEntry, style = MaterialTheme.typography.titleSmall, color = c.text)
+            Text(s.conceptEntrySub, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textFaint, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** 컨셉을 길게 적고 질문 없이 아이디어 4개를 받는 시트. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ConceptSheet(
+    initialKind: ProjectKind?,
+    initialText: String,
+    moldName: String?,
+    costLine: String,
+    onDismiss: () -> Unit,
+    onGo: (ProjectKind, String) -> Unit,
+) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    var k by remember { mutableStateOf(initialKind ?: ProjectKind.ANY) }
+    var text by remember { mutableStateOf(initialText) }
+    app.ember.ideas.ui.screens.project.EmberSheet(onDismiss) {
+        app.ember.ideas.ui.screens.project.SheetTitle(s.conceptTitle, s.conceptSub, onClose = onDismiss)
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(ProjectKind.GAME, ProjectKind.APP, ProjectKind.WEB, ProjectKind.ANY).forEach { kk ->
+                    ForgeTile(s.kindShort(kk), kindIcon(kk), k == kk, { k = kk }, Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            EmberTextField(text, { text = it }, s.conceptPlaceholder, minHeight = 168.dp, maxLength = CONCEPT_MAX)
+            Row(Modifier.padding(top = 6.dp)) {
+                if (moldName != null) Text(s.conceptMoldNote(moldName), style = MaterialTheme.typography.labelSmall, color = c.gold, modifier = Modifier.weight(1f))
+                else Spacer(Modifier.weight(1f))
+                Text("${text.length}/$CONCEPT_MAX", style = MaterialTheme.typography.labelSmall, color = c.textFaint)
+            }
+            Spacer(Modifier.height(14.dp))
+            PrimaryButton(s.conceptGo, { onGo(k, text.trim()) }, Modifier.fillMaxWidth(), enabled = text.trim().length >= CONCEPT_MIN)
+            Text(costLine, style = MaterialTheme.typography.bodySmall, color = c.textFaint, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp))
+        }
+    }
+}
+
+/** 컨셉 글자 수: 너무 짧으면 '질문 없이 바로'와 다를 게 없고, 너무 길면 비용만 는다. */
+private const val CONCEPT_MIN = 5
+private const val CONCEPT_MAX = 1500

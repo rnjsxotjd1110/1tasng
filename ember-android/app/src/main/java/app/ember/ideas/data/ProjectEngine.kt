@@ -106,15 +106,16 @@ class ProjectEngine(
         moldName: String = "",
         depth: DepthMode = DepthMode.NORMAL,
         memoId: String? = null,
+        concept: Boolean = false,
     ): Project {
         val now = System.currentTimeMillis()
         val title = seed.trim().lineSequence().firstOrNull()?.take(28)?.takeIf { it.isNotBlank() } ?: defaultTitle
         val p = Project(
             id = ProjectStore.newId(), title = title, kind = kind, seed = seed.trim(), createdAt = now, updatedAt = now, images = images,
-            presets = presets, moldName = moldName, depthMode = depth, memoId = memoId,
+            presets = presets, moldName = moldName, depthMode = depth, memoId = memoId, conceptMode = concept,
         )
         store.upsert(p)
-        startInterview(p.id, quick)
+        startInterview(p.id, quick || concept)
         return p
     }
 
@@ -129,8 +130,14 @@ class ProjectEngine(
     fun startInterview(id: String, quick: Boolean = false) {
         val p = store.get(id) ?: return
         val start = Protocol.startMessage(p.kind, p.seed, settings.settings.value.profile, lang, imageCount = p.images.size, presets = p.presets, depth = p.depthMode)
-        val text = if (quick) start.removeSuffix("첫 질문을 해 주세요.") + Protocol.REQUEST_QUICK_IDEAS else start
-        discoveryCall(id, if (quick) OpKind.IDEAS else OpKind.ASKING, base = emptyList(), userMsg = ChatMessage(ChatMessage.USER, text, p.images), onBeforeCommit = { it })
+        // 컨셉으로 시작한 프로젝트는 다시 시작해도 질문 없이 컨셉을 지킨 아이디어를 받는다.
+        val direct = quick || p.conceptMode
+        val text = when {
+            p.conceptMode -> start.removeSuffix("첫 질문을 해 주세요.") + Protocol.REQUEST_CONCEPT_IDEAS
+            quick -> start.removeSuffix("첫 질문을 해 주세요.") + Protocol.REQUEST_QUICK_IDEAS
+            else -> start
+        }
+        discoveryCall(id, if (direct) OpKind.IDEAS else OpKind.ASKING, base = emptyList(), userMsg = ChatMessage(ChatMessage.USER, text, p.images), onBeforeCommit = { it })
     }
 
     // ------------------------------------------------------------ 아이디어 인터뷰

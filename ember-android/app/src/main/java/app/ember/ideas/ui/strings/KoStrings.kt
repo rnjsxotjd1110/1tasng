@@ -764,6 +764,14 @@ object KoStrings : Strings() {
     override fun projectsDeleted(n: Int) = "프로젝트 ${n}개를 지웠어요"
     override val longPressProjectsHint = "꾹 누르면 여러 개를 골라 지울 수 있어요"
 
+    override val conceptEntry = "컨셉 적고 바로 받기"
+    override val conceptEntrySub = "질문 없이 내 컨셉을 지킨 아이디어 4개"
+    override val conceptTitle = "컨셉으로 바로 받기"
+    override val conceptSub = "적은 내용은 그대로 지키고, 정하지 않은 부분만 아이디어마다 다르게 채워요. 자세히 적을수록 원하는 쪽에 가까워져요."
+    override val conceptPlaceholder = "예: 픽셀아트 방치형 RPG. 직업 100개, 레이드에서 직업 조합을 맞추는 재미가 핵심. 모바일 세로, 한 판 5분."
+    override fun conceptMoldNote(name: String) = "거푸집 '$name'의 답도 함께 지켜요"
+    override val conceptGo = "아이디어 4개 받기"
+
     override val tabHome = "화로"
     override val tabLibrary = "도면함"
     override val tabSettings = "대장간"

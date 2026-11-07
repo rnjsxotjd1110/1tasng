@@ -6,13 +6,19 @@ Ember는 주머니 속 대장간이에요. 스치는 생각은 원석으로 모�
 
 ## 휴대폰에 설치하기
 
-1. `release/Ember-1.3.3.apk` 를 휴대폰으로 받습니다.
+1. `release/Ember-1.3.4.apk` 를 휴대폰으로 받습니다.
 2. 파일을 열면 "출처를 알 수 없는 앱 설치" 허용 화면이 나옵니다. 사용하는 앱(파일 관리자·브라우저 등)에 설치를 허용합니다.
 3. 설치 후 Ember를 열고, 온보딩 다음 화면에서 Anthropic API 키(`sk-ant-…`)를 붙여 넣어 연결합니다.
    - 키 발급: console.anthropic.com → Settings → API Keys → Create Key (Billing에서 크레딧 충전 필요)
    - 키 없이도 홈의 "키 없이 체험해 보기"와 보관함의 예시 프로젝트로 흐름을 둘러볼 수 있습니다.
 
 요구 사항: Android 8.0(API 26) 이상.
+
+## 1.3.4 에서 바뀐 점
+
+| 영역 | 내용 |
+|---|---|
+| 컨셉으로 바로 받기 | 화로의 "컨셉 적고 바로 받기"에서 원하는 컨셉을 최대 1,500자로 적으면 질문 없이 아이디어 4개를 받음. 적은 내용(장르·소재·분위기·플랫폼 등)은 그대로 지키고, 정하지 않은 부분만 아이디어마다 다르게 채움. 고른 거푸집의 답도 함께 지킴 |
 
 ## 1.3.3 에서 바뀐 점
 
@@ -98,7 +104,7 @@ app/src/main/java/app/ember/ideas/
   ui/        테마·컴포넌트·Markdown 렌더러·한국어 어절 줄바꿈·화면
 app/src/test/  프로토콜·Markdown·엔진·실제 API 오류 경로 테스트, Roborazzi 스크린샷
 docs/EVALUATION.md  처음 보는 평가 에이전트의 채점 기록(1차 65점 → 최종 77.25점)
-docs/screenshots/   최종 빌드 화면 51장
+docs/screenshots/   최종 빌드 화면 52장
 docs/RELEASE.md     출시 안내(빌드 설정, Play 콘솔, 정책 양식, 확인 목록)
 docs/privacy.html   개인정보처리방침(스토어 등록용, tools/gen_privacy.py 로 생성)
 ```

@@ -69,6 +69,22 @@ class EngineTest {
         assertEquals(listOf("C", "D", "E", "F", "G"), c.store.get(p.id)!!.allIdeas.map { it.title })
     }
 
+    @Test fun conceptModeSkipsQuestionsAndKeepsConcept() {
+        ai.turnReplies += Result.success(FakeAi.ideas("A", "B", "C", "D"))
+        val concept = "픽셀아트 방치형 RPG, 직업 100개, 레이드 조합이 핵심"
+        val p = c.engine.createProject(ProjectKind.GAME, concept, "새 게임", concept = true)
+        idle()
+        val after = c.store.get(p.id)!!
+        assertEquals(ProjectStage.IDEAS, after.stage)
+        assertEquals(4, after.allIdeas.size)
+        assertTrue(after.turns.isEmpty())
+        assertTrue(after.conceptMode)
+        val sent = ai.turnRequests.last().messages.first().text
+        assertTrue(sent.contains(concept))
+        assertTrue(sent.contains(app.ember.ideas.ai.Protocol.REQUEST_CONCEPT_IDEAS))
+        assertTrue(!sent.contains("첫 질문을 해 주세요."))
+    }
+
     @Test fun fullFlow() {
         ai.turnReplies += Result.success(FakeAi.question("Q1"))
         ai.turnReplies += Result.success(FakeAi.question("Q2"))

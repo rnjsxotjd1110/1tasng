@@ -628,6 +628,13 @@ class ScreenshotTest {
         assertEquals(0, c.store.projects.value.count { !it.isSample })
     }
 
+    @Test fun s51_concept_sheet() {
+        withKey()
+        setContent(auto = true) { MainTabs({}, {}, {}, {}) }
+        click("컨셉 적고 바로 받기")
+        shot("51_concept_sheet", 1500)
+    }
+
     @Suppress("unused") private fun unusedRefs() = listOf(hasText(""), rule.onNodeWithTag(""))
     @Suppress("unused") private fun scroll() = rule.onAllNodesWithText("").onFirst().performScrollToNode(hasText(""))
 

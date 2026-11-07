@@ -514,6 +514,14 @@ abstract class Strings {
     abstract fun projectsDeleted(n: Int): String
     abstract val longPressProjectsHint: String
 
+    abstract val conceptEntry: String
+    abstract val conceptEntrySub: String
+    abstract val conceptTitle: String
+    abstract val conceptSub: String
+    abstract val conceptPlaceholder: String
+    abstract fun conceptMoldNote(name: String): String
+    abstract val conceptGo: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

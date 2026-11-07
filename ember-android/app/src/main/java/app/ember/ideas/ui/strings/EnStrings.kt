@@ -755,6 +755,14 @@ object EnStrings : Strings() {
     override fun projectsDeleted(n: Int) = if (n == 1) "Deleted 1 project" else "Deleted $n projects"
     override val longPressProjectsHint = "Long-press to select several and delete"
 
+    override val conceptEntry = "Write a concept, get ideas"
+    override val conceptEntrySub = "4 ideas true to your concept, no questions"
+    override val conceptTitle = "Ideas from your concept"
+    override val conceptSub = "What you write stays as is. Only the parts you leave open are filled in differently for each idea. The more detail, the closer it gets."
+    override val conceptPlaceholder = "e.g. Pixel-art idle RPG, 100 jobs, the fun is job combos in raids. Mobile portrait, 5-minute runs."
+    override fun conceptMoldNote(name: String) = "Mold \"$name\" answers are kept too"
+    override val conceptGo = "Get 4 ideas"
+
     override val tabHome = "Forge"
     override val tabLibrary = "Blueprints"
     override val tabSettings = "Workshop"

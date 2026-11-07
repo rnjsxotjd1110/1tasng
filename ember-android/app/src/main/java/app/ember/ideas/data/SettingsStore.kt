@@ -37,6 +37,8 @@ data class Settings(
     /** 마지막으로 확인한 크레딧 잔액(서버 확인 전에는 사용량으로 추정해 줄인다). */
     val credits: Int = 0,
     val purchased: Boolean = false,
+    /** 크레딧 계정에 연결한 Google 계정의 이메일(화면 표시용, 이 기기에만 저장). 비었으면 연결 안 됨. */
+    val googleEmail: String = "",
     /** 키와 크레딧이 모두 있을 때 크레딧을 쓰기로 골랐다. */
     val preferCredits: Boolean = false,
     /** 아이디어를 낼 때 웹에서 실제 작품을 찾아 참고한다. */
@@ -140,6 +142,11 @@ class SettingsStore(context: Context) {
 
     /** 크레딧을 한 번이라도 샀는지. 무료 크레딧만 쓰는 동안 서버는 Opus 요청을 Sonnet 으로 답한다. */
     fun setPurchased(v: Boolean) = put { putBoolean("purchased", v) }
+    /** 이메일은 개인정보라 백업하지 않는 암호화 저장소에 둔다. */
+    fun setGoogleEmail(email: String) {
+        keyPrefs.edit(commit = true) { if (email.isBlank()) remove("google_email") else putString("google_email", email) }
+        refresh()
+    }
 
     // ------------------------------------------------------------ GitHub
 
@@ -234,6 +241,7 @@ class SettingsStore(context: Context) {
             creditsReady = !creditToken().isNullOrBlank(),
             credits = prefs.getInt("credits", 0),
             purchased = prefs.getBoolean("purchased", false),
+            googleEmail = keyPrefs.getString("google_email", "") ?: "",
             preferCredits = prefs.getBoolean("prefer_credits", false),
             webSearch = prefs.getBoolean("web_search", true),
             fastQuestions = prefs.getBoolean("fast_questions", false),

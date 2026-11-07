@@ -1,5 +1,9 @@
 package app.ember.ideas.ui.screens
 
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import app.ember.ideas.ai.AiError
+import androidx.compose.foundation.layout.offset
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -77,12 +81,17 @@ fun CreditsBody(st: Settings, error: String?) {
             Spacer(Modifier.height(12.dp))
             ToggleRow(s.creditsPrefer, s.creditsPreferBody, st.preferCredits, { ctx.container.settings.setPreferCredits(it) })
         }
+        Spacer(Modifier.height(16.dp))
+        GoogleAccountBlock(st)
+        // 크레딧 모드는 Google 계정이 있어야 충전할 수 있다(예전 버전에서 만든 계정은 먼저 연결).
+        val linked = st.googleEmail.isNotBlank() || !app.ember.ideas.account.GoogleSignIn.configured
         Spacer(Modifier.height(24.dp))
         Text(s.creditsPacks, style = MaterialTheme.typography.titleSmall, color = c.textMuted)
         Spacer(Modifier.height(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            packs.forEach { pack -> PackRow(pack, enabled = purchase !is PurchaseState.Working) { ctx.findActivity()?.let { billing.buy(it, pack.productId) } } }
+            packs.forEach { pack -> PackRow(pack, enabled = linked && purchase !is PurchaseState.Working) { ctx.findActivity()?.let { billing.buy(it, pack.productId) } } }
         }
+        if (!linked) Text(s.packsNeedGoogle, style = MaterialTheme.typography.bodySmall, color = c.gold, modifier = Modifier.padding(top = 8.dp))
         val message = when (val p = purchase) {
             PurchaseState.Pending -> s.creditsPending to c.gold
             is PurchaseState.Done -> s.creditsAdded(p.credits) to c.success
@@ -136,4 +145,70 @@ fun Context.findActivity(): Activity? {
         cur = cur.baseContext
     }
     return null
+}
+
+
+/** 연결한 Google 계정과 로그아웃·계정 삭제. 예전 계정이면 연결 버튼을 보여 준다. */
+@Composable
+private fun GoogleAccountBlock(st: Settings) {
+    val s = LocalStrings.current
+    val c = Ember.colors
+    val ctx = LocalContext.current
+    val container = ctx.container
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var message by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var confirmDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var confirmSignOut by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    Column(Modifier.fillMaxWidth().clip(EmberShape.panel).background(c.surface).padding(14.dp)) {
+        if (st.googleEmail.isNotBlank()) {
+            Text(s.googleLinked(st.googleEmail), style = MaterialTheme.typography.bodyMedium, color = c.text)
+        } else if (app.ember.ideas.account.GoogleSignIn.configured) {
+            Text(s.googleLinkNeeded, style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            Spacer(Modifier.height(8.dp))
+            app.ember.ideas.ui.components.PrimaryButton(s.googleLink, {
+                busy = true
+                message = null
+                scope.launch {
+                    try {
+                        val g = app.ember.ideas.account.GoogleSignIn.signIn(ctx.findActivity() ?: ctx)
+                        container.credits.linkGoogle(g)
+                    } catch (e: app.ember.ideas.account.GoogleSignInError) {
+                        message = googleErrorText(e, s)
+                    } catch (e: AiError) {
+                        message = if (e is AiError.Other && e.detail.startsWith("409")) s.googleInUse else s.errorBody(e)
+                    } finally { busy = false }
+                }
+            }, Modifier.fillMaxWidth(), loading = busy, height = 48.dp)
+        }
+        Row {
+            app.ember.ideas.ui.components.GhostButton(s.signOutHere, { confirmSignOut = true }, color = c.textMuted, modifier = Modifier.offset(x = (-14).dp))
+            Spacer(Modifier.weight(1f))
+            app.ember.ideas.ui.components.GhostButton(s.deleteAccount, { confirmDelete = true }, color = c.danger, modifier = Modifier.offset(x = 14.dp))
+        }
+        message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.danger) }
+    }
+    if (confirmSignOut) {
+        app.ember.ideas.ui.screens.project.EmberDialog(s.signOutHere, s.signOutHereBody, s.signOutHere, {
+            confirmSignOut = false
+            container.credits.signOutHere()
+            scope.launch { app.ember.ideas.account.GoogleSignIn.signOut(ctx) }
+        }, { confirmSignOut = false })
+    }
+    if (confirmDelete) {
+        app.ember.ideas.ui.screens.project.EmberDialog(s.deleteAccount, s.deleteAccountBody(st.credits.coerceAtLeast(0)), s.delete, {
+            confirmDelete = false
+            busy = true
+            scope.launch {
+                try {
+                    container.credits.deleteAccount()
+                    app.ember.ideas.account.GoogleSignIn.signOut(ctx)
+                    android.widget.Toast.makeText(ctx, s.accountDeleted, android.widget.Toast.LENGTH_SHORT).show()
+                } catch (e: AiError) {
+                    message = s.errorBody(e)
+                } finally { busy = false }
+            }
+        }, { confirmDelete = false }, danger = true)
+    }
 }

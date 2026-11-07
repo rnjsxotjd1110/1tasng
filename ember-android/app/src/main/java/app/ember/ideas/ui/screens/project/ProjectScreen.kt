@@ -372,7 +372,7 @@ fun ProjectScreen(projectId: String, onBack: () -> Unit, onFixKey: () -> Unit) {
     when (val sh = sheet) {
         is Sheet.Report -> ReportSheet(sh.target) { sheet = null }
         Sheet.GitHub -> GitHubSheet(project) { sheet = null }
-        Sheet.Workbench -> WorkbenchSheet(
+        Sheet.Workbench -> if (app.ember.ideas.BuildConfig.WORKBENCH_ENABLED) WorkbenchSheet(
             project,
             onDismiss = { sheet = null },
             onClaudeApp = { sheet = Sheet.Handoff(project.design?.ideaId, HandoffGoal.START_BUILD) },

@@ -290,9 +290,7 @@ class ScreenshotTest {
         withKey()
         c.store.upsert(SampleProject.korean())
         setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
-        click("작업대로 보내기")
-        shot("15_workbench_pair", 1500)
-        click("Claude 앱")
+        click("Claude로 이어가기")
         shot("15_handoff", 1500)
     }
 
@@ -527,15 +525,6 @@ class ScreenshotTest {
         CrashLog.write(app, Thread.currentThread(), IllegalStateException("test"))
         setContent { MainTabs({}, {}, {}, {}) }
         shot("40_crash_prompt")
-    }
-
-    @Test fun s41_workbench_paired() {
-        withKey()
-        c.settings.setWorkbench("tok_test", "127.0.0.1", 1, "작업실 PC", "pc1")
-        c.store.upsert(SampleProject.korean())
-        setContent(auto = true) { ProjectScreen("sample_ko", {}, {}) }
-        click("작업대로 보내기")
-        shot("41_workbench_send", 2500)
     }
 
     @Test fun s42_orebox() {

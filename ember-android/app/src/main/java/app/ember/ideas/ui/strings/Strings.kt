@@ -528,6 +528,21 @@ abstract class Strings {
     abstract val librarySub: String
     abstract val settingsSub: String
 
+    abstract val googleWhy: String
+    abstract fun googleLinked(email: String): String
+    abstract val googleLinkNeeded: String
+    abstract val googleLink: String
+    abstract val googleInUse: String
+    abstract val googleNoAccount: String
+    abstract val googleNotConfigured: String
+    abstract val googleFailed: String
+    abstract val signOutHere: String
+    abstract val signOutHereBody: String
+    abstract val deleteAccount: String
+    abstract fun deleteAccountBody(credits: Int): String
+    abstract val accountDeleted: String
+    abstract val packsNeedGoogle: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

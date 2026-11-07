@@ -119,7 +119,7 @@ fun SettingsScreen(onOpenKey: () -> Unit, onOpenProfile: () -> Unit, onOpenAbout
         Text(s.settingsSub, style = MaterialTheme.typography.bodySmall, color = c.textMuted, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(12.dp))
 
-        Group(s.benchSection) {
+        if (app.ember.ideas.BuildConfig.WORKBENCH_ENABLED) Group(s.benchSection) {
             app.ember.ideas.ui.screens.project.WorkbenchSettingsBlock()
         }
         Group(s.groupClaude) {

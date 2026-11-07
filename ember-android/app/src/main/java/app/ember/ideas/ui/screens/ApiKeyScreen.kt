@@ -98,9 +98,14 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
         creditError = null
         scope.launch {
             try {
-                container.credits.connect()
+                // 크레딧 모드는 Google 로그인이 필요하다(기기를 바꿔도 크레딧을 되찾고, 무료 크레딧을 계정마다 한 번만 준다).
+                val activity = ctx.findActivity() ?: ctx
+                val google = app.ember.ideas.account.GoogleSignIn.signIn(activity)
+                container.credits.connect(google)
                 // 크레딧 탭에서 직접 연결한 경우에만 크레딧을 우선으로 쓴다.
                 settings.setPreferCredits(true)
+            } catch (e: app.ember.ideas.account.GoogleSignInError) {
+                creditError = googleErrorText(e, s)
             } catch (e: AiError) {
                 creditError = s.errorBody(e)
             } finally {
@@ -241,6 +246,7 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
             Column(Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (creditsTab) {
                     if (!current.creditsReady) {
+                        Text(s.googleWhy, style = MaterialTheme.typography.bodySmall, color = c.textFaint, modifier = Modifier.padding(bottom = 6.dp))
                         PrimaryButton(s.creditsStart, ::connectCredits, Modifier.fillMaxWidth(), loading = connecting)
                     } else if (!fromSettings) {
                         PrimaryButton(s.creditsContinue, onDone, Modifier.fillMaxWidth())
@@ -265,4 +271,13 @@ fun ApiKeyScreen(fromSettings: Boolean, onDone: () -> Unit, onBack: (() -> Unit)
             }
         }
     }
+}
+
+
+/** Google 로그인 실패를 화면 문구로. 사용자가 창을 닫은 경우는 안내하지 않는다. */
+internal fun googleErrorText(e: app.ember.ideas.account.GoogleSignInError, s: app.ember.ideas.ui.strings.Strings): String? = when (e) {
+    is app.ember.ideas.account.GoogleSignInError.Cancelled -> null
+    is app.ember.ideas.account.GoogleSignInError.NoAccount -> s.googleNoAccount
+    is app.ember.ideas.account.GoogleSignInError.NotConfigured -> s.googleNotConfigured
+    is app.ember.ideas.account.GoogleSignInError.Failed -> s.googleFailed
 }

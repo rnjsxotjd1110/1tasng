@@ -27,6 +27,10 @@ android {
         buildConfigField("String", "PRIVACY_URL", "\"${prop("ember.privacyUrl")}\"")
         buildConfigField("double", "CREDIT_MARKUP", prop("ember.creditMarkup").ifEmpty { "1.5" })
         buildConfigField("int", "FREE_CREDITS", prop("ember.freeCredits").ifEmpty { "40" })
+        // 작업대(PC 브리지)는 다음 업데이트에서 켠다. 꺼 두면 화면에 나오지 않고 동작하지도 않는다.
+        buildConfigField("boolean", "WORKBENCH_ENABLED", prop("ember.workbench").ifEmpty { "false" })
+        // Google 로그인용 OAuth 웹 클라이언트 ID(서버의 GOOGLE_OAUTH_CLIENT_IDS 와 같은 값).
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${prop("ember.googleWebClientId")}\"")
     }
 
     // 서명 정보는 저장소에 넣지 않는다. keystore.properties(무시 목록)가 있으면 그 키로 서명한다.
@@ -105,6 +109,10 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.4.1")
     implementation("com.android.billingclient:billing-ktx:8.3.0")
     implementation("com.google.android.play:integrity:1.4.0")
+    // Google 로그인(Credential Manager). 크레딧 계정을 Google 계정에 묶는다.
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

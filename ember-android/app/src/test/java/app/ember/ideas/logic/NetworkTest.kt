@@ -48,10 +48,14 @@ class NetworkTest {
             .on("GET /ember/balance", Res(200, """{"credits":64}"""))
             .on("POST /ember/purchase", Res(200, """{"credits":564,"granted":500}"""))
         val acc = CreditAccount(settings)
-        assertEquals(100, acc.connect())
+        assertEquals(100, acc.connect(app.ember.ideas.account.GoogleAccount("id-token-1", "me@example.com")))
         val st = settings.settings.value
         assertTrue(st.creditsReady && st.usingCredits && st.ready)
-        assertTrue(mock.last("/ember/register").body.contains(settings.installId()))
+        assertEquals("me@example.com", st.googleEmail)
+        val reg = mock.last("/ember/register").body
+        assertTrue(reg.contains(settings.installId()) && reg.contains("id-token-1"))
+        // 이메일은 서버로 보내지 않는다(ID 토큰 안에만 있다).
+        assertTrue(!reg.contains("me@example.com"))
 
         // 크레딧으로 쓴 요청은 서버 확인 전에 잔액을 미리 줄인다($0.10 × 1.5 = 15).
         settings.addUsage(Usage(costUsd = 0.10, requests = 1))
@@ -64,12 +68,23 @@ class NetworkTest {
         assertTrue(body.contains("ember_credits_500") && body.contains("purchase-token"))
     }
 
-    @Test fun expiredTokenReRegisters() = runBlocking {
+    @Test fun expiredTokenSignsOut() = runBlocking {
+        // 토큰이 무효면 몰래 새 계정을 만들지 않고 연결을 푼다(다시 Google 로그인).
         settings.setCreditAccount("old", 10)
         mock.on("GET /ember/balance", Res(401, """{"type":"error","error":{"type":"authentication_error","message":"bad"}}"""))
-            .on("POST /ember/register", Res(200, """{"token":"tok_new","credits":7,"freeGranted":false}"""))
-        assertEquals(7, CreditAccount(settings).refresh())
-        assertEquals("tok_new", settings.creditToken())
+        assertEquals(0, CreditAccount(settings).refresh())
+        assertEquals(null, settings.creditToken())
+        assertTrue(mock.requests.none { it.path.startsWith("/ember/register") })
+    }
+
+    @Test fun deleteAccountClearsLocalState() = runBlocking {
+        settings.setCreditAccount("tok", 30)
+        settings.setGoogleEmail("me@example.com")
+        mock.on("DELETE /ember/account", Res(200, """{"deleted":true}"""))
+        CreditAccount(settings).deleteAccount()
+        assertEquals("tok", mock.last("/ember/account").headers["x-api-key"])
+        assertEquals(null, settings.creditToken())
+        assertEquals("", settings.settings.value.googleEmail)
     }
 
     @Test fun outOfCreditsMapsTo402() = runBlocking {
@@ -83,14 +98,17 @@ class NetworkTest {
         }
     }
 
-    @Test fun connectingForReportDoesNotSwitchKeyUsersToCredits() = runBlocking {
+    @Test fun reportingNeverCreatesAccount() = runBlocking {
+        // 내 키로 쓰는 사람이 신고해도 크레딧 계정을 몰래 만들지 않는다(로그인하지 않았으면 메일로 보낸다).
         settings.setApiKey("sk-ant-test-0000000000000000000000000000000000")
-        mock.on("POST /ember/register", Res(200, """{"token":"tok_r","credits":150,"freeGranted":true}"""))
-            .on("POST /ember/report", Res(200, """{"ok":true,"id":1}"""))
-        CreditAccount(settings).report("idea", "기타", "내용", "", "1.2.0")
-        val st = settings.settings.value
-        assertTrue(st.creditsReady)
-        assertFalse("신고하려고 등록해도 내 키로 계속 요청해야 해요", st.usingCredits)
+        try {
+            CreditAccount(settings).report("idea", "기타", "내용", "", "1.2.0")
+            fail()
+        } catch (e: AiError) {
+            assertEquals(AiError.NoKey, e)
+        }
+        assertTrue(mock.requests.none { it.path.startsWith("/ember/register") })
+        assertFalse(settings.settings.value.creditsReady)
     }
 
     @Test fun preferKeyWhenNotChosen() {

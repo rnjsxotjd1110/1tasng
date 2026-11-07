@@ -33,13 +33,17 @@ class CreditAccount(
     private val jsonType = "application/json".toMediaType()
 
     /** 이 기기를 등록하고 무료 크레딧을 받는다. 이미 등록되어 있으면 잔액만 새로 고친다. */
-    suspend fun connect(): Int {
-        if (!settings.creditToken().isNullOrBlank()) return refresh()
+    /**
+     * Google 계정으로 크레딧 계정에 들어간다. 이 Google 계정의 계정이 서버에 있으면 그대로 되찾고(기기 변경·재설치),
+     * 없으면 새로 만든다. 무료 크레딧은 Google 계정마다 한 번만 받는다.
+     */
+    suspend fun connect(google: GoogleAccount?): Int {
+        if (!settings.creditToken().isNullOrBlank() && google == null) return refresh()
         // 무료 크레딧을 기기마다 한 번만 주도록 Play Integrity 토큰을 함께 보낸다.
         // 서버가 일시 오류(502)를 주면 새 nonce 로 한 번 더 시도한다.
         var body: JsonObject? = null
         for (attempt in 0 until 2) {
-            val payload = registerPayload()
+            val payload = registerPayload(google?.idToken)
             try {
                 body = post("/ember/register", payload, token = null)
                 break
@@ -51,14 +55,43 @@ class CreditAccount(
         val token = body["token"]?.jsonPrimitive?.content ?: throw AiError.BadResponse
         val credits = body["credits"]?.jsonPrimitive?.int ?: 0
         settings.setCreditAccount(token, credits)
+        if (google != null) settings.setGoogleEmail(google.email)
         return credits
     }
 
-    private suspend fun registerPayload(): JsonObject {
+    /** 예전 버전에서 만든(Google 과 묶이지 않은) 계정을 Google 계정에 묶는다. */
+    suspend fun linkGoogle(google: GoogleAccount) {
+        val token = settings.creditToken() ?: throw AiError.InvalidKey
+        post("/ember/link-google", buildJsonObject { put("idToken", google.idToken) }, token)
+        settings.setGoogleEmail(google.email)
+    }
+
+    /**
+     * 서버의 크레딧 계정을 완전히 지운다(남은 크레딧도 사라진다). 결제 기록은 법에 따라 개인을 알 수 없게 바꿔 보관한다.
+     * 지운 뒤에는 이 기기의 연결 정보도 지운다.
+     */
+    suspend fun deleteAccount() {
+        val token = settings.creditToken() ?: return
+        call(Request.Builder().url(ServerConfig.serverUrl + "/ember/account").header("x-api-key", token).delete().build())
+        settings.setCreditAccount(null, 0)
+        settings.setGoogleEmail("")
+        settings.setPurchased(false)
+        settings.setPreferCredits(false)
+    }
+
+    /** 이 기기에서만 로그아웃한다. 크레딧은 서버에 남아 있어 다시 로그인하면 되찾는다. */
+    fun signOutHere() {
+        settings.setCreditAccount(null, 0)
+        settings.setGoogleEmail("")
+        settings.setPreferCredits(false)
+    }
+
+    private suspend fun registerPayload(idToken: String?): JsonObject {
         val nonce = runCatching { get("/ember/nonce", token = null)["nonce"]?.jsonPrimitive?.content }.getOrNull()
         val token = nonce?.let { n -> runCatching { integrity(n) }.getOrNull() }
         return buildJsonObject {
             put("installId", settings.installId())
+            if (idToken != null) put("idToken", idToken)
             if (nonce != null && token != null) {
                 put("nonce", nonce)
                 put("integrityToken", token)
@@ -66,18 +99,21 @@ class CreditAccount(
         }
     }
 
-    /** 서버에서 잔액을 다시 읽는다. 토큰이 만료되었으면 다시 등록한다(무료 크레딧은 다시 주지 않는다). */
+    /** 서버에서 잔액을 다시 읽는다. 토큰이 무효가 되었으면 연결을 풀고(다시 Google 로그인 필요) 0 을 돌려준다. */
     suspend fun refresh(): Int {
-        val token = settings.creditToken() ?: return connect()
+        val token = settings.creditToken() ?: return 0
         return try {
             val credits = get("/ember/balance", token)["credits"]?.jsonPrimitive?.int ?: 0
             settings.setCredits(credits)
             credits
         } catch (e: AiError.InvalidKey) {
             settings.setCreditAccount(null, 0)
-            connect()
+            0
         }
     }
+
+    /** 이 기기가 크레딧 계정에 로그인해 있는지. */
+    val signedIn: Boolean get() = !settings.creditToken().isNullOrBlank()
 
     /** 마지막 [redeem] 으로 새로 받은 크레딧 수. */
     @Volatile var lastGranted: Int = 0
@@ -85,7 +121,7 @@ class CreditAccount(
 
     /** Play 결제 영수증을 서버에 보내 크레딧을 받는다. 같은 영수증은 서버가 한 번만 인정한다. */
     suspend fun redeem(productId: String, purchaseToken: String): Int {
-        val token = settings.creditToken() ?: run { connect(); settings.creditToken()!! }
+        val token = settings.creditToken() ?: throw AiError.NoKey // 크레딧 모드는 Google 로그인으로만 시작한다
         val body = post("/ember/purchase", buildJsonObject {
             put("productId", productId)
             put("purchaseToken", purchaseToken)
@@ -100,7 +136,7 @@ class CreditAccount(
 
     /** AI 가 만든 내용을 신고한다(Google Play 생성형 AI 정책). */
     suspend fun report(kind: String, reason: String, content: String, note: String, appVersion: String) {
-        val token = settings.creditToken() ?: run { connect(); settings.creditToken()!! }
+        val token = settings.creditToken() ?: throw AiError.NoKey // 크레딧 모드는 Google 로그인으로만 시작한다
         post("/ember/report", buildJsonObject {
             put("kind", kind)
             put("reason", reason)

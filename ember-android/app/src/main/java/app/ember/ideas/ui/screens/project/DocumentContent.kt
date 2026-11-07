@@ -325,10 +325,13 @@ fun DocumentContent(
         }
         if (!busy && latest != null) {
             Column(Modifier.fillMaxWidth().topFade(c.bg).navigationBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp)) {
-                WorkbenchStatusLine(Modifier.padding(bottom = 8.dp))
+                val bench = app.ember.ideas.BuildConfig.WORKBENCH_ENABLED
+                if (bench) WorkbenchStatusLine(Modifier.padding(bottom = 8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SecondaryButton(s.revise, onRevise, height = 52.dp)
-                    PrimaryButton(s.sendToBench, onWorkbench, Modifier.weight(1f), icon = app.ember.ideas.ui.components.ForgeIcons.Monitor, height = 52.dp)
+                    // 작업대가 꺼져 있으면 Claude 로 이어가기가 주 버튼이다.
+                    if (bench) PrimaryButton(s.sendToBench, onWorkbench, Modifier.weight(1f), icon = app.ember.ideas.ui.components.ForgeIcons.Monitor, height = 52.dp)
+                    else PrimaryButton(s.continueInClaude, onHandoff, Modifier.weight(1f), icon = Icons.AutoMirrored.Rounded.Send, height = 52.dp)
                 }
             }
         }

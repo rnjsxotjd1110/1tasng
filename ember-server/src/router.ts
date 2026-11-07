@@ -24,7 +24,7 @@ export async function route(req: Request, env: Env, ctx: ExecutionContext): Prom
         case "/ember/purchase":
           return await handlePurchase(req, env, cfg);
         case "/ember/report":
-          return await handleReport(req, env);
+          return await handleReport(req, env, cfg);
       }
     } else if (method === "GET") {
       switch (pathname) {

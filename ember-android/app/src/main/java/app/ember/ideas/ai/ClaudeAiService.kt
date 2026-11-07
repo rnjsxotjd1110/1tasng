@@ -154,6 +154,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
         val blocks = response.content()
         val lastTool = blocks.indexOfLast { !it.isText() && it.thinking().isEmpty }
         val text = blocks.drop(lastTool + 1).mapNotNull { b -> b.text().orElse(null)?.text() }.joinToString("")
+        if (stop == StopReason.MAX_TOKENS && endpoint()?.baseUrl != null) throw AiError.CreditCapped
         if (text.isBlank() || stop == StopReason.MAX_TOKENS) throw AiError.BadResponse
         TurnResult(text, usage, sources.values.toList())
     }
@@ -214,6 +215,7 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
             }
             if (stop == StopReason.REFUSAL) throw AiError.Refused
             val result = text.toString()
+            if (stop == StopReason.MAX_TOKENS && endpoint()?.baseUrl != null) throw AiError.CreditCapped
             if (result.isBlank() || stop == StopReason.MAX_TOKENS) throw AiError.BadResponse
             onText(result)
             TurnResult(result, usageOf(answered, input, output, cacheRead, cacheWrite))
@@ -288,6 +290,9 @@ class ClaudeAiService(private val endpoint: () -> Endpoint?) : AiService {
     } catch (e: UnauthorizedException) {
         throw AiError.InvalidKey
     } catch (e: PermissionDeniedException) {
+        // 중계 서버가 정산 확인 때문에 계정을 멈춘 경우는 키 오류와 다르게 안내한다.
+        val msg = (e.message ?: "") + runCatching { e.body().toString() }.getOrDefault("")
+        if (msg.contains("reconciliation", ignoreCase = true)) throw AiError.AccountHeld
         throw AiError.InvalidKey
     } catch (e: RateLimitException) {
         throw AiError.RateLimited

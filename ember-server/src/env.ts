@@ -19,6 +19,12 @@ export interface Env {
   MESSAGES_WINDOW_SECONDS?: string;
   ANTHROPIC_BASE_URL?: string;
   INTEGRITY_MODE?: string;
+  REREGISTER_LIMIT?: string;
+  FREE_CREDITS_DAILY_CAP?: string;
+  MAX_CONCURRENT_REQUESTS?: string;
+  INFLIGHT_STALE_SECONDS?: string;
+  ALLOW_TEST_PURCHASES?: string;
+  REPORTS_DAILY_CAP?: string;
 }
 
 export interface Config {
@@ -34,6 +40,18 @@ export interface Config {
   messagesWindowSeconds: number;
   anthropicBaseUrl: string;
   integrityMode: IntegrityMode;
+  /** 이미 있는 installId 의 재등록(토큰 재발급) 제한: IP(/64)당 창(registerWindowSeconds)당 횟수. nonce 도 이 한도. */
+  reregisterLimit: number;
+  /** 하루(UTC) 동안 새 계정에 줄 수 있는 무료 크레딧 합계. 다 쓰면 새 계정은 0. */
+  freeCreditsDailyCap: number;
+  /** 계정당 동시에 처리 중인 /v1/messages 수 상한 */
+  maxConcurrentRequests: number;
+  /** 이 시간(초)보다 오래된 처리 중 표시는 죽은 것으로 보고 무시한다(워커가 중간에 죽은 경우). */
+  inflightStaleSeconds: number;
+  /** true 면 라이선스 테스트 구매(purchaseType 0)에도 크레딧을 준다. 운영에서는 false. */
+  allowTestPurchases: boolean;
+  /** 하루(UTC) 전체 신고 수 상한 */
+  reportsDailyCap: number;
 }
 
 /**
@@ -63,6 +81,11 @@ export const DEFAULTS = {
   messagesWindowSeconds: 600,
   anthropicBaseUrl: "https://api.anthropic.com",
   integrityMode: "off",
+  reregisterLimit: 30,
+  freeCreditsDailyCap: 20000,
+  maxConcurrentRequests: 2,
+  inflightStaleSeconds: 1800,
+  reportsDailyCap: 500,
 } as const;
 
 /** 숫자 설정값을 읽는다. 비었거나 잘못됐거나 min 미만이면 기본값. */
@@ -117,5 +140,11 @@ export function loadConfig(env: Env): Config {
     messagesWindowSeconds: num(env.MESSAGES_WINDOW_SECONDS, DEFAULTS.messagesWindowSeconds, 1, true),
     anthropicBaseUrl: (env.ANTHROPIC_BASE_URL?.trim() || DEFAULTS.anthropicBaseUrl).replace(/\/+$/, ""),
     integrityMode: parseIntegrityMode(env.INTEGRITY_MODE),
+    reregisterLimit: num(env.REREGISTER_LIMIT, DEFAULTS.reregisterLimit, 1, true),
+    freeCreditsDailyCap: num(env.FREE_CREDITS_DAILY_CAP, DEFAULTS.freeCreditsDailyCap, 0, true),
+    maxConcurrentRequests: num(env.MAX_CONCURRENT_REQUESTS, DEFAULTS.maxConcurrentRequests, 1, true),
+    inflightStaleSeconds: num(env.INFLIGHT_STALE_SECONDS, DEFAULTS.inflightStaleSeconds, 60, true),
+    allowTestPurchases: env.ALLOW_TEST_PURCHASES?.trim().toLowerCase() === "true",
+    reportsDailyCap: num(env.REPORTS_DAILY_CAP, DEFAULTS.reportsDailyCap, 1, true),
   };
 }

@@ -60,3 +60,32 @@ export async function verifyProductPurchase(
   if (!purchase) return { kind: "error", status: 502 };
   return { kind: "ok", purchase };
 }
+
+export function consumeUrl(packageName: string, productId: string, purchaseToken: string): string {
+  return `${purchaseUrl(packageName, productId, purchaseToken)}:consume`;
+}
+
+export type ConsumeResult = { kind: "ok" } | { kind: "error"; status: number };
+
+/**
+ * purchases.products.consume 를 서버에서 부른다(소비 = 확인(acknowledge) 포함, 3일 뒤 자동 환불 방지, 다시 살 수 있게 됨).
+ * 이미 소비된 구매면 Google 이 400 을 주는데, 멱등을 위해 성공으로 본다.
+ */
+export async function consumeProductPurchase(
+  serviceAccountJson: string,
+  packageName: string,
+  productId: string,
+  purchaseToken: string,
+): Promise<ConsumeResult> {
+  const res = await googleFetch(serviceAccountJson, ANDROID_PUBLISHER_SCOPE, consumeUrl(packageName, productId, purchaseToken), {
+    method: "POST",
+  });
+  if (res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    return { kind: "ok" };
+  }
+  const detail = await res.text().catch(() => "");
+  if (res.status === 400 && /consum/i.test(detail)) return { kind: "ok" }; // purchaseAlreadyConsumed 등
+  console.error("Play 소비 실패:", res.status, detail.slice(0, 500));
+  return { kind: "error", status: res.status };
+}

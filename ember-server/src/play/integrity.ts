@@ -6,7 +6,7 @@
 // '=' 패딩이 붙어 올 수 있으므로 normalizeNonce 로 base64url·무패딩 형태로 맞춘 뒤 비교한다.
 import type { Config, Env } from "../env";
 import { ApiError, isRecord, jsonResponse } from "../http";
-import { enforceRateLimit } from "../ratelimit";
+import { clientIpKey, enforceRateLimit } from "../ratelimit";
 import { base64UrlEncode, nowSeconds } from "../util";
 import { googleFetch, PLAY_INTEGRITY_SCOPE } from "./google-auth";
 
@@ -19,8 +19,11 @@ export const MAX_INTEGRITY_TOKEN_LENGTH = 16 * 1024;
 export const REQUIRED_APP_VERDICT = "PLAY_RECOGNIZED";
 export const REQUIRED_DEVICE_VERDICT = "MEETS_DEVICE_INTEGRITY";
 
-/** ok: 통과, failed: 토큰·nonce·판정이 틀림, missing: 토큰이나 nonce 를 보내지 않음 */
-export type IntegrityOutcome = "ok" | "failed" | "missing";
+/**
+ * ok: 통과, failed: 토큰·nonce·판정이 틀림, missing: 토큰이나 nonce 를 보내지 않음,
+ * unavailable: 서버에 서비스 계정이 없어 확인할 수 없음(무료 크레딧 0 으로 가입)
+ */
+export type IntegrityOutcome = "ok" | "failed" | "missing" | "unavailable";
 
 export function randomNonce(): string {
   const bytes = new Uint8Array(NONCE_BYTES);
@@ -35,8 +38,8 @@ export function normalizeNonce(s: string): string {
 
 export async function handleNonce(req: Request, env: Env, cfg: Config): Promise<Response> {
   const now = nowSeconds();
-  const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
-  await enforceRateLimit(env.DB, `nonce:${ip}`, cfg.registerLimit, cfg.registerWindowSeconds, now);
+  // IP(IPv4 주소 / IPv6 /64)당 제한. 재로그인(토큰 재발급)에도 nonce 가 필요하므로 재등록과 같은 느슨한 한도.
+  await enforceRateLimit(env.DB, `nonce:${clientIpKey(req)}`, cfg.reregisterLimit, cfg.registerWindowSeconds, now);
   const nonce = randomNonce();
   await env.DB.prepare("INSERT INTO nonces (nonce, expires_at) VALUES (?, ?)")
     .bind(nonce, now + NONCE_TTL_SECONDS)
@@ -120,17 +123,17 @@ export async function verifyRegistrationIntegrity(
   body: Record<string, unknown>,
   now: number,
 ): Promise<IntegrityOutcome> {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    // 오류(500)로 돌려주면 앱이 가입을 끝없이 재시도한다. 가입은 시키되 무료 크레딧은 주지 않는다.
+    console.error("INTEGRITY_MODE 가 켜져 있지만 GOOGLE_SERVICE_ACCOUNT_JSON 이 없음: 무료 크레딧 없이 가입");
+    return "unavailable";
+  }
   const token = body["integrityToken"];
   const rawNonce = body["nonce"];
   if (typeof token !== "string" || token === "" || typeof rawNonce !== "string" || rawNonce === "") return "missing";
   if (token.length > MAX_INTEGRITY_TOKEN_LENGTH) return "failed";
   const nonce = normalizeNonce(rawNonce);
   if (!NONCE_RE.test(nonce)) return "failed";
-
-  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    console.error("INTEGRITY_MODE 가 켜져 있지만 GOOGLE_SERVICE_ACCOUNT_JSON 이 없음");
-    throw new ApiError(500, "api_error", "integrity verification is not configured");
-  }
 
   if (!(await consumeNonce(env.DB, nonce, now))) {
     console.warn("Play Integrity: 모르는·만료된·이미 쓴 nonce");

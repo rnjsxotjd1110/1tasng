@@ -91,39 +91,50 @@ describe("POST /v1/messages", () => {
     );
     const { token } = await register(env);
     await markPaid(env, token); // 결제 계정은 Opus 를 그대로 쓴다
-    const { res } = await send(env, token, BODY, { "anthropic-beta": "server-side-fallback-2026-07-01" });
+    await setCredits(env, token, 10_000); // 최악 비용(64000 토큰)을 예약할 수 있을 만큼
+    const { res } = await send(env, token, BODY, { "anthropic-beta": "server-side-fallback-2026-07-01,some-other-beta-2026-01-01" });
 
     expect(res.status).toBe(200);
     expect(await res.text()).toBe(upstreamText);
     expect(res.headers.get("ember-model")).toBe("claude-opus-5-5");
     expect(res.headers.get("request-id")).toBe("req_123");
     expect(res.headers.get("anthropic-organization-id")).toBeNull();
-    expect(res.headers.get("ember-credits-remaining")).toBe("97");
+    expect(res.headers.get("ember-credits-remaining")).toBe("9997");
 
     expect(calls).toHaveLength(1);
     const c = calls[0]!;
     expect(c.url).toBe("https://api.anthropic.com/v1/messages");
     expect(c.headers.get("x-api-key")).toBe("sk-ant-test-server-key");
     expect(c.headers.get("anthropic-version")).toBe("2023-06-01");
-    expect(c.headers.get("anthropic-beta")).toBe("server-side-fallback-2026-07-01");
+    expect(c.headers.get("anthropic-beta")).toBe("server-side-fallback-2026-07-01"); // 허용 목록 밖 베타는 뺀다
     expect(c.body["model"]).toBe("claude-opus-5-5");
     expect(c.body["max_tokens"]).toBe(64000); // 상한으로 잘림
     expect(c.body["messages"]).toEqual(BODY.messages);
 
-    expect(balance(env)).toBe(97);
+    expect(balance(env)).toBe(9997);
+    expect(env.db.rows("SELECT * FROM inflight")).toEqual([]); // 칸 해제
     const log = env.db.rows("SELECT model, status, input_tokens, output_tokens, credits, streamed FROM usage_log");
     expect(log).toEqual([{ model: "claude-opus-5-5", status: 200, input_tokens: 1000, output_tokens: 500, credits: 3, streamed: 0 }]);
   });
 
-  it("마지막 요청으로 잔액이 음수가 될 수 있다", async () => {
+  it("잔액이 최악 비용에 모자라면 max_tokens 를 줄여 보내고, 1024 도 못 감당하면 402(잔액은 음수가 되지 않는다)", async () => {
     const env = makeEnv();
-    stubUpstream(() => new Response(JSON.stringify(MESSAGE), { headers: { "content-type": "application/json" } }));
+    const calls = stubUpstream(() => new Response(JSON.stringify(MESSAGE), { headers: { "content-type": "application/json" } }));
     const { token } = await register(env);
     await markPaid(env, token);
-    await setCredits(env, token, 1);
+    // 100 크레딧 = $0.667 → Opus 출력($20/M)으로 약 3만 토큰
     expect((await send(env, token)).res.status).toBe(200);
-    expect(balance(env)).toBe(-2);
-    expect((await send(env, token)).res.status).toBe(402);
+    const sent = calls[0]!.body["max_tokens"] as number;
+    expect(sent).toBeLessThan(64000);
+    expect(sent).toBeGreaterThan(30_000);
+    expect(balance(env)).toBe(97);
+    await setCredits(env, token, 1);
+    const { res } = await send(env, token);
+    expect(res.status).toBe(402);
+    expect((await errorBody(res)).error.type).toBe("insufficient_credits");
+    expect(calls).toHaveLength(1);
+    expect(balance(env)).toBe(1);
+    expect(env.db.rows("SELECT * FROM inflight")).toEqual([]);
   });
 
   it("업스트림 오류는 그대로 넘기고 비용 0", async () => {
@@ -214,7 +225,7 @@ describe("POST /v1/messages", () => {
     ]);
   });
 
-  it("스트리밍 중 앱이 끊으면 업스트림을 취소하고 받은 만큼(추정) 차감한다", async () => {
+  it("스트리밍 중 앱이 끊으면 업스트림을 취소하고 예약액 전체를 청구한다", async () => {
     const env = makeEnv();
     const head = SAMPLE_STREAM.slice(0, SAMPLE_STREAM.indexOf("event: content_block_stop"));
     let upstreamCancelled = false;
@@ -245,7 +256,9 @@ describe("POST /v1/messages", () => {
     expect(log).toHaveLength(1);
     expect(log[0]!.estimated).toBe(1);
     expect(log[0]!.input_tokens).toBe(1200);
-    expect(log[0]!.credits).toBeGreaterThan(0);
+    expect(log[0]!.credits).toBe(100 - balance(env)); // 예약액 그대로(환불 없음)
+    expect(log[0]!.credits).toBeGreaterThan(10);
+    expect(env.db.rows("SELECT * FROM inflight")).toEqual([]);
   }, 5000);
 });
 

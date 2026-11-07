@@ -85,6 +85,9 @@ Google Play에 올리기까지 해야 하는 일을 순서대로 적었어요. �
 
 - [ ] 실제 기기에서 키 연결 → 탐색 → 아이디어 → 설계서 → Claude로 이어가기 한 바퀴
 - [ ] 작업대: PC에서 `ember-bridge/dist` 의 실행 파일을 켜고, 앱의 대장간 → 작업대(PC) → PC 연결하기 → 6자리 코드 → 도면에서 "작업대로 보내기"(Claude Code 실행·클립보드·파일 세 방식 모두)
+- [ ] 서버 DB 마이그레이션: 배포 전에 `migrations/0002_voided_integrity.sql`(안 했다면) → `migrations/0003_billing_guards.sql` 순서로 실행(`npx wrangler d1 execute ember --remote --file=...`)
+- [ ] 서버 설정: `INTEGRITY_MODE="grant"`(기본값), Google 서비스 계정 연결(없으면 무료 크레딧 0), `ALLOW_TEST_PURCHASES` 는 출시 환경에서 켜지 않기, `FREE_CREDITS_DAILY_CAP`·`REPORTS_DAILY_CAP` 확인
+- [ ] PC 브리지: 페어링 코드가 8자리로 바뀌었으므로 `ember-bridge/dist` 의 새 실행 파일을 배포
 - [ ] Play Integrity: 서버 README 4-5절대로 설정한 뒤 이 버전을 배포하고, 그다음 서버 `INTEGRITY_MODE` 를 `grant` 로 바꾸기
 - [ ] 크레딧 모드: 무료 크레딧 받기 → 탐색 → 라이선스 테스터로 500크레딧 구매 → 잔액 반영
 - [ ] 앱을 나간 뒤 설계서가 끝까지 써지고 알림이 오는지(Android 13 이상에서 알림 권한 허용)

@@ -21,6 +21,7 @@ export interface FakeVoided {
   voidedTimeMillis?: string;
   voidedSource?: number;
   voidedReason?: number;
+  voidedQuantity?: number;
 }
 
 export interface FakeGoogle {

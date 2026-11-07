@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../src/http";
-import { validateMessagesBody } from "../src/proxy/validate";
+import { filterBetas, validateAnthropicVersion, validateMessagesBody, WEB_SEARCH_MAX_USES } from "../src/proxy/validate";
 
 const base = { model: "claude-sonnet-5-5", max_tokens: 1000, messages: [{ role: "user", content: "hi" }] };
 
@@ -69,11 +69,46 @@ describe("요청 검증", () => {
     expect400(() => validateMessagesBody({ ...base, tools: "web_search" }, 64000), /must be an array/);
   });
 
-  it("mcp_servers·container·fast 모드는 400", () => {
-    expect400(() => validateMessagesBody({ ...base, mcp_servers: [] }, 64000), /mcp_servers/);
-    expect400(() => validateMessagesBody({ ...base, container: "x" }, 64000), /container/);
-    expect400(() => validateMessagesBody({ ...base, speed: "fast" }, 64000), /speed/);
-    expect(validateMessagesBody({ ...base, speed: "standard" }, 64000).model).toBe("claude-sonnet-5-5");
+  it("허용 목록 밖 최상위 필드(mcp_servers·container·speed·service_tier 등)는 400", () => {
+    for (const field of ["mcp_servers", "container", "speed", "service_tier", "context_management", "inference_geo", "betas", "foo"]) {
+      expect400(() => validateMessagesBody({ ...base, [field]: "x" }, 64000), new RegExp(`${field}: not supported`));
+    }
+  });
+
+  it("fallbacks 는 문자열 \"default\" 만", () => {
+    expect(validateMessagesBody({ ...base, fallbacks: "default" }, 64000).fallbacks).toBe(true);
+    expect(validateMessagesBody(base, 64000).fallbacks).toBe(false);
+    for (const bad of ["claude-opus-5", ["default"], { model: "x" }, null]) {
+      expect400(() => validateMessagesBody({ ...base, fallbacks: bad }, 64000), /fallbacks/);
+    }
+  });
+
+  it("messages 는 배열이어야 한다", () => {
+    expect400(() => validateMessagesBody({ ...base, messages: "hi" }, 64000), /messages/);
+  });
+
+  it("web_search max_uses: 없거나 5 보다 크면 5, 이상한 값은 400, 합계를 돌려준다", () => {
+    const v = validateMessagesBody(
+      { ...base, tools: [{ type: "web_search_20260209", name: "a" }, { type: "web_search_20260209", name: "b", max_uses: 2 }, { type: "web_search_20260209", name: "c", max_uses: 99 }] },
+      64000,
+    );
+    expect((v.body["tools"] as { max_uses: number }[]).map((t) => t.max_uses)).toEqual([WEB_SEARCH_MAX_USES, 2, WEB_SEARCH_MAX_USES]);
+    expect(v.webSearchMaxUses).toBe(12);
+    expect(validateMessagesBody(base, 64000).webSearchMaxUses).toBe(0);
+    expect400(() => validateMessagesBody({ ...base, tools: [{ type: "web_search_20260209", name: "a", max_uses: 0 }] }, 64000), /max_uses/);
+    expect400(() => validateMessagesBody({ ...base, tools: [{ type: "web_search_20260209", name: "a", max_uses: "3" }] }, 64000), /max_uses/);
+  });
+
+  it("anthropic-version·anthropic-beta 허용 목록", () => {
+    expect(validateAnthropicVersion(null)).toBe("2023-06-01");
+    expect(validateAnthropicVersion("2023-06-01")).toBe("2023-06-01");
+    expect400(() => validateAnthropicVersion("2023-01-01"), /anthropic-version/);
+    expect(filterBetas(null)).toBeNull();
+    expect(filterBetas("server-side-fallback-2026-07-01")).toBe("server-side-fallback-2026-07-01");
+    expect(filterBetas(" interleaved-thinking-2025-05-14 , server-side-fallback-2026-07-01,server-side-fallback-2026-07-01")).toBe(
+      "server-side-fallback-2026-07-01",
+    );
+    expect(filterBetas("context-1m-2025-08-07")).toBeNull();
   });
 
   it("stream 플래그", () => {
@@ -82,8 +117,22 @@ describe("요청 검증", () => {
     expect400(() => validateMessagesBody({ ...base, stream: "yes" }, 64000), /stream/);
   });
 
-  it("다른 필드(system, thinking, fallbacks 등)는 그대로 둔다", () => {
-    const raw = { ...base, system: "s", thinking: { type: "adaptive" }, fallbacks: "default", cache_control: { type: "ephemeral" } };
+  it("허용된 필드(system, thinking, output_config, fallbacks, cache_control 등)는 그대로 둔다", () => {
+    const raw = {
+      ...base,
+      system: "s",
+      thinking: { type: "adaptive" },
+      output_config: { effort: "high" },
+      fallbacks: "default",
+      cache_control: { type: "ephemeral" },
+      metadata: { user_id: "u" },
+      temperature: 1,
+      top_p: 0.9,
+      top_k: 5,
+      stop_sequences: ["x"],
+      tool_choice: { type: "auto" },
+      stream: false,
+    };
     expect(validateMessagesBody(raw, 64000).body).toEqual(raw);
   });
 });

@@ -2,6 +2,7 @@
 import { loadConfig, type Env } from "./env";
 import { purgeExpiredNonces } from "./play/integrity";
 import { processVoidedPurchases } from "./play/voided";
+import { purgeStaleInflight } from "./proxy/reserve";
 import { purgeOldRateLimits } from "./ratelimit";
 import { purgeExpired } from "./retention";
 import { route } from "./router";
@@ -15,6 +16,7 @@ export async function runDailyJobs(env: Env, nowMs: number = Date.now()): Promis
   const jobs: [string, () => Promise<unknown>][] = [
     ["rate_limits 정리", () => purgeOldRateLimits(env.DB, now)],
     ["nonce 정리", () => purgeExpiredNonces(env.DB, now)],
+    ["처리 중 표시 정리", () => purgeStaleInflight(env.DB, now, cfg.inflightStaleSeconds)],
     ["보관 기간 정리", () => purgeExpired(env.DB, now)],
     ["환불 회수", () => processVoidedPurchases(env, cfg, nowMs)],
   ];

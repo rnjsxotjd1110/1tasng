@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   token_hash    TEXT    NOT NULL UNIQUE,
   credits       INTEGER NOT NULL DEFAULT 0,
   free_credits  INTEGER NOT NULL DEFAULT 0,   -- 가입 때 받은 무료 크레딧(통계용)
-  disabled      INTEGER NOT NULL DEFAULT 0,   -- 1 이면 차단(운영자가 SQL 로 설정)
+  disabled      INTEGER NOT NULL DEFAULT 0,   -- 0 정상, 1 차단(운영자가 SQL 로 설정), 2 정산 실패로 자동 차단(로그 확인·정산 후 0 으로)
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
 );
@@ -24,12 +24,34 @@ CREATE TABLE IF NOT EXISTS purchases (
   quantity        INTEGER NOT NULL DEFAULT 1,
   credits         INTEGER NOT NULL,
   purchase_type   INTEGER,                    -- 0 = 테스트 구매(라이선스 테스터), NULL = 일반
-  credited        INTEGER NOT NULL DEFAULT 0, -- 1 이면 크레딧 지급 완료
+  credited        INTEGER NOT NULL DEFAULT 0, -- 1 이면 처리 완료(credits 만큼 지급. 운영에서 테스트 구매는 credits = 0)
   created_at      INTEGER NOT NULL,
-  voided          INTEGER NOT NULL DEFAULT 0, -- 1 이면 환불·취소되어 크레딧을 회수함(Voided Purchases API, cron)
-  voided_at       INTEGER                     -- 구글이 알려 준 환불·취소 시각
+  voided          INTEGER NOT NULL DEFAULT 0, -- 1 이면 환불·취소(일부 환불 포함)되어 크레딧을 회수함(Voided Purchases API, cron)
+  voided_at       INTEGER,                    -- 구글이 알려 준 (마지막) 환불·취소 시각
+  voided_quantity INTEGER NOT NULL DEFAULT 0  -- 환불된 수량(quantity 중). 회수 크레딧 = credits × voided_quantity / quantity
 );
 CREATE INDEX IF NOT EXISTS idx_purchases_account ON purchases(account_id);
+
+-- 환불 이벤트(회수 1건 = 1행). 같은 이벤트를 여러 번 받아도 한 번만 회수하도록 (purchase_token, event_key) 가 키다.
+-- event_key: 전체 환불 'full', 수량 일부 환불 'q:<voidedTimeMillis>:<voidedQuantity>', 마이그레이션 이전 회수분 'legacy'.
+CREATE TABLE IF NOT EXISTS voided_events (
+  purchase_token  TEXT    NOT NULL,
+  event_key       TEXT    NOT NULL,
+  quantity        INTEGER NOT NULL DEFAULT 0, -- 이 이벤트로 환불 처리한 수량
+  credits         INTEGER NOT NULL DEFAULT 0, -- 이 이벤트로 회수한 크레딧
+  applied         INTEGER NOT NULL DEFAULT 0, -- 1 이면 잔액에 반영함
+  voided_at       INTEGER,
+  PRIMARY KEY (purchase_token, event_key)
+);
+
+-- 처리 중인 /v1/messages(계정당 동시 요청 수 제한). 끝나면 지운다. 오래된(INFLIGHT_STALE_SECONDS) 행은 무시·정리.
+CREATE TABLE IF NOT EXISTS inflight (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id  INTEGER NOT NULL,
+  reserved    INTEGER NOT NULL DEFAULT 0,     -- 이 요청을 위해 미리 뺀(예약한) 크레딧
+  started_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inflight_account ON inflight(account_id, started_at);
 
 -- 작은 키-값 저장소. 예: 'voided_purchases_end_ms' = 환불 목록을 마지막으로 처리한 시각(ms).
 CREATE TABLE IF NOT EXISTS meta (
@@ -44,7 +66,7 @@ CREATE TABLE IF NOT EXISTS nonces (
 );
 CREATE INDEX IF NOT EXISTS idx_nonces_expires ON nonces(expires_at);
 
--- 요청 기록(성공·실패 모두). 실패한 요청은 credits = 0.
+-- 요청 기록(성공·실패 모두). 실패한 요청은 credits = 0. credits 는 최종 청구액(예약 후 정산한 값).
 CREATE TABLE IF NOT EXISTS usage_log (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,
   account_id            INTEGER NOT NULL,
@@ -57,7 +79,7 @@ CREATE TABLE IF NOT EXISTS usage_log (
   cache_write_tokens    INTEGER NOT NULL DEFAULT 0,
   web_search_requests   INTEGER NOT NULL DEFAULT 0,
   credits               INTEGER NOT NULL DEFAULT 0,
-  estimated             INTEGER NOT NULL DEFAULT 0, -- 1 = 스트림이 중간에 끊겨 출력 토큰을 추정함
+  estimated             INTEGER NOT NULL DEFAULT 0, -- 1 = 최종 usage 를 못 받아(중단 등) 예약액 전체를 청구함
   created_at            INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_log(created_at);
@@ -75,7 +97,8 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at   INTEGER NOT NULL
 );
 
--- 고정 창(fixed window) 요청 제한 카운터. key 예: 'reg:1.2.3.4', 'msg:42'
+-- 고정 창(fixed window) 요청 제한 카운터. key 예: 'reg:1.2.3.4', 'reg:2001:db8:0:1::/64', 'msg:42'
+-- 하루 합계 카운터도 여기에 둔다: 'free:day'(무료 크레딧 지급 합계), 'rep:day'(신고 수), window_start = UTC 0시.
 CREATE TABLE IF NOT EXISTS rate_limits (
   key           TEXT    NOT NULL,
   window_start  INTEGER NOT NULL,

@@ -50,6 +50,8 @@ interface StatsRow {
   requests_24h: number;
   spent_24h: number;
   reports: number;
+  billing_disabled: number;
+  inflight: number;
 }
 
 export async function handleAdminStats(req: Request, env: Env): Promise<Response> {
@@ -60,9 +62,11 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
        (SELECT COUNT(*) FROM accounts) AS accounts,
        (SELECT COALESCE(SUM(free_credits), 0) FROM accounts) AS free_granted,
        (SELECT COALESCE(SUM(credits), 0) FROM purchases WHERE credited = 1) AS purchased,
-       (SELECT COUNT(*) FROM purchases WHERE credited = 1) AS purchases,
+       (SELECT COUNT(*) FROM purchases WHERE credited = 1 AND credits > 0) AS purchases,
        (SELECT COUNT(*) FROM purchases WHERE credited = 1 AND voided = 1) AS voided,
-       (SELECT COALESCE(SUM(credits), 0) FROM purchases WHERE credited = 1 AND voided = 1) AS clawed_back,
+       (SELECT COALESCE(SUM(credits), 0) FROM voided_events WHERE applied = 1) AS clawed_back,
+       (SELECT COUNT(*) FROM accounts WHERE disabled = 2) AS billing_disabled,
+       (SELECT COUNT(*) FROM inflight) AS inflight,
        (SELECT COALESCE(SUM(credits), 0) FROM usage_log) AS spent,
        (SELECT COALESCE(SUM(credits), 0) FROM accounts) AS outstanding,
        (SELECT COUNT(*) FROM usage_log WHERE created_at >= ?) AS requests_24h,
@@ -78,8 +82,12 @@ export async function handleAdminStats(req: Request, env: Env): Promise<Response
     creditsSpent: row.spent,
     creditsOutstanding: row.outstanding,
     purchases: row.purchases,
-    // 환불되어 회수한 구매(creditsGranted.purchased 에는 포함된 채로 남는다)
+    // 환불(일부 환불 포함)되어 회수한 구매(creditsGranted.purchased 에는 포함된 채로 남는다)
     voided: { purchases: row.voided, creditsClawedBack: row.clawed_back },
+    // 정산 기록 실패로 자동 차단된 계정 수(disabled = 2, 로그 확인 후 수동 정산)
+    billingDisabledAccounts: row.billing_disabled,
+    // 처리 중인 /v1/messages 수(예약액이 빠져 있는 상태)
+    inflightRequests: row.inflight,
     reports: row.reports,
     last24h: { requests: row.requests_24h, creditsSpent: row.spent_24h },
   });

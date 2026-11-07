@@ -3,7 +3,7 @@
 import { applyUsage, emptyUsage, type Usage } from "../billing/usage";
 import { isRecord } from "../http";
 
-/** 스트림이 중간에 끊겼을 때 출력 토큰 추정: 델타 문자 수 / 이 값(한국어 기준 보수적). */
+/** 참고용 출력 토큰 추정(델타 문자 수 / 이 값). 과금에는 쓰지 않는다: 최종 usage 가 없으면 예약액 전체를 청구한다(messages.ts). */
 export const CHARS_PER_TOKEN_ESTIMATE = 3;
 
 export interface SseUsageResult {
@@ -53,8 +53,8 @@ export class SseUsageParser {
   }
 
   /**
-   * 메시지가 끝까지 오지 않았을 때(클라이언트 취소 등) 청구할 usage.
-   * message_delta 가 없었으면 출력 토큰을 델타 문자 수로 추정한다.
+   * 참고용: message_delta 가 없었으면 출력 토큰을 델타 문자 수로 추정한 usage.
+   * 화면에 안 보이는 사고 토큰·웹 검색을 놓치므로 과금에는 쓰지 않는다.
    */
   billableUsage(): { usage: Usage; estimated: boolean } {
     const usage = { ...this.state.usage };

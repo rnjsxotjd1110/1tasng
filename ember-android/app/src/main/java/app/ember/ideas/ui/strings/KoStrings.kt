@@ -74,6 +74,8 @@ object KoStrings : Strings() {
         AiError.OverBudget -> "이번 달 예산을 다 썼어요"
         AiError.DuplicateIdeas -> "새 아이디어를 받지 못했어요"
         AiError.OutOfCredits -> "Ember 크레딧을 다 썼어요"
+        AiError.CreditCapped -> "남은 크레딧이 적어 답이 잘렸어요"
+        AiError.AccountHeld -> "크레딧 정산을 확인하고 있어요"
         is AiError.Other -> "문제가 생겼어요"
     }
 
@@ -90,6 +92,8 @@ object KoStrings : Strings() {
         AiError.OverBudget -> "설정한 월 예산에 도달해 요청을 멈췄어요. 설정 → 월 예산에서 한도를 올리거나 끌 수 있어요."
         AiError.DuplicateIdeas -> "Claude가 앞에서 낸 아이디어를 다시 보냈어요. 다시 시도하거나 '질문 더 받기'로 방향을 바꿔 보세요."
         AiError.OutOfCredits -> "설정 → Claude 연결에서 크레딧을 충전하거나, 내 API 키를 연결해 계속할 수 있어요."
+        AiError.CreditCapped -> "크레딧이 적으면 답을 짧게만 받을 수 있어요. 대장간 → Claude 연결에서 충전한 뒤 다시 시도해 주세요."
+        AiError.AccountHeld -> "서버가 사용량 기록을 확인하느라 이 계정을 잠시 멈췄어요. 잠시 뒤 다시 시도하고, 계속되면 앱 정보의 문의 메일로 알려 주세요."
         is AiError.Other -> e.detail.take(160).ifBlank { "잠시 후 다시 시도해 주세요." }
     }
     override val fixKey = "키 다시 연결"

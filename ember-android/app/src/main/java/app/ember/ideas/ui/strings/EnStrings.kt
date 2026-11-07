@@ -73,6 +73,8 @@ object EnStrings : Strings() {
         AiError.OverBudget -> "Monthly budget reached"
         AiError.DuplicateIdeas -> "No new ideas came back"
         AiError.OutOfCredits -> "You're out of Ember credits"
+        AiError.CreditCapped -> "The answer was cut short by your low balance"
+        AiError.AccountHeld -> "Your credit usage is being checked"
         is AiError.Other -> "Something went wrong"
     }
     override fun errorBody(e: AiError) = when (e) {
@@ -88,6 +90,8 @@ object EnStrings : Strings() {
         AiError.OverBudget -> "Requests are paused because you hit your monthly budget. Raise or turn it off in Settings → Monthly budget."
         AiError.DuplicateIdeas -> "Claude repeated earlier ideas. Try again, or use More questions to steer in a new direction."
         AiError.OutOfCredits -> "Top up in Settings → Claude connection, or connect your own API key to keep going."
+        AiError.CreditCapped -> "With few credits left, answers can only be short. Top up in Workshop → Claude connection and try again."
+        AiError.AccountHeld -> "The server paused this account while it checks a usage record. Try again shortly, and contact us from About if it continues."
         is AiError.Other -> e.detail.take(160).ifBlank { "Please try again in a moment." }
     }
     override val fixKey = "Reconnect key"

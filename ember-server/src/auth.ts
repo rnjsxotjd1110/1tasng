@@ -6,7 +6,10 @@ import { sha256Hex } from "./util";
 export interface Account {
   id: number;
   credits: number;
-  /** 지급되었고 환불되지 않은 구매가 하나라도 있으면 true(결제 계정). 아니면 무료 크레딧만 쓰는 계정. */
+  /**
+   * 결제 계정: 크레딧을 실제로 지급한(credits > 0, 운영에서 테스트 구매는 0) 환불되지 않은 구매가 있고,
+   * 환불(일부 환불 포함)된 구매가 하나도 없으면 true. 아니면 무료 크레딧만 쓰는 계정으로 본다.
+   */
   paid: boolean;
 }
 
@@ -31,12 +34,18 @@ export async function authenticate(env: Env, req: Request): Promise<Account> {
   const hash = await sha256Hex(token);
   const row = await env.DB.prepare(
     `SELECT id, credits, disabled,
-       EXISTS (SELECT 1 FROM purchases p WHERE p.account_id = accounts.id AND p.credited = 1 AND p.voided = 0) AS paid
+       (EXISTS (SELECT 1 FROM purchases p
+                WHERE p.account_id = accounts.id AND p.credited = 1 AND p.voided = 0 AND p.credits > 0)
+        AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.account_id = accounts.id AND p.voided = 1)) AS paid
      FROM accounts WHERE token_hash = ?`,
   )
     .bind(hash)
     .first<{ id: number; credits: number; disabled: number; paid: number }>();
   if (!row) throw new ApiError(401, "authentication_error", "invalid x-api-key");
+  if (row.disabled === 2) {
+    // 정산 기록 실패로 자동 차단(billing/ledger.ts). 운영자가 정산한 뒤 풀어 준다.
+    throw new ApiError(403, "permission_error", "this account is temporarily disabled pending billing reconciliation");
+  }
   if (row.disabled) throw new ApiError(403, "permission_error", "this account has been disabled");
   return { id: row.id, credits: row.credits, paid: row.paid === 1 };
 }

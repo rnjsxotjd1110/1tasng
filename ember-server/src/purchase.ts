@@ -2,7 +2,7 @@
 import { authenticate } from "./auth";
 import type { Config, Env } from "./env";
 import { ApiError, jsonResponse, readJsonObject } from "./http";
-import { verifyProductPurchase, type ProductPurchase, type VerifyResult } from "./play/verify";
+import { consumeProductPurchase, verifyProductPurchase, type ProductPurchase, type VerifyResult } from "./play/verify";
 import { nowSeconds } from "./util";
 
 const PURCHASE_BODY_MAX = 16 * 1024;
@@ -11,7 +11,12 @@ const MAX_PURCHASE_TOKEN_LENGTH = 4096;
 export interface PurchaseResult {
   credits: number;
   granted: number;
+  /** 운영에서 라이선스 테스트 구매라 크레딧을 주지 않았으면 true */
+  testPurchase?: boolean;
 }
+
+/** purchaseType 0 = 라이선스 테스터의 테스트 구매(실제 결제 없음) */
+export const PURCHASE_TYPE_TEST = 0;
 
 export async function handlePurchase(req: Request, env: Env, cfg: Config): Promise<Response> {
   const account = await authenticate(env, req);
@@ -59,8 +64,46 @@ export async function handlePurchase(req: Request, env: Env, cfg: Config): Promi
     throw new ApiError(400, "invalid_request_error", "productId does not match the purchase");
   }
 
-  const credits = (cfg.products[productId] ?? 0) * p.quantity;
-  const result = await grantPurchase(env.DB, account.id, productId, purchaseToken, credits, p, nowSeconds());
+  // 운영(ALLOW_TEST_PURCHASES 가 true 가 아님)에서는 테스트 구매에 크레딧을 주지 않고 결제 계정으로도 치지 않는다.
+  const isTest = p.purchaseType === PURCHASE_TYPE_TEST;
+  const rejectTest = isTest && !cfg.allowTestPurchases;
+  const credits = rejectTest ? 0 : (cfg.products[productId] ?? 0) * p.quantity;
+
+  // 지급 전에 서버에서 소비(consume)한다. 소비하지 못하면 지급하지 않는다(앱이 다시 보내면 된다).
+  // 이미 소비된 구매(consumptionState 1, 또는 Google 의 '이미 소비됨' 응답)는 그대로 진행한다.
+  if (p.consumptionState !== 1) {
+    let consumed: Awaited<ReturnType<typeof consumeProductPurchase>>;
+    try {
+      consumed = await consumeProductPurchase(env.GOOGLE_SERVICE_ACCOUNT_JSON, cfg.packageName, productId, purchaseToken);
+    } catch (err) {
+      console.error("Play 소비 오류:", err);
+      consumed = { kind: "error", status: 502 };
+    }
+    if (consumed.kind !== "ok") throw new ApiError(502, "api_error", "could not finalize the purchase, please retry");
+  }
+
+  const now = nowSeconds();
+  let result: PurchaseResult;
+  try {
+    result = await grantPurchase(env.DB, account.id, productId, purchaseToken, credits, p, now);
+  } catch (err) {
+    // 소비는 끝났으므로 앱의 미소비 구매 목록에서 사라진다. 한 번 더 시도하고, 그래도 실패하면 수동 지급이 필요하다.
+    console.error("지급 실패, 다시 시도:", err);
+    try {
+      result = await grantPurchase(env.DB, account.id, productId, purchaseToken, credits, p, now);
+    } catch (err2) {
+      console.error(
+        `소비 후 지급 실패(수동 지급 필요): account=${account.id} product=${productId} credits=${credits} ` +
+          `order=${p.orderId ?? "?"} token=${purchaseToken.slice(0, 16)}…`,
+        err2,
+      );
+      throw new ApiError(500, "api_error", "could not credit the purchase, please contact support");
+    }
+  }
+  if (rejectTest) {
+    console.warn(`테스트 구매라 크레딧을 주지 않음: account=${account.id} order=${p.orderId ?? "?"}`);
+    return jsonResponse({ ...result, testPurchase: true } satisfies PurchaseResult);
+  }
   return jsonResponse(result);
 }
 

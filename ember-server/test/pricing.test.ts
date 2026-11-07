@@ -66,10 +66,14 @@ describe("비용 계산", () => {
     expect(computeCredits("claude-opus-5-5", usage({ outputTokens: 1000 }), 2).credits).toBe(4);
   });
 
-  it("대체 모델로 응답하면 그 모델 단가, 모르는 모델이면 요청 모델 단가", () => {
+  it("대체 모델로 응답하면 그 모델 단가, 모르는 모델이면 가장 비싼 단가", () => {
     // claude-opus-5 출력 1000 = $0.025 → 3.75 → 4
     expect(computeCredits("claude-opus-5-5", usage({ outputTokens: 1000 }), 1.5, "claude-opus-5").credits).toBe(4);
-    expect(computeCredits("claude-opus-5-5", usage({ outputTokens: 1000 }), 1.5, "claude-unknown-9").credits).toBe(3);
+    // 모르는 모델: 가장 비싼 출력 단가 $25 → 4 (요청한 Opus 5.5 단가였다면 3, Haiku 였다면 1)
+    expect(computeCredits("claude-opus-5-5", usage({ outputTokens: 1000 }), 1.5, "claude-unknown-9").credits).toBe(4);
+    expect(computeCredits("claude-haiku-5-5", usage({ outputTokens: 1000 }), 1.5, "claude-unknown-9").credits).toBe(4);
+    // 응답 모델을 모르면(파싱 실패 등) 요청 모델 단가
+    expect(computeCredits("claude-opus-5-5", usage({ outputTokens: 1000 }), 1.5).credits).toBe(3);
   });
 
   it("허용되지 않은 모델은 0 (검증 단계에서 이미 막힌다)", () => {

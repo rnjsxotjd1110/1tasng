@@ -91,3 +91,14 @@ export async function markPaid(env: TestEnv, token: string, purchaseToken = `pai
 export async function errorBody(res: Response): Promise<{ type: string; error: { type: string; message: string } }> {
   return (await res.json()) as { type: string; error: { type: string; message: string } };
 }
+
+/** 이 토큰의 계정에 AI 응답 기록(usage_log)을 하나 넣는다(신고하려면 필요). */
+export async function addUsage(env: TestEnv, token: string): Promise<void> {
+  const { sha256Hex } = await import("../../src/util");
+  env.db.sqlite
+    .prepare(
+      `INSERT INTO usage_log (account_id, model, status, credits, created_at)
+       SELECT id, 'claude-sonnet-5-5', 200, 1, ? FROM accounts WHERE token_hash = ?`,
+    )
+    .run(Math.floor(Date.now() / 1000), await sha256Hex(token));
+}

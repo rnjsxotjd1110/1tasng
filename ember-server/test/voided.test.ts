@@ -57,6 +57,7 @@ describe("환불 회수(Voided Purchases)", () => {
     expect(q.searchParams.get("startTime")).toBe(String(NOW_MS - 30 * DAY + 10 * 60_000));
     expect(q.searchParams.get("type")).toBe("0");
     expect(q.searchParams.get("maxResults")).toBe("1000");
+    expect(q.searchParams.get("includeQuantityBasedPartialRefund")).toBe("true");
     expect(q.searchParams.has("token")).toBe(false);
     expect(g.tokenRequests[ANDROID_PUBLISHER_SCOPE]).toBe(1);
 
@@ -167,5 +168,65 @@ describe("환불 회수(Voided Purchases)", () => {
     await expect(runDailyJobs(env, NOW_MS)).rejects.toThrow(/환불 회수/);
     expect(env.db.rows("SELECT key FROM rate_limits WHERE key = 'old'")).toEqual([]);
     expect(env.db.rows("SELECT nonce FROM nonces")).toEqual([]);
+  });
+
+  it("수량 일부 환불(voidedQuantity)은 그 비율만큼만 회수하고, 같은 이벤트는 한 번만, 나중의 전체 환불은 나머지만", async () => {
+    const g = await installFakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const a = await paidAccount(env, "tok-multi", 1500); // 100 + 1500
+    env.db.sqlite.exec("UPDATE purchases SET quantity = 3 WHERE purchase_token = 'tok-multi'");
+    const t1 = String(NOW_MS - 2 * DAY);
+    g.voidedPages = [[{ purchaseToken: "tok-multi", voidedTimeMillis: t1, voidedQuantity: 1 }]];
+
+    expect(await processVoidedPurchases(env, loadConfig(env), NOW_MS)).toMatchObject({ clawedBack: 1, credits: 500 });
+    expect(creditsOf(env, a.id)).toBe(1100);
+    // 다음 날 같은 이벤트가 다시 와도(겹쳐 보기) 한 번만
+    expect(await processVoidedPurchases(env, loadConfig(env), NOW_MS + DAY)).toMatchObject({ clawedBack: 0, credits: 0 });
+    expect(creditsOf(env, a.id)).toBe(1100);
+    expect(env.db.rows("SELECT voided, voided_quantity FROM purchases")).toEqual([{ voided: 1, voided_quantity: 1 }]);
+
+    // 다른 시각의 두 번째 일부 환불 1개, 그리고 전체 환불 → 나머지 1개 몫만
+    g.voidedPages = [[
+      { purchaseToken: "tok-multi", voidedTimeMillis: t1, voidedQuantity: 1 },
+      { purchaseToken: "tok-multi", voidedTimeMillis: String(NOW_MS - DAY), voidedQuantity: 1 },
+      { purchaseToken: "tok-multi", voidedTimeMillis: String(NOW_MS) },
+    ]];
+    expect(await processVoidedPurchases(env, loadConfig(env), NOW_MS + 2 * DAY)).toMatchObject({ clawedBack: 2, credits: 1000 });
+    expect(creditsOf(env, a.id)).toBe(100);
+    expect(env.db.rows("SELECT event_key, quantity, credits, applied FROM voided_events ORDER BY rowid")).toEqual([
+      { event_key: `q:${t1}:1`, quantity: 1, credits: 500, applied: 1 },
+      { event_key: `q:${NOW_MS - DAY}:1`, quantity: 1, credits: 500, applied: 1 },
+      { event_key: "full", quantity: 1, credits: 500, applied: 1 },
+    ]);
+  });
+
+  it("나눠떨어지지 않는 크레딧도 누적 기준으로 나눠 전부 환불되면 정확히 전액", async () => {
+    const g = await installFakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const a = await paidAccount(env, "tok-odd", 1000);
+    env.db.sqlite.exec("UPDATE purchases SET quantity = 3 WHERE purchase_token = 'tok-odd'");
+    g.voidedPages = [[
+      { purchaseToken: "tok-odd", voidedTimeMillis: "1", voidedQuantity: 1 },
+      { purchaseToken: "tok-odd", voidedTimeMillis: "2", voidedQuantity: 1 },
+      { purchaseToken: "tok-odd", voidedTimeMillis: "3", voidedQuantity: 5 }, // 남은 것보다 많으면 남은 만큼
+    ]];
+    const r = await processVoidedPurchases(env, loadConfig(env), NOW_MS);
+    expect(r).toMatchObject({ credits: 1000 });
+    expect(env.db.rows<{ credits: number }>("SELECT credits FROM voided_events ORDER BY rowid").map((e) => e.credits)).toEqual([333, 333, 334]);
+    expect(creditsOf(env, a.id)).toBe(100);
+  });
+
+  it("일부 환불만 있어도 결제 계정에서 빠진다(Opus → Sonnet)", async () => {
+    const g = await installFakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const a = await paidAccount(env, "tok-pp", 1000);
+    env.db.sqlite.exec("UPDATE purchases SET quantity = 2 WHERE purchase_token = 'tok-pp'");
+    const { authenticate } = await import("../src/auth");
+    const paid = async () => (await authenticate(env, new Request("https://x", { headers: { "x-api-key": a.token } }))).paid;
+    expect(await paid()).toBe(true);
+    g.voidedPages = [[{ purchaseToken: "tok-pp", voidedTimeMillis: "5", voidedQuantity: 1 }]];
+    await processVoidedPurchases(env, loadConfig(env), NOW_MS);
+    expect(creditsOf(env, a.id)).toBe(600);
+    expect(await paid()).toBe(false);
   });
 });

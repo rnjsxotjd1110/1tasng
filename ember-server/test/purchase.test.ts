@@ -11,8 +11,16 @@ interface FakeGoogle {
   saJson: string;
   tokenRequests: number;
   verifyRequests: string[];
+  consumeRequests: string[];
   purchaseState: number;
   quantity?: number;
+  purchaseType?: number;
+  consumptionState: number;
+  /** 0 이 아니면 consume 이 이 상태 코드와 consumeBody 로 실패 */
+  consumeFailStatus: number;
+  consumeFailBody: string;
+  /** 소비된 purchaseToken */
+  consumed: Set<string>;
 }
 
 function pem(der: ArrayBuffer): string {
@@ -41,7 +49,12 @@ async function fakeGoogle(): Promise<FakeGoogle> {
     }),
     tokenRequests: 0,
     verifyRequests: [],
+    consumeRequests: [],
     purchaseState: 0,
+    consumptionState: 0,
+    consumeFailStatus: 0,
+    consumeFailBody: "",
+    consumed: new Set(),
   };
 
   vi.stubGlobal(
@@ -66,8 +79,22 @@ async function fakeGoogle(): Promise<FakeGoogle> {
         expect(claims["iss"]).toBe("ember@test-project.iam.gserviceaccount.com");
         return Response.json({ access_token: "ya29.fake", expires_in: 3599, token_type: "Bearer" });
       }
+      if (req.url.startsWith(PLAY_PREFIX) && req.method === "POST" && req.url.endsWith(":consume")) {
+        expect(req.headers.get("authorization")).toBe("Bearer ya29.fake");
+        g.consumeRequests.push(req.url);
+        if (g.consumeFailStatus) {
+          return new Response(g.consumeFailBody || JSON.stringify({ error: { code: g.consumeFailStatus } }), { status: g.consumeFailStatus });
+        }
+        const tok = decodeURIComponent(req.url.slice(PLAY_PREFIX.length).split("/")[2]!.replace(/:consume$/, ""));
+        if (g.consumed.has(tok)) {
+          return Response.json({ error: { code: 400, message: "The purchase has already been consumed.", errors: [{ reason: "purchaseAlreadyConsumed" }] } }, { status: 400 });
+        }
+        g.consumed.add(tok);
+        return new Response("", { status: 200 });
+      }
       if (req.url.startsWith(PLAY_PREFIX)) {
         expect(req.headers.get("authorization")).toBe("Bearer ya29.fake");
+        expect(req.method).toBe("GET");
         g.verifyRequests.push(req.url);
         const [productId, , token] = req.url.slice(PLAY_PREFIX.length).split("/");
         if (decodeURIComponent(token!) === "missing-token") {
@@ -76,7 +103,8 @@ async function fakeGoogle(): Promise<FakeGoogle> {
         return Response.json({
           kind: "androidpublisher#productPurchase",
           purchaseState: g.purchaseState,
-          consumptionState: 0,
+          consumptionState: g.consumed.has(decodeURIComponent(token!)) ? 1 : g.consumptionState,
+          ...(g.purchaseType !== undefined ? { purchaseType: g.purchaseType } : {}),
           orderId: "GPA.1234-5678",
           productId: decodeURIComponent(productId!),
           quantity: g.quantity,
@@ -196,6 +224,93 @@ describe("POST /ember/purchase", () => {
     const res = await buy(env, token, "ember_credits_500", "t");
     expect(res.status).toBe(500);
     expect((await errorBody(res)).error.type).toBe("api_error");
+  });
+});
+
+describe("구매: 서버 소비(consume)·테스트 구매", () => {
+  it("검증 후 지급 전에 서버가 consume 을 부른다", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: [RequestInfo | URL, RequestInit?][] } };
+    expect(await (await buy(env, token, "ember_credits_500", "tok-cons")).json()).toEqual({ credits: 600, granted: 500 });
+    expect(g.consumeRequests).toEqual([PLAY_PREFIX + "ember_credits_500/tokens/tok-cons:consume"]);
+    // 순서: (토큰) → 검증 GET → consume POST
+    const urls = fetchMock.mock.calls.map(([u]) => String(u instanceof Request ? u.url : u));
+    expect(urls.indexOf(PLAY_PREFIX + "ember_credits_500/tokens/tok-cons")).toBeLessThan(urls.indexOf(PLAY_PREFIX + "ember_credits_500/tokens/tok-cons:consume"));
+  });
+
+  it("consume 이 실패하면 502 이고 지급·기록하지 않는다. 다시 보내면 지급된다", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    g.consumeFailStatus = 503;
+    const res = await buy(env, token, "ember_credits_500", "tok-cf");
+    expect(res.status).toBe(502);
+    expect(env.db.rows("SELECT * FROM purchases")).toHaveLength(0);
+    expect(env.db.rows<{ credits: number }>("SELECT credits FROM accounts")[0]!.credits).toBe(100);
+    g.consumeFailStatus = 0;
+    expect(await (await buy(env, token, "ember_credits_500", "tok-cf")).json()).toEqual({ credits: 600, granted: 500 });
+  });
+
+  it("이미 소비된 구매(Google 의 '이미 소비됨' 400 또는 consumptionState 1)도 지급한다(멱등)", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    g.consumeFailStatus = 400;
+    g.consumeFailBody = JSON.stringify({ error: { code: 400, message: "The purchase has already been consumed.", errors: [{ reason: "purchaseAlreadyConsumed" }] } });
+    expect(await (await buy(env, token, "ember_credits_500", "tok-ac")).json()).toEqual({ credits: 600, granted: 500 });
+    // 다른 400(예: 잘못된 요청)은 실패
+    g.consumeFailBody = JSON.stringify({ error: { code: 400, message: "Invalid value" } });
+    expect((await buy(env, token, "ember_credits_500", "tok-ac2")).status).toBe(502);
+    // consumptionState 1 이면 consume 을 부르지 않는다
+    g.consumeFailStatus = 0;
+    g.consumptionState = 1;
+    const before = g.consumeRequests.length;
+    expect(await (await buy(env, token, "ember_credits_500", "tok-ac3")).json()).toEqual({ credits: 1100, granted: 500 });
+    expect(g.consumeRequests).toHaveLength(before);
+  });
+
+  it("운영(ALLOW_TEST_PURCHASES 아님)에서는 테스트 구매(purchaseType 0)에 크레딧을 주지 않고 결제 계정으로도 보지 않는다", async () => {
+    const g = await fakeGoogle();
+    g.purchaseType = 0;
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    const res = await buy(env, token, "ember_credits_500", "tok-test");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ credits: 100, granted: 0, testPurchase: true });
+    expect(g.consumeRequests).toHaveLength(1); // 테스트 구매도 소비해 다시 살 수 있게 한다
+    expect(env.db.rows("SELECT credits, credited, purchase_type FROM purchases")).toEqual([{ credits: 0, credited: 1, purchase_type: 0 }]);
+    // 다시 보내도 0, Google 을 다시 부르지 않음
+    expect(await (await buy(env, token, "ember_credits_500", "tok-test")).json()).toEqual({ credits: 100, granted: 0 });
+    expect(g.verifyRequests).toHaveLength(1);
+    // 결제 계정이 아니므로 Opus 요청은 Sonnet 으로
+    const { authenticate } = await import("../src/auth");
+    const acc = await authenticate(env, new Request("https://x", { headers: { "x-api-key": token } }));
+    expect(acc.paid).toBe(false);
+  });
+
+  it("ALLOW_TEST_PURCHASES=true 면 테스트 구매도 지급하고 결제 계정이 된다", async () => {
+    const g = await fakeGoogle();
+    g.purchaseType = 0;
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson, ALLOW_TEST_PURCHASES: "true" });
+    const { token } = await register(env);
+    expect(await (await buy(env, token, "ember_credits_500", "tok-test-ok")).json()).toEqual({ credits: 600, granted: 500 });
+    const { authenticate } = await import("../src/auth");
+    expect((await authenticate(env, new Request("https://x", { headers: { "x-api-key": token } }))).paid).toBe(true);
+  });
+
+  it("환불된 구매가 하나라도 있으면 다른 지급 구매가 있어도 결제 계정이 아니다", async () => {
+    const g = await fakeGoogle();
+    const env = makeEnv({ GOOGLE_SERVICE_ACCOUNT_JSON: g.saJson });
+    const { token } = await register(env);
+    await buy(env, token, "ember_credits_500", "tok-p1");
+    await buy(env, token, "ember_credits_500", "tok-p2");
+    const { authenticate } = await import("../src/auth");
+    const paid = async () => (await authenticate(env, new Request("https://x", { headers: { "x-api-key": token } }))).paid;
+    expect(await paid()).toBe(true);
+    env.db.sqlite.exec("UPDATE purchases SET voided = 1 WHERE purchase_token = 'tok-p1'");
+    expect(await paid()).toBe(false);
   });
 });
 

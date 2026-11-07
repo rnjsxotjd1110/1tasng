@@ -4,7 +4,7 @@ main = "src/index.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 매일(UTC 03:17): 오래된 rate_limits·nonce·기록 정리 + 환불된 구매의 크레딧 회수(Voided Purchases API).
+# 매일(UTC 03:17): 오래된 rate_limits·nonce·처리 중 표시·기록 정리 + 환불된 구매의 크레딧 회수(Voided Purchases API).
 [triggers]
 crons = ["17 3 * * *"]
 
@@ -22,6 +22,8 @@ database_id = "00000000-0000-0000-0000-000000000000"
 PACKAGE_NAME = "app.ember.ideas"
 # 신규 설치 1회 무료 크레딧(결제 전에는 Opus 요청도 Sonnet 으로 처리된다)
 FREE_CREDITS = "40"
+# 하루(UTC) 동안 새 계정에 주는 무료 크레딧 합계 상한. 다 쓰면 그날 새 계정은 0(freeGranted:false).
+FREE_CREDITS_DAILY_CAP = "20000"
 # 원가 대비 마크업 배수(1.5 = 원가의 150%)
 MARKUP = "1.5"
 # max_tokens 상한(이보다 크면 잘라서 보낸다)
@@ -30,14 +32,25 @@ MAX_OUTPUT_TOKENS = "64000"
 MAX_BODY_BYTES = "2097152"
 # 상품 ID → 지급 크레딧(JSON)
 PRODUCTS = '{"ember_credits_500":500,"ember_credits_1500":1650,"ember_credits_5000":5750}'
-# IP 당 가입 제한: 창(초)당 횟수
+# IP 당 가입 제한: 창(초)당 횟수. IPv4 는 주소 전체, IPv6 는 /64 단위로 센다.
 REGISTER_LIMIT = "5"
 REGISTER_WINDOW_SECONDS = "3600"
+# 이미 있는 installId 의 재등록(토큰 재발급)과 GET /ember/nonce 의 IP 당 제한(같은 창). 모바일 CGNAT 대비 느슨하게.
+REREGISTER_LIMIT = "30"
 # 토큰 당 /v1/messages 제한: 창(초)당 횟수
 MESSAGES_LIMIT = "30"
 MESSAGES_WINDOW_SECONDS = "600"
+# 계정당 동시에 처리 중인 /v1/messages 수(넘으면 429)
+MAX_CONCURRENT_REQUESTS = "2"
+# 처리 중 표시가 이 시간(초)보다 오래되면 죽은 요청으로 보고 무시한다(워커가 중간에 죽은 경우 대비)
+INFLIGHT_STALE_SECONDS = "1800"
+# 하루(UTC) 전체 신고(POST /ember/report) 수 상한
+REPORTS_DAILY_CAP = "500"
+# "true" 면 라이선스 테스트 구매(purchaseType 0)에도 크레딧을 준다. 운영에서는 반드시 "false".
+ALLOW_TEST_PURCHASES = "false"
 # 업스트림 주소(테스트용으로만 바꾼다)
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 # 가입 때 Play Integrity 확인: off(안 함) / grant(통과해야 무료 크레딧) / require(통과해야 가입)
-# grant·require 는 GOOGLE_SERVICE_ACCOUNT_JSON 과 Play Integrity API 설정이 필요하다(README 4-5).
-INTEGRITY_MODE = "off"
+# 주의: 배포 전에 Play Integrity 를 설정해야 한다(README 4-5): GOOGLE_SERVICE_ACCOUNT_JSON + Play Integrity API 사용 설정 +
+#   Play Console 에서 클라우드 프로젝트 연결. 서비스 계정이 없으면 가입은 되지만 새 계정의 무료 크레딧은 0 이다.
+INTEGRITY_MODE = "grant"

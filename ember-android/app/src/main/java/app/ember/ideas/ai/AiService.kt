@@ -74,6 +74,10 @@ sealed class AiError(message: String) : Exception(message) {
     data object DuplicateIdeas : AiError("duplicate_ideas") { private fun readResolve(): Any = DuplicateIdeas }
     /** Ember 크레딧이 바닥났다(중계 서버 402). */
     data object OutOfCredits : AiError("out_of_credits") { private fun readResolve(): Any = OutOfCredits }
+    /** 남은 크레딧이 적어 중계 서버가 답 길이를 줄였고, 그래서 답이 끝까지 오지 못했다. */
+    data object CreditCapped : AiError("credit_capped") { private fun readResolve(): Any = CreditCapped }
+    /** 중계 서버가 사용량 정산을 확인하느라 계정을 잠시 멈췄다(403). */
+    data object AccountHeld : AiError("account_held") { private fun readResolve(): Any = AccountHeld }
     class Other(val detail: String) : AiError(detail)
 }
 

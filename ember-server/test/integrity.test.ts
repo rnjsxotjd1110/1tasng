@@ -62,8 +62,8 @@ describe("GET /ember/nonce", () => {
     expect(await getNonce(env)).not.toBe(nonce);
   });
 
-  it("IP 당 요청 수를 가입과 같은 한도로 제한한다", async () => {
-    const env = makeEnv({ REGISTER_LIMIT: "2" });
+  it("IP 당 요청 수를 재등록과 같은(느슨한) 한도로 제한한다", async () => {
+    const env = makeEnv({ REREGISTER_LIMIT: "2" });
     await getNonce(env, "7.7.7.7");
     await getNonce(env, "7.7.7.7");
     const { res } = await call(env, "/ember/nonce", { headers: { "cf-connecting-ip": "7.7.7.7" } });
@@ -220,11 +220,23 @@ describe("INTEGRITY_MODE=grant", () => {
     expect(second.body).toMatchObject({ credits: 0, freeGranted: false, integrity: "ok" });
   });
 
-  it("서비스 계정이 없으면 500", async () => {
+  it("서비스 계정이 없으면 오류 대신 무료 크레딧 0 으로 가입(integrity=unavailable), nonce 는 그대로", async () => {
     const env = makeEnv({ INTEGRITY_MODE: "grant" });
     const nonce = await getNonce(env);
     const r = await reg(env, { installId: "install-nosa-0001", integrityToken: "x", nonce });
-    expect(r.status).toBe(500);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ credits: 0, freeGranted: false, integrity: "unavailable" });
+    expect(r.body.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const none = await reg(env, { installId: "install-nosa-0002" });
+    expect(none.body).toMatchObject({ credits: 0, freeGranted: false, integrity: "unavailable" });
+    expect(env.db.rows("SELECT SUM(free_credits) AS f FROM accounts")).toEqual([{ f: 0 }]);
+  });
+
+  it("require 모드에서도 서비스 계정이 없으면 가입은 되고 무료 크레딧 0", async () => {
+    const env = makeEnv({ INTEGRITY_MODE: "require" });
+    const r = await reg(env, { installId: "install-nosa-req-1" });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ credits: 0, freeGranted: false, integrity: "unavailable" });
   });
 });
 

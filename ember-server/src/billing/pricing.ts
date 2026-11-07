@@ -31,7 +31,7 @@ export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
 
 /**
  * 요청은 허용하지 않지만, 서버측 거절 대체(server-side fallback)로 응답 모델이 바뀌었을 때
- * 과금에 쓰는 단가. 목록에 없는 모델이면 요청한 모델의 단가로 계산한다.
+ * 과금에 쓰는 단가. 목록에도 없는 모델이면 아는 단가 중 가장 비싼 값(MOST_EXPENSIVE_PRICE)으로 계산한다.
  */
 export const FALLBACK_MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
   "claude-opus-5": { input: 5.0, output: 25.0, cacheRead: 0.5 },
@@ -40,11 +40,28 @@ export const FALLBACK_MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
   "claude-sonnet-4-6": { input: 3.0, output: 15.0, cacheRead: 0.3 },
 };
 
-/** 실제 응답 모델이 알려진 단가면 그것을, 아니면 요청 모델 단가를 쓴다. */
+/** 아는 모든 단가의 항목별 최댓값. 모르는 응답 모델·대체 모델 예약에 쓴다. */
+export const MOST_EXPENSIVE_PRICE: ModelPrice = (() => {
+  const all = [...Object.values(MODEL_PRICES), ...Object.values(FALLBACK_MODEL_PRICES)];
+  return {
+    input: Math.max(...all.map((p) => p.input * (p.longContextMultiplier ?? 1))),
+    output: Math.max(...all.map((p) => p.output * (p.longContextMultiplier ?? 1))),
+    cacheRead: Math.max(...all.map((p) => p.cacheRead * (p.longContextMultiplier ?? 1))),
+  };
+})();
+
+/**
+ * 과금 단가: 응답 모델이 단가표에 있으면 그 단가, 응답 모델이 있는데 모르는 모델이면 가장 비싼 단가.
+ * 응답 모델을 모르면(응답 파싱 실패 등) 요청 모델 단가.
+ */
 export function resolvePrice(requestedModel: string, responseModel?: string): ModelPrice | undefined {
   if (responseModel) {
     const p = MODEL_PRICES[responseModel] ?? FALLBACK_MODEL_PRICES[responseModel];
     if (p) return p;
+    if (MODEL_PRICES[requestedModel]) {
+      console.warn(`단가표에 없는 응답 모델(${responseModel}), 가장 비싼 단가로 계산`);
+      return MOST_EXPENSIVE_PRICE;
+    }
   }
   return MODEL_PRICES[requestedModel];
 }
@@ -82,4 +99,47 @@ export function computeCredits(
   if (!price) return { usd: 0, credits: 0 };
   const usd = computeUsd(price, usage);
   return { usd, credits: usdToCredits(usd, markup) };
+}
+
+/** 예약 계산: 요청 전에 알 수 있는 최악의 비용 = fixedUsd + max_tokens × outputUsdPerToken. */
+export interface ReservationPlan {
+  /** 입력(추정) + 웹 검색 비용(USD, 마크업 전) */
+  fixedUsd: number;
+  /** 출력 토큰 1개당 USD(마크업 전) */
+  outputUsdPerToken: number;
+}
+
+export interface WorstCaseInput {
+  /** 입력 토큰 추정치(본문 크기 기반, 웹 검색 결과 몫 포함) */
+  inputTokens: number;
+  /** 캐시 쓰기 배수(1 / 1.25 / 2): 최악의 경우 입력 전부가 캐시 쓰기로 청구된다고 본다. */
+  inputMultiplier: number;
+  /** 최대 웹 검색 횟수(max_uses 합) */
+  webSearches: number;
+}
+
+export function planReservation(price: ModelPrice, w: WorstCaseInput): ReservationPlan {
+  const long =
+    price.longContextThreshold !== undefined && w.inputTokens > price.longContextThreshold
+      ? (price.longContextMultiplier ?? 1)
+      : 1;
+  return {
+    fixedUsd: (w.inputTokens * price.input * long * w.inputMultiplier) / 1_000_000 + w.webSearches * WEB_SEARCH_USD_PER_REQUEST,
+    outputUsdPerToken: (price.output * long) / 1_000_000,
+  };
+}
+
+export function reservationCredits(plan: ReservationPlan, maxTokens: number, markup: number): number {
+  return usdToCredits(plan.fixedUsd + maxTokens * plan.outputUsdPerToken, markup);
+}
+
+/** balance 크레딧으로 예약할 수 있는 가장 큰 max_tokens(0 이면 입력만으로도 부족). */
+export function affordableMaxTokens(plan: ReservationPlan, balance: number, markup: number): number {
+  if (balance <= 0 || plan.outputUsdPerToken <= 0) return 0;
+  let t = Math.floor((balance / (100 * markup) - plan.fixedUsd) / plan.outputUsdPerToken);
+  if (!Number.isFinite(t) || t <= 0) return 0;
+  // 올림·부동소수 오차 보정(경계에서 ±몇 토큰)
+  while (t > 0 && reservationCredits(plan, t, markup) > balance) t--;
+  for (let i = 0; i < 1000 && reservationCredits(plan, t + 1, markup) <= balance; i++) t++;
+  return t;
 }

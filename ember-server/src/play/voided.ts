@@ -1,5 +1,6 @@
 // 환불·취소된 구매 회수(cron). Google Play Voided Purchases API 로 목록을 받아,
-// 이미 크레딧을 지급한 구매면 그만큼 잔액에서 빼고(음수 가능) voided 로 표시한다. 여러 번 돌려도 한 번만 뺀다.
+// 이미 크레딧을 지급한 구매면 환불된 수량만큼(voidedQuantity / quantity) 잔액에서 빼고(음수 가능) voided 로 표시한다.
+// 같은 환불 이벤트는 voided_events 표로 한 번만 뺀다.
 import type { Config, Env } from "../env";
 import { isRecord } from "../http";
 import { ANDROID_PUBLISHER_SCOPE, googleFetch } from "./google-auth";
@@ -24,6 +25,10 @@ export interface VoidedPurchase {
   voidedSource?: number;
   /** 0 기타, 1 단순 변심, 2 미수령, 3 결함, 4 실수 구매, 5 사기, 6 친선 사기, 7 지불 거절(chargeback) */
   voidedReason?: number;
+  /** 수량 일부 환불이면 환불된 수량(includeQuantityBasedPartialRefund=true 일 때만 옴). 없으면 전체 환불. */
+  voidedQuantity?: number;
+  /** 구매 수량(응답에 있으면). 없으면 purchases.quantity 를 쓴다. */
+  quantity?: number;
 }
 
 export interface VoidedRunResult {
@@ -41,6 +46,8 @@ export function voidedPurchasesUrl(packageName: string, startTimeMs: number, pag
     startTime: String(startTimeMs),
     type: "0", // 일회성 상품만(구독 제외)
     maxResults: String(PAGE_SIZE),
+    // 수량 여러 개 구매의 일부 환불도 받는다(voidedQuantity 가 붙어 온다).
+    includeQuantityBasedPartialRefund: "true",
   });
   if (pageToken) params.set("token", pageToken);
   return (
@@ -53,6 +60,11 @@ export function voidedPurchasesUrl(packageName: string, startTimeMs: number, pag
 function int(v: unknown): number | undefined {
   const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
   return typeof n === "number" && Number.isFinite(n) ? n : undefined;
+}
+
+function positiveInt(v: unknown): number | undefined {
+  const n = int(v);
+  return n !== undefined && Number.isInteger(n) && n >= 1 ? n : undefined;
 }
 
 export function parseVoidedPage(data: unknown): { items: VoidedPurchase[]; nextPageToken?: string } {
@@ -68,6 +80,8 @@ export function parseVoidedPage(data: unknown): { items: VoidedPurchase[]; nextP
         voidedTimeMillis: int(raw["voidedTimeMillis"]),
         voidedSource: int(raw["voidedSource"]),
         voidedReason: int(raw["voidedReason"]),
+        voidedQuantity: positiveInt(raw["voidedQuantity"]),
+        quantity: positiveInt(raw["quantity"]),
       });
     }
   }
@@ -102,26 +116,69 @@ export async function listVoidedPurchases(
   throw new Error(`voided purchases: more than ${MAX_PAGES} pages`);
 }
 
+/** 환불 이벤트 키: 전체 환불은 'full'(남은 수량 전부), 일부 환불은 시각·수량으로 구분한다. */
+export function voidedEventKey(item: Pick<VoidedPurchase, "voidedQuantity" | "voidedTimeMillis">): string {
+  return item.voidedQuantity === undefined ? "full" : `q:${item.voidedTimeMillis ?? "?"}:${item.voidedQuantity}`;
+}
+
 /**
- * 구매 하나를 회수한다. 지급됐고(credited = 1) 아직 회수하지 않은(voided = 0) 구매만 대상이다.
- * 한 트랜잭션에서 잔액 차감과 voided 표시를 같이 하므로 두 번 불러도 한 번만 뺀다.
- * 회수한 크레딧 수(대상이 아니면 0)를 돌려준다.
+ * 구매 하나의 환불 이벤트를 회수한다. 지급된(credited = 1) 구매만 대상이다.
+ * - 전체 환불: 아직 회수하지 않은 수량 전부. 일부 환불(voidedQuantity): 그 수량만큼(credits × 수량 / quantity).
+ * - 한 트랜잭션에서 이벤트 기록·잔액 차감·구매 표시를 같이 하고, 같은 이벤트 키는 한 번만 반영한다.
+ * 회수한 크레딧 수(대상이 아니거나 이미 반영했으면 0)를 돌려준다.
  */
-export async function clawBackPurchase(db: D1Database, purchaseToken: string, voidedAt: number): Promise<number> {
-  const target = "purchase_token = ? AND credited = 1 AND voided = 0";
+export async function clawBackPurchase(
+  db: D1Database,
+  item: Pick<VoidedPurchase, "purchaseToken" | "voidedQuantity" | "voidedTimeMillis" | "quantity">,
+  voidedAt: number,
+): Promise<number> {
+  const p = await db
+    .prepare("SELECT account_id, credits, quantity, voided_quantity, credited FROM purchases WHERE purchase_token = ?")
+    .bind(item.purchaseToken)
+    .first<{ account_id: number; credits: number; quantity: number; voided_quantity: number; credited: number }>();
+  if (!p || p.credited !== 1) return 0;
+
+  const quantity = Math.max(1, item.quantity ?? p.quantity);
+  const already = Math.min(quantity, Math.max(0, p.voided_quantity));
+  const add = Math.min(quantity - already, item.voidedQuantity ?? quantity);
+  const after = already + add;
+  // 누적 기준으로 나눠 반올림 오차가 쌓이지 않게 한다(전부 환불되면 정확히 credits).
+  const credits = Math.floor((p.credits * after) / quantity) - Math.floor((p.credits * already) / quantity);
+  const key = voidedEventKey(item);
+
+  const pending = "EXISTS (SELECT 1 FROM voided_events WHERE purchase_token = ? AND event_key = ? AND applied = 0)";
   const results = await db.batch([
-    db.prepare(`SELECT credits FROM purchases WHERE ${target}`).bind(purchaseToken),
     db
       .prepare(
-        `UPDATE accounts SET credits = credits - (SELECT credits FROM purchases WHERE ${target})
-         WHERE id = (SELECT account_id FROM purchases WHERE ${target})`,
+        `INSERT INTO voided_events (purchase_token, event_key, quantity, credits, applied, voided_at)
+         VALUES (?, ?, ?, ?, 0, ?)
+         ON CONFLICT (purchase_token, event_key) DO UPDATE
+           SET quantity = excluded.quantity, credits = excluded.credits, voided_at = excluded.voided_at
+           WHERE applied = 0`,
       )
-      .bind(purchaseToken, purchaseToken),
-    db.prepare(`UPDATE purchases SET voided = 1, voided_at = ? WHERE ${target}`).bind(voidedAt, purchaseToken),
+      .bind(item.purchaseToken, key, add, credits, voidedAt),
+    db
+      .prepare(
+        `UPDATE accounts SET credits = credits - ? WHERE id = ? AND ${pending}
+           AND EXISTS (SELECT 1 FROM purchases WHERE purchase_token = ? AND voided_quantity = ?)`,
+      )
+      .bind(credits, p.account_id, item.purchaseToken, key, item.purchaseToken, p.voided_quantity),
+    db
+      .prepare(
+        `UPDATE purchases SET voided = 1, voided_at = ?, voided_quantity = ?
+         WHERE purchase_token = ? AND voided_quantity = ? AND ${pending}`,
+      )
+      .bind(voidedAt, after, item.purchaseToken, p.voided_quantity, item.purchaseToken, key),
+    db
+      // 구매 표시가 실제로 바뀐 경우에만 반영 완료로 둔다(그 사이 다른 처리로 수량이 바뀌었으면 다음 실행에서 다시).
+      .prepare(
+        `UPDATE voided_events SET applied = 1 WHERE purchase_token = ? AND event_key = ? AND applied = 0
+           AND EXISTS (SELECT 1 FROM purchases WHERE purchase_token = ? AND voided_quantity = ? AND voided = 1)`,
+      )
+      .bind(item.purchaseToken, key, item.purchaseToken, after),
   ]);
   if ((results[2]?.meta.changes ?? 0) === 0) return 0;
-  const row = results[0]?.results[0] as { credits: number } | undefined;
-  return row?.credits ?? 0;
+  return credits;
 }
 
 async function readCursor(db: D1Database): Promise<number | undefined> {
@@ -160,12 +217,13 @@ export async function processVoidedPurchases(env: Env, cfg: Config, nowMs: numbe
   const nowSec = Math.floor(nowMs / 1000);
   for (const item of items) {
     const voidedAt = item.voidedTimeMillis !== undefined ? Math.floor(item.voidedTimeMillis / 1000) : nowSec;
-    const credits = await clawBackPurchase(env.DB, item.purchaseToken, voidedAt);
+    const credits = await clawBackPurchase(env.DB, item, voidedAt);
     if (credits > 0) {
       result.clawedBack++;
       result.credits += credits;
       console.log(
-        `환불 회수: order=${item.orderId ?? "?"} credits=${credits} reason=${item.voidedReason ?? "?"} source=${item.voidedSource ?? "?"}`,
+        `환불 회수: order=${item.orderId ?? "?"} credits=${credits} quantity=${item.voidedQuantity ?? "all"} ` +
+          `reason=${item.voidedReason ?? "?"} source=${item.voidedSource ?? "?"}`,
       );
     }
   }

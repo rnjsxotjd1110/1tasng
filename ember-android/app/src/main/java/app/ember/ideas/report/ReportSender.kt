@@ -42,8 +42,11 @@ object ReportSender {
      */
     suspend fun send(context: Context, credits: CreditAccount, target: ReportTarget, reason: String, note: String): Boolean {
         // 크레딧 계정에 로그인해 있을 때만 서버로 보낸다(신고하려고 계정을 만들지 않는다). 서버가 받지 않으면 메일로 보낸다.
-        if (ServerConfig.creditsEnabled && credits.signedIn) {
-            val sent = runCatching { credits.report(target.kind.wire, reason, target.content, note, BuildConfig.VERSION_NAME) }.isSuccess
+        if (ServerConfig.creditsEnabled) {
+            val sent = runCatching {
+                if (credits.signedIn) credits.report(target.kind.wire, reason, target.content, note, BuildConfig.VERSION_NAME)
+                else credits.reportAnon(target.kind.wire, reason, target.content, note, BuildConfig.VERSION_NAME)
+            }.isSuccess
             if (sent) return false
         }
         val body = buildString {

@@ -116,7 +116,7 @@ app/src/test/  프로토콜·Markdown·엔진·실제 API 오류 경로 테스�
 docs/EVALUATION.md  처음 보는 평가 에이전트의 채점 기록(1차 65점 → 최종 77.25점)
 docs/screenshots/   최종 빌드 화면 52장
 docs/RELEASE.md     출시 안내(빌드 설정, Play 콘솔, 정책 양식, 확인 목록)
-docs/privacy.html   개인정보처리방침(스토어 등록용, tools/gen_privacy.py 로 생성)
+docs/privacy.html, terms.html, delete-account.html   방침·약관·계정 삭제 안내(스토어 등록용, tools/gen_legal.py 가 assets/legal 에서 생성)
 ```
 
 Claude 모델: 기본 `claude-opus-5-5`(설정에서 Sonnet 5.5·Haiku 5.5 선택 가능). 질문 카드는 구조화 출력(JSON 스키마), 설계서는 스트리밍으로 받습니다.

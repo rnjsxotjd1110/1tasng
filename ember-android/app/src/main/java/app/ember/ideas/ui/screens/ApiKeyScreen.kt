@@ -105,6 +105,7 @@ fun ApiKeyScreen(
                 val activity = ctx.findActivity() ?: ctx
                 val google = app.ember.ideas.account.GoogleSignIn.signIn(activity)
                 container.credits.connect(google)
+                if (container.credits.lastRestored) android.widget.Toast.makeText(ctx, s.accountRestored, android.widget.Toast.LENGTH_LONG).show()
                 // 크레딧 탭에서 직접 연결한 경우에만 크레딧을 우선으로 쓴다.
                 settings.setPreferCredits(true)
             } catch (e: app.ember.ideas.account.GoogleSignInError) {

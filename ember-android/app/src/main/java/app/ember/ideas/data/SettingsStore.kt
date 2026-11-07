@@ -41,6 +41,11 @@ data class Settings(
     val googleEmail: String = "",
     /** 첫 AI 요청 전에 국외 이전 안내를 확인했는지. */
     val transferNoticeSeen: Boolean = false,
+    /** 서버가 알려 준 유료·무료 크레딧(모르면 -1)과 30일 안에 만료되는 유료 크레딧. */
+    val paidCredits: Int = -1,
+    val freeCredits: Int = -1,
+    val expiringCredits: Int = 0,
+    val expiringAt: Long = 0L,
     /** 크레딧 계정을 만들 때 연령(만 14세 이상)과 약관·방침에 동의했는지. */
     val termsAccepted: Boolean = false,
     /** 키와 크레딧이 모두 있을 때 크레딧을 쓰기로 골랐다. */
@@ -146,6 +151,9 @@ class SettingsStore(context: Context) {
 
     /** 크레딧을 한 번이라도 샀는지. 무료 크레딧만 쓰는 동안 서버는 Opus 요청을 Sonnet 으로 답한다. */
     fun setPurchased(v: Boolean) = put { putBoolean("purchased", v) }
+    fun setCreditDetail(paid: Int, free: Int, expiring: Int, expiringAt: Long) = put {
+        putInt("paid_credits", paid); putInt("free_credits", free); putInt("expiring_credits", expiring); putLong("expiring_at", expiringAt)
+    }
     fun setTransferNoticeSeen() = put { putBoolean("transfer_notice_seen", true) }
     fun setTermsAccepted(v: Boolean) = put { putBoolean("terms_accepted", v); putLong("terms_accepted_at", if (v) System.currentTimeMillis() else 0L) }
     /** 이메일은 개인정보라 백업하지 않는 암호화 저장소에 둔다. */
@@ -249,6 +257,10 @@ class SettingsStore(context: Context) {
             purchased = prefs.getBoolean("purchased", false),
             googleEmail = keyPrefs.getString("google_email", "") ?: "",
             transferNoticeSeen = prefs.getBoolean("transfer_notice_seen", false),
+            paidCredits = prefs.getInt("paid_credits", -1),
+            freeCredits = prefs.getInt("free_credits", -1),
+            expiringCredits = prefs.getInt("expiring_credits", 0),
+            expiringAt = prefs.getLong("expiring_at", 0L),
             termsAccepted = prefs.getBoolean("terms_accepted", false),
             preferCredits = prefs.getBoolean("prefer_credits", false),
             webSearch = prefs.getBoolean("web_search", true),

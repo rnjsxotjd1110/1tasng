@@ -810,6 +810,10 @@ object KoStrings : Strings() {
 
     override val costEstimateShort = "공개 단가와 1달러=1,400원으로 계산한 추정치예요. 실제 청구는 Anthropic이 달러로 하며 다를 수 있어요."
 
+    override fun creditsSplit(paid: Int, free: Int) = "유료 ${paid}크레딧, 무료 ${free}크레딧(무료를 먼저 써요)"
+    override fun creditsExpiring(n: Int, date: String) = "유료 ${n}크레딧이 ${date}에 만료돼요. 그 전에 쓰거나 환불을 요청해 주세요."
+    override val accountRestored = "이 Google 계정의 크레딧 계정을 되찾았어요"
+
     override val tabHome = "화로"
     override val tabLibrary = "도면함"
     override val tabSettings = "대장간"

@@ -556,6 +556,10 @@ abstract class Strings {
 
     abstract val costEstimateShort: String
 
+    abstract fun creditsSplit(paid: Int, free: Int): String
+    abstract fun creditsExpiring(n: Int, date: String): String
+    abstract val accountRestored: String
+
     // 탭
     abstract val tabHome: String; abstract val tabLibrary: String; abstract val tabSettings: String
 }

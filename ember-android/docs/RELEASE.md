@@ -42,19 +42,22 @@ Google Play에 올리기까지 해야 하는 일을 순서대로 적었어요. �
 
 ## 4. 정책 양식
 
-### 개인정보처리방침
-- `docs/privacy.html` 을 GitHub Pages 등으로 공개하고 그 주소를 스토어에 적어요.
-- 방침을 고치면 `app/.../ui/strings/Policy.kt` 를 고치고 `python3 tools/gen_privacy.py` 로 md·html 을 다시 만들어요.
+### 사업자 정보·약관·개인정보 처리방침
+- `gradle.properties` 의 `ember.biz.*`(상호·대표·사업자등록번호·통신판매업 신고번호·주소·전화·이메일·개인정보 보호책임자·DB 위치)와 `ember.legalEffective`(시행일), `ember.termsUrl`, `ember.privacyUrl`, `ember.deleteUrl` 을 채워요. 비어 있으면 `bundleRelease` 가 멈춰요.
+- `python3 tools/gen_legal.py` 로 `docs/privacy.html`, `docs/terms.html`, `docs/delete-account.html` 을 만들고 GitHub Pages 등으로 공개해요.
+- 약관·방침 본문은 `app/src/main/assets/legal/*.md` 하나만 고치면 앱 화면과 웹 페이지에 함께 반영돼요(고친 뒤 스크립트를 다시 돌려요).
+- 통신판매업 신고 면제 여부, 환불 수수료(10%), 유료 크레딧 유효기간(5년) 등은 출시 전에 법률 자문으로 확인하기를 권해요.
 
 ### 데이터 보안 양식(Data safety)
 | 항목 | 답 |
 |---|---|
-| 수집하는 데이터 | **앱 활동 → 기타 사용자 생성 콘텐츠**(질문 답변·입력 문장·참고 이미지, Claude 응답 생성용), **기기 또는 기타 ID**(크레딧 모드의 익명 설치 ID), **앱 정보 및 성능 → 비정상 종료 로그**(사용자가 보낼 때만), **구매 내역**(크레딧 지급 확인용) |
-| 공유 | 사용자 생성 콘텐츠는 응답 생성을 위해 Anthropic(서비스 제공업체)에 전송돼요. 서비스 제공업체 전송은 '공유'가 아니라 '수집'으로 신고해요. |
-| 처리 목적 | 앱 기능, (크레딧 모드) 계정 관리·결제 |
+| 수집하는 데이터 | **개인 정보 → 사용자 ID**(Google 계정 고유 ID, 설치마다 만드는 가명 ID), **사진**(사용자가 고른 참고 이미지, AI 생성용 전송), **앱 활동 → 기타 사용자 생성 콘텐츠**(질문 답변·입력 문장·메모, AI 생성용 전송), **앱 활동 → 앱 상호작용**(크레딧 사용 기록: 모델·토큰 수·시각), **구매 내역**(크레딧 지급·환불), **앱 정보 및 성능 → 비정상 종료 로그**(사용자가 보낼 때만), **기기 또는 기타 ID**(가명 설치 ID) |
+| 공유 | 없음. Anthropic·Cloudflare·Google 은 서비스 제공업체라 '수집'으로 신고해요. |
+| 처리 목적 | 앱 기능, 계정 관리, 사기 방지·보안·규정 준수(IP·기기 무결성·무료 크레딧 중복 방지) |
 | 전송 중 암호화 | 예(HTTPS) |
-| 삭제 요청 | 예: 설정 → 모든 데이터 지우기, 서버 데이터는 문의 메일 |
-| 필수 여부 | 사용자 생성 콘텐츠는 필수(앱의 핵심 기능), 비정상 종료 로그는 선택 |
+| 삭제 요청 | 예: 앱 안(대장간 → Claude 연결 → 크레딧 계정 삭제)과 웹 URL(`ember.deleteUrl`, `docs/delete-account.html`) |
+| 필수 여부 | 사용자 생성 콘텐츠는 필수(핵심 기능), 사용자 ID·구매 내역은 크레딧 모드에서만, 비정상 종료 로그는 선택 |
+| 계정 삭제 URL | `docs/delete-account.html` 을 공개한 주소 |
 
 ### 생성형 AI 앱 정책
 - 앱 안 신고 기능이 있어요: 프로젝트 ⋮ 메뉴와 아이디어 상세의 **AI 결과 신고**. 서버가 있으면 서버의 `reports` 표로, 없으면 `ember.reportEmail` 로 가요.
@@ -65,7 +68,8 @@ Google Play에 올리기까지 해야 하는 일을 순서대로 적었어요. �
 - 앱 콘텐츠 → 포그라운드 서비스 권한에서 '사용자가 시작한 네트워크 작업(AI 응답 생성)을 끝까지 받기 위해 사용'이라고 적고, 작업 중 알림이 보이는 짧은 화면 녹화를 첨부해요.
 
 ### 콘텐츠 등급·대상 연령
-- 설문에서 사용자 생성 콘텐츠·AI 생성 콘텐츠가 있다고 답해요. 대상 연령은 만 14세 이상으로 정해요(방침과 같게).
+- 설문에서 사용자 생성 콘텐츠·AI 생성 콘텐츠가 있다고 답해요.
+- 대상 연령은 **18세 이상**으로 정해요. Play 의 연령 구간(13–15 등)에는 만 14세 미만이 섞여 방침("만 14세 미만 아동의 정보를 수집하지 않음")과 맞지 않고, 유료 결제가 있어서예요.
 
 ## 5. 스토어 등록정보 초안
 
@@ -84,10 +88,13 @@ Google Play에 올리기까지 해야 하는 일을 순서대로 적었어요. �
 ## 6. 출시 전 확인 목록
 
 - [ ] 실제 기기에서 키 연결 → 탐색 → 아이디어 → 설계서 → Claude로 이어가기 한 바퀴
-- [ ] 작업대: PC에서 `ember-bridge/dist` 의 실행 파일을 켜고, 앱의 대장간 → 작업대(PC) → PC 연결하기 → 6자리 코드 → 도면에서 "작업대로 보내기"(Claude Code 실행·클립보드·파일 세 방식 모두)
 - [ ] 서버 DB 마이그레이션: 배포 전에 `migrations/0002_voided_integrity.sql`(안 했다면) → `migrations/0003_billing_guards.sql` 순서로 실행(`npx wrangler d1 execute ember --remote --file=...`)
 - [ ] 서버 설정: `INTEGRITY_MODE="grant"`(기본값), Google 서비스 계정 연결(없으면 무료 크레딧 0), `ALLOW_TEST_PURCHASES` 는 출시 환경에서 켜지 않기, `FREE_CREDITS_DAILY_CAP`·`REPORTS_DAILY_CAP` 확인
-- [ ] PC 브리지: 페어링 코드가 8자리로 바뀌었으므로 `ember-bridge/dist` 의 새 실행 파일을 배포
+- [ ] 작업대(PC 브리지)는 이번 출시에서 꺼져 있어요(`ember.workbench` 비움 = `WORKBENCH_ENABLED=false`). 다시 켜려면 LAN 전송 암호화와 방침 반영이 먼저예요.
+- [ ] Google 로그인: Google Cloud 에서 OAuth 동의 화면과 **웹 클라이언트 ID**(앱의 `ember.googleWebClientId`, 서버의 `GOOGLE_OAUTH_CLIENT_IDS`), 그리고 출시 키 SHA-1 로 **Android 클라이언트 ID** 를 만들어요(서버 README 4-6). 서버에 `npx wrangler secret put SUB_HASH_SECRET`.
+- [ ] 서버 DB 마이그레이션 0004(`0004_google_signin.sql`)와 그 뒤 번호도 순서대로 실행
+- [ ] 실제 기기: Google 계정으로 시작 → 무료 크레딧 → 앱 삭제·재설치 → 같은 계정으로 다시 시작하면 잔액이 돌아오는지, 크레딧 계정 삭제가 되는지
+- [ ] 환불 절차 연습: Play Console 에서 환불한 뒤 서버 관리자 기능으로 해당 크레딧이 정리되는지(서버 README 환불 절차)
 - [ ] Play Integrity: 서버 README 4-5절대로 설정한 뒤 이 버전을 배포하고, 그다음 서버 `INTEGRITY_MODE` 를 `grant` 로 바꾸기
 - [ ] 크레딧 모드: 무료 크레딧 받기 → 탐색 → 라이선스 테스터로 500크레딧 구매 → 잔액 반영
 - [ ] 앱을 나간 뒤 설계서가 끝까지 써지고 알림이 오는지(Android 13 이상에서 알림 권한 허용)

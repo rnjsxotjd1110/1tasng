@@ -56,6 +56,8 @@ class CreditAccount(
         val credits = body["credits"]?.jsonPrimitive?.int ?: 0
         settings.setCreditAccount(token, credits)
         if (google != null) settings.setGoogleEmail(google.email)
+        // 같은 Google 계정의 기존 계정을 되찾았는지(기기 변경·재설치).
+        lastRestored = body["restored"]?.jsonPrimitive?.content == "true"
         return credits
     }
 
@@ -103,14 +105,27 @@ class CreditAccount(
     suspend fun refresh(): Int {
         val token = settings.creditToken() ?: return 0
         return try {
-            val credits = get("/ember/balance", token)["credits"]?.jsonPrimitive?.int ?: 0
+            val body = get("/ember/balance", token)
+            val credits = body["credits"]?.jsonPrimitive?.int ?: 0
             settings.setCredits(credits)
+            // 유료·무료 구분과 30일 안에 만료되는 유료 크레딧(서버가 주지 않으면 비워 둔다).
+            val exp = body["expiringSoon"]?.let { runCatching { it.jsonObject }.getOrNull() }
+            settings.setCreditDetail(
+                paid = body["paidCredits"]?.jsonPrimitive?.content?.toIntOrNull() ?: -1,
+                free = body["freeCredits"]?.jsonPrimitive?.content?.toIntOrNull() ?: -1,
+                expiring = exp?.get("credits")?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                expiringAt = exp?.get("at")?.jsonPrimitive?.content?.let(::parseTime) ?: 0L,
+            )
             credits
         } catch (e: AiError.InvalidKey) {
             settings.setCreditAccount(null, 0)
             0
         }
     }
+
+    /** 마지막 [connect] 가 기존 계정을 되찾았는지. */
+    @Volatile var lastRestored: Boolean = false
+        private set
 
     /** 이 기기가 크레딧 계정에 로그인해 있는지. */
     val signedIn: Boolean get() = !settings.creditToken().isNullOrBlank()
@@ -132,6 +147,22 @@ class CreditAccount(
         lastGranted = body["granted"]?.jsonPrimitive?.int ?: 0
         if (lastGranted > 0) settings.setPurchased(true)
         return credits
+    }
+
+    /** 서버 시각(초·밀리초 숫자 또는 ISO 문자열)을 밀리초로. */
+    private fun parseTime(v: String): Long =
+        v.toLongOrNull()?.let { if (it < 100_000_000_000L) it * 1000 else it }
+            ?: runCatching { java.time.Instant.parse(v).toEpochMilli() }.getOrDefault(0L)
+
+    /** 크레딧 계정이 없는 사람(내 API 키 사용자)의 신고. 계정을 만들지 않고 보낸다. */
+    suspend fun reportAnon(kind: String, reason: String, content: String, note: String, appVersion: String) {
+        post("/ember/report/anon", buildJsonObject {
+            put("kind", kind)
+            put("reason", reason)
+            put("content", content.take(20_000))
+            put("note", note.take(2_000))
+            put("appVersion", appVersion)
+        }, token = null)
     }
 
     /** AI 가 만든 내용을 신고한다(Google Play 생성형 AI 정책). */

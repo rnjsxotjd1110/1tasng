@@ -801,6 +801,10 @@ object EnStrings : Strings() {
 
     override val costEstimateShort = "Estimated from public prices. Anthropic bills in USD and the actual amount may differ."
 
+    override fun creditsSplit(paid: Int, free: Int) = "$paid paid, $free free (free credits are used first)"
+    override fun creditsExpiring(n: Int, date: String) = "$n paid credits expire on $date. Use them or request a refund before then."
+    override val accountRestored = "Restored the credit account for this Google account"
+
     override val tabHome = "Forge"
     override val tabLibrary = "Blueprints"
     override val tabSettings = "Workshop"
